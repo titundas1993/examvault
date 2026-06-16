@@ -11,6 +11,7 @@ import {
   getPreviousPapers, getPreviousPaperById, getNotes, getNoteById, getBanners, getTestSeries,
   getAnnouncements, getQuestions, getLeaderboard, getAppSettings,
   saveTestResult, getUserTestResults, getTestLeaderboard,
+  addLeaderboardEntry, updateLeaderboardEntry,
   checkSubscriptionStatus, hasPurchasedItem,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
   NotesData, PreviousPaperData,
@@ -1706,6 +1707,41 @@ function ExamPage() {
       };
       const saved = await saveTestResult(resultData);
       setLastTestResult({ ...resultData, id: saved.id, createdAt: saved.createdAt });
+
+      // Update leaderboard entry (upsert)
+      try {
+        const { collection, getDocs, query, where } = await import("firebase/firestore");
+        const lbSnap = await getDocs(query(collection(db, "leaderboard"), where("uid", "==", uid)));
+        const photoUrl = useAppStore.getState().userProfile?.photoUrl || "";
+        if (lbSnap.empty) {
+          // First test — create new leaderboard entry
+          await addLeaderboardEntry({
+            uid,
+            name: user?.name || "User",
+            photoUrl,
+            score: results.scoredMarks,
+            totalTests: 1,
+            avgAccuracy: results.accuracy,
+          });
+        } else {
+          // Update existing entry with cumulative stats
+          const existing = lbSnap.docs[0];
+          const old = existing.data();
+          const newTotalTests = (old.totalTests || 0) + 1;
+          const newScore = (old.score || 0) + results.scoredMarks;
+          const oldTotalAcc = (old.avgAccuracy || 0) * (old.totalTests || 1);
+          const newAvgAccuracy = Math.round((oldTotalAcc + results.accuracy) / newTotalTests);
+          await updateLeaderboardEntry(existing.id, {
+            name: user?.name || old.name || "User",
+            photoUrl: photoUrl || old.photoUrl || "",
+            score: newScore,
+            totalTests: newTotalTests,
+            avgAccuracy: newAvgAccuracy,
+          });
+        }
+      } catch (lbErr) {
+        console.error("Error updating leaderboard:", lbErr);
+      }
     } catch (err) {
       console.error("Error saving test result:", err);
       // Still show results even if save fails
@@ -2264,11 +2300,6 @@ export default function ExamVaultApp() {
     window.history.pushState({ appState: true }, "");
     sentinelReady.current = true;
 
-    // Helper: ensure sentinel exists (may be called from multiple places)
-    const ensureSentinel = () => {
-      try { window.history.pushState({ appState: true }, ""); } catch {}
-    };
-
     const handlePopState = (_event: PopStateEvent) => {
       const store = useAppStore.getState();
 
@@ -2305,55 +2336,32 @@ export default function ExamVaultApp() {
     };
 
     // Handle pageshow event — when browser restores page from bfcache
-    // (back-forward cache), the page appears without a full reload but
-    // the history stack may be wrong. Re-push sentinel.
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
-        // Page was restored from bfcache — re-establish our sentinel
-        ensureSentinel();
+        window.history.pushState({ appState: true }, "");
       }
     };
 
-    // Fallback: beforeunload shows native browser confirmation if popstate missed
+    // Fallback: beforeunload — only block when NOT in an active exam
+    // (during exam, popstate handles back properly; beforeunload would show unwanted dialog)
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       const store = useAppStore.getState();
-      if (!store.isExitingApp) {
-        e.preventDefault();
-        // Modern browsers require returnValue to be set
-        e.returnValue = '';
-        return '';
-      }
-    };
-
-    // Fallback: when page regains focus/visibility, re-establish sentinel
-    // (handles cases where OS killed and restored the PWA)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        ensureSentinel();
-      }
-    };
-
-    // Fallback: on resume (PWA), ensure sentinel is alive
-    const handleResume = () => {
-      ensureSentinel();
+      // Don't block if user chose to exit, or if in an exam (exam has its own back handling)
+      if (store.isExitingApp) return;
+      if (store.currentView === "exam") return;
+      // Block navigation from any other view
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
     };
 
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    document.addEventListener("resume", handleResume);
-
-    // Periodically ensure sentinel is alive (some Android WebViews lose it)
-    const sentinelInterval = setInterval(ensureSentinel, 2000);
-
     return () => {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      document.removeEventListener("resume", handleResume);
-      clearInterval(sentinelInterval);
     };
   }, []);
 
