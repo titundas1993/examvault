@@ -475,6 +475,7 @@ interface CrudField {
   options?: { label: string; value: string }[];
   placeholder?: string;
   required?: boolean;
+  dependsOn?: { field: string; value: string | string[] };
 }
 
 function CrudAdminPanel<T extends Record<string, any>>({
@@ -570,6 +571,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
       if (f.type === "switch") initial[f.key] = true;
       else if (f.type === "number") initial[f.key] = 0;
       else if (f.key === "targetUsers") initial[f.key] = "all";
+      else if (f.key === "linkType") initial[f.key] = "internal";
       else initial[f.key] = "";
     });
     setFormData(initial);
@@ -902,7 +904,14 @@ function CrudAdminPanel<T extends Record<string, any>>({
             <DialogDescription>Fill in the details below.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {fields.map(field => (
+            {fields.map(field => {
+              // Conditional field visibility
+              if (field.dependsOn) {
+                const currentVal = String(formData[field.dependsOn.field] || "");
+                const allowed = Array.isArray(field.dependsOn.value) ? field.dependsOn.value : [field.dependsOn.value];
+                if (!allowed.includes(currentVal)) return null;
+              }
+              return (
               <div key={field.key} className={field.type === "textarea" ? "md:col-span-2" : ""}>
                 <Label className="mb-1.5 block text-sm font-medium">{field.label}{field.required && <span className="text-red-500">*</span>}</Label>
                 {field.type === "textarea" ? (
@@ -1040,7 +1049,8 @@ function CrudAdminPanel<T extends Record<string, any>>({
                   />
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
@@ -1885,6 +1895,28 @@ function PopularTestsAdmin() {
 }
 
 // ==================== BANNERS ADMIN ====================
+const NAVIGATION_VIEWS = [
+  { label: "Mock Tests", value: "mocktests" },
+  { label: "Test Series", value: "test-series" },
+  { label: "Free Tests", value: "free-tests" },
+  { label: "Free Quizzes", value: "free-quizzes" },
+  { label: "Previous Papers", value: "previous-papers" },
+  { label: "Study Notes", value: "notes" },
+  { label: "Upcoming Exams", value: "upcoming-exams" },
+  { label: "Daily Tips", value: "daily-tips" },
+  { label: "Premium Plans", value: "pricing" },
+  { label: "Leaderboard", value: "leaderboard" },
+  { label: "My Profile", value: "profile" },
+  { label: "Help & Support", value: "support" },
+];
+
+const LINK_ACTION_OPTIONS = [
+  { label: "📂 Internal Page (navigate within app)", value: "internal" },
+  { label: "🌐 External URL (open in browser)", value: "external" },
+  { label: "📄 Show Detail (open announcement/banner detail)", value: "detail" },
+  { label: "🚫 No Action", value: "none" },
+];
+
 function BannersAdmin() {
   return (
     <CrudAdminPanel
@@ -1896,7 +1928,10 @@ function BannersAdmin() {
       fields={[
         { key: "title", label: "Banner Title", type: "text", placeholder: "e.g. WBCS 2026 Preparation", required: true },
         { key: "subtitle", label: "Subtitle", type: "text", placeholder: "Start your preparation now" },
-        { key: "link", label: "Link URL", type: "url", placeholder: "https://..." },
+        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
+        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
+        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
+        { key: "linkText", label: "Button Text", type: "text", placeholder: "e.g. Explore Now, Learn More", dependsOn: { field: "linkType", value: ["internal", "external"] } },
         { key: "gradient", label: "Gradient", type: "select", options: [
           { label: "Navy Blue", value: "from-ev-navy to-blue-800" },
           { label: "Orange", value: "from-ev-orange to-orange-700" },
@@ -1931,6 +1966,10 @@ function AnnouncementsAdmin() {
         { key: "description", label: "Description", type: "textarea", placeholder: "Announcement details..." },
         { key: "type", label: "Type", type: "select", options: [{ label: "New", value: "new" }, { label: "Alert", value: "alert" }, { label: "Offer", value: "offer" }, { label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Urgent", value: "urgent" }, { label: "Update", value: "update" }] },
         { key: "priority", label: "Priority", type: "select", options: [{ label: "Low", value: "low" }, { label: "Medium", value: "medium" }, { label: "High", value: "high" }] },
+        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
+        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
+        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
+        { key: "linkText", label: "Link Button Text", type: "text", placeholder: "e.g. Open Now, Check It", dependsOn: { field: "linkType", value: ["internal", "external"] } },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "imageUrl", label: "Image", type: "image" },
       ]}

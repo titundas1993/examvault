@@ -248,13 +248,18 @@ export async function getTipById(id: string) {
 // 3. announcements Collection
 // ============================================================
 
+export type AnnouncementType = "new" | "alert" | "offer" | "info" | "warning" | "urgent" | "update";
+export type LinkActionType = "internal" | "external" | "detail" | "none";
+
 export interface AnnouncementData {
   id?: string;
   title: string;
   description: string;
-  type: "new" | "alert" | "offer";
+  type: AnnouncementType;
   link: string;
   linkText: string;
+  linkType: LinkActionType;
+  targetView: string;
   imageUrl: string;
   isActive: boolean;
   createdAt?: string;
@@ -918,6 +923,9 @@ export interface BannerData {
   title: string;
   subtitle: string;
   link: string;
+  linkType: LinkActionType;
+  targetView: string;
+  linkText: string;
   gradient: string;
   imageUrl: string;
   isActive: boolean;

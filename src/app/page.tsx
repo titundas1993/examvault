@@ -17,6 +17,7 @@ import {
   NotesData, PreviousPaperData,
 } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
+import { onSnapshot, query, where, collection } from "firebase/firestore";
 import {
   Home, BookOpen, Trophy, FileText, Notebook, User, Settings, HelpCircle,
   ChevronRight, ChevronLeft, Bell, Search, Clock, Star, Zap, Award, Target, TrendingUp,
@@ -322,23 +323,49 @@ function useRequirePremium(): (testId: string, isFree: boolean, action: () => vo
 }
 
 // ==================== AUTO ROTATING BANNERS ====================
+function handleBannerClick(b: BannerData, setView: (v: string) => void) {
+  const linkType = b.linkType || "none";
+  if (linkType === "internal" && b.targetView) {
+    setView(b.targetView);
+  } else if (linkType === "external" && b.link) {
+    window.open(b.link, "_blank");
+  } else if (linkType === "detail") {
+    // No detail view for banners yet, fallback to mocktests
+    setView("mocktests");
+  } else {
+    // "none" or fallback
+    if (b.link) {
+      window.open(b.link, "_blank");
+    } else if (b.targetView) {
+      setView(b.targetView);
+    } else {
+      setView("mocktests");
+    }
+  }
+}
+
 function AutoRotatingBanners() {
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [banners, setBanners] = useState<BannerData[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load banners from Firestore
+  // Real-time listener for banners
   useEffect(() => {
-    async function loadBanners() {
-      try {
-        const data = await getBanners();
-        if (data && data.length > 0) {
-          setBanners(data);
-        }
-      } catch (e) { console.error("Banner fetch error:", e); }
-    }
-    loadBanners();
+    const q = query(collection(db, "banners"), where("isActive", "==", true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((d) => {
+        const raw = d.data();
+        return { ...raw, id: d.id } as BannerData;
+      });
+      data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      setBanners(data);
+    }, (error) => {
+      console.error("Banner real-time error:", error);
+      // Fallback: fetch once
+      getBanners().then(data => { if (data) setBanners(data); });
+    });
+    return () => unsubscribe();
   }, []);
 
   // Auto-rotate every 3 seconds
@@ -375,14 +402,14 @@ function AutoRotatingBanners() {
             animate={{ opacity: i === currentIndex ? 1 : 0.5, scale: i === currentIndex ? 1 : 0.95 }}
             transition={{ duration: 0.4 }}
             className={`min-w-full rounded-2xl bg-gradient-to-r ${b.gradient || b.color || gradients[i % gradients.length]} p-5 flex items-center justify-between shadow-lg cursor-pointer`}
-            onClick={() => { if (b.link) { window.open(b.link, "_blank"); } else { setView("mocktests"); } }}
+            onClick={() => handleBannerClick(b, setView)}
           >
             <div>
               <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
               <h3 className="text-lg font-bold text-white mt-1">{b.title}</h3>
               {b.subtitle && <p className="text-white/70 text-sm mt-1">{b.subtitle}</p>}
               <button className="mt-2 px-4 py-1.5 rounded-lg bg-white/20 text-white text-sm font-semibold hover:bg-white/30 transition-all">
-                Explore →
+                {b.linkText || "Explore →"}
               </button>
             </div>
             {b.imageUrl ? (
@@ -410,6 +437,20 @@ function AutoRotatingBanners() {
 }
 
 // ==================== ANNOUNCEMENT CAROUSEL ====================
+function handleAnnouncementClick(a: AnnouncementData, setView: (v: string) => void) {
+  const linkType = a.linkType || "detail";
+  if (linkType === "internal" && a.targetView) {
+    setView(a.targetView);
+  } else if (linkType === "external" && a.link) {
+    window.open(a.link, "_blank");
+  } else if (linkType === "detail") {
+    // Show announcement detail
+    useAppStore.getState().setSelectedAnnouncementId(a.id);
+    setView("announcement-detail");
+  }
+  // "none" → do nothing
+}
+
 function AnnouncementCarousel({ announcements }: { announcements: AnnouncementData[] }) {
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -444,7 +485,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          onClick={() => { useAppStore.getState().setSelectedAnnouncementId(a.id); setView("announcement-detail"); }}
+          onClick={() => handleAnnouncementClick(a, setView)}
           className="cursor-pointer hover:bg-ev-orange/5 rounded-lg px-1 py-1.5 transition-colors"
         >
           <div className="flex items-center justify-between">
@@ -498,17 +539,36 @@ function HomeTab() {
   const [mockTests, setMockTests] = useState<any[]>([]);
 
   // Fetch data from Firestore — re-fetch when user comes back to home
+  // Announcements use real-time listener
+  useEffect(() => {
+    const q = query(collection(db, "announcements"), where("isActive", "==", true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((d) => {
+        const raw = d.data();
+        return { ...raw, id: d.id } as AnnouncementData;
+      });
+      data.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
+        return dateB - dateA;
+      });
+      setAnnouncements(data);
+    }, (error) => {
+      console.error("Announcement real-time error:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Other data (popular tests, quizzes, mock tests) fetch on home view
   useEffect(() => {
     if (currentView !== "home") return;
     async function fetchData() {
       try {
-        const [annData, popData, quizData, testData] = await Promise.all([
-          getAnnouncements(),
+        const [popData, quizData, testData] = await Promise.all([
           getPopularTests(),
           getDailyQuiz(),
           getMockTests(),
         ]);
-        if (annData && annData.length > 0) setAnnouncements(annData);
         if (popData && popData.length > 0) setPopularTests(popData);
         if (quizData && quizData.length > 0) setDailyQuizzes(quizData);
         if (testData && testData.length > 0) setMockTests(testData);
@@ -2196,13 +2256,14 @@ function ExitConfirmDialog() {
   if (!exitConfirmVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" style={{ WebkitTapHighlightColor: 'transparent' }}>
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'auto' }}
+    >
+      <div
         className="bg-white rounded-2xl p-6 mx-6 max-w-sm w-full shadow-2xl"
+        style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
         onClick={(e) => e.stopPropagation()}
-        style={{ touchAction: 'manipulation' }}
       >
         <div className="text-center mb-4">
           <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
@@ -2213,15 +2274,14 @@ function ExitConfirmDialog() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={(e) => { e.stopPropagation(); setExitConfirmVisible(false); }}
-            className="flex-1 py-3 rounded-xl border border-gray-200 text-ev-navy font-semibold text-sm active:scale-95 transition-transform"
-            style={{ touchAction: 'manipulation' }}
+            onClick={() => { setExitConfirmVisible(false); }}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-ev-navy font-semibold text-sm active:scale-95 transition-transform cursor-pointer"
+            style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
           >
             Cancel
           </button>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={() => {
               setExitConfirmVisible(false);
               setIsExitingApp(true);
               try { window.close(); } catch {}
@@ -2233,13 +2293,13 @@ function ExitConfirmDialog() {
                 }
               }, 500);
             }}
-            className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm active:scale-95 transition-transform"
-            style={{ touchAction: 'manipulation' }}
+            className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm active:scale-95 transition-transform cursor-pointer"
+            style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
           >
             Exit
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
