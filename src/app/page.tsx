@@ -488,7 +488,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
 // ==================== HOME TAB ====================
 function HomeTab() {
-  const { setView, user } = useAppStore();
+  const { setView, user, currentView } = useAppStore();
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
@@ -497,8 +497,9 @@ function HomeTab() {
   const [dailyQuizzes, setDailyQuizzes] = useState<any[]>([]);
   const [mockTests, setMockTests] = useState<any[]>([]);
 
-  // Fetch data from Firestore
+  // Fetch data from Firestore — re-fetch when user comes back to home
   useEffect(() => {
+    if (currentView !== "home") return;
     async function fetchData() {
       try {
         const [annData, popData, quizData, testData] = await Promise.all([
@@ -514,7 +515,7 @@ function HomeTab() {
       } catch (e) { console.error("Firestore fetch error:", e); }
     }
     fetchData();
-  }, []);
+  }, [currentView]);
 
   const quickLinks = [
     { icon: Zap, label: t("freeTests", lang), view: "free-tests" as const, bg: "bg-gradient-to-br from-green-500 to-emerald-600", shadow: "shadow-green-500/30" },
@@ -2195,11 +2196,13 @@ function ExitConfirmDialog() {
   if (!exitConfirmVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" style={{ WebkitTapHighlightColor: 'transparent' }}>
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         className="bg-white rounded-2xl p-6 mx-6 max-w-sm w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        style={{ touchAction: 'manipulation' }}
       >
         <div className="text-center mb-4">
           <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
@@ -2210,36 +2213,28 @@ function ExitConfirmDialog() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setExitConfirmVisible(false)}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-ev-navy font-semibold text-sm"
+            onClick={(e) => { e.stopPropagation(); setExitConfirmVisible(false); }}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-ev-navy font-semibold text-sm active:scale-95 transition-transform"
+            style={{ touchAction: 'manipulation' }}
           >
             Cancel
           </button>
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setExitConfirmVisible(false);
-              // Set the exiting flag so the popstate handler doesn't re-show the dialog
               setIsExitingApp(true);
-              // Try window.close() first (works in some PWA contexts)
-              // Then fall back to history.back() which the popstate handler will ignore
-              // because isExitingApp is true
-              try {
-                window.close();
-              } catch (e) {
-                // window.close() not available
-              }
-              // Navigate back — popstate handler will check isExitingApp and let it through
+              try { window.close(); } catch {}
               window.history.back();
-              // If neither close nor back worked (PWA standalone), try navigating to a blank page
               setTimeout(() => {
                 const store = useAppStore.getState();
                 if (store.isExitingApp) {
-                  // Still in the app — try one more approach
                   window.location.replace("about:blank");
                 }
               }, 500);
             }}
-            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm"
+            className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm active:scale-95 transition-transform"
+            style={{ touchAction: 'manipulation' }}
           >
             Exit
           </button>
@@ -2330,7 +2325,7 @@ export default function ExamVaultApp() {
       }
     };
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 30000);
+    const interval = setInterval(fetchNotifs, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -2386,26 +2381,11 @@ export default function ExamVaultApp() {
       }
     };
 
-    // Fallback: beforeunload — only block when NOT in an active exam
-    // (during exam, popstate handles back properly; beforeunload would show unwanted dialog)
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const store = useAppStore.getState();
-      // Don't block if user chose to exit, or if in an exam (exam has its own back handling)
-      if (store.isExitingApp) return;
-      if (store.currentView === "exam") return;
-      // Block navigation from any other view
-      e.preventDefault();
-      e.returnValue = '';
-      return '';
-    };
-
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("pageshow", handlePageShow);
-    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("pageshow", handlePageShow);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
 
