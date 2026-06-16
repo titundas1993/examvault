@@ -15,6 +15,7 @@ import {
   checkSubscriptionStatus, hasPurchasedItem,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
   NotesData, PreviousPaperData,
+  getMockTestById, getFreeTestById, getDailyQuizById, getTestSeriesById, getPopularTestById,
 } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
 import { onSnapshot, query, where, collection } from "firebase/firestore";
@@ -748,7 +749,7 @@ function HomeTab() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); setView("exam"); })}
+              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("exam"); })}
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
               <div className="flex items-center justify-between">
@@ -786,7 +787,7 @@ function HomeTab() {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {dailyQuizzes.map(q => (
-            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); setView("exam"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
+            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
               <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
@@ -843,7 +844,7 @@ function MockTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
-          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${test.isFree ? "bg-green-50" : "bg-ev-gold-light"}`}>
                 {test.isFree ? <Zap className="w-6 h-6 text-ev-green" /> : <Crown className="w-6 h-6 text-ev-gold" />}
@@ -896,7 +897,7 @@ function TestSeriesTab() {
       </div>
       <div className="px-4 space-y-3">
         {series.map(s => (
-          <div key={s.id} onClick={() => requirePremium(s.id, s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
+          <div key={s.id} onClick={() => requirePremium(s.id, s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-ev-gold-light flex items-center justify-center"><Trophy className="w-6 h-6 text-ev-gold" /></div>
               <div className="flex-1">
@@ -943,7 +944,7 @@ function FreeTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {freeTests.map(test => (
-          <div key={test.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(test.id); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98]">
+          <div key={test.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98]">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center"><Zap className="w-6 h-6 text-ev-green" /></div>
               <div className="flex-1">
@@ -983,7 +984,7 @@ function FreeQuizzesTab() {
       </div>
       <div className="px-4 space-y-3">
         {quizzes.map(q => (
-          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
+          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
@@ -1004,6 +1005,7 @@ function PreviousPapersTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
+  const requirePremium = useRequirePremium();
   const [papers, setPapers] = useState<any[]>([]);
 
   useEffect(() => {
@@ -1023,12 +1025,15 @@ function PreviousPapersTab() {
       </div>
       <div className="px-4 space-y-3">
         {papers.map(p => (
-          <div key={p.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
+          <div key={p.id} onClick={() => requirePremium(p.id, !!p.isFree, () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center"><FileText className="w-6 h-6 text-ev-orange" /></div>
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
                 <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                {p.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <Crown className="w-4 h-4 text-ev-gold" />}
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </div>
@@ -1227,6 +1232,7 @@ function NotesTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
+  const requirePremium = useRequirePremium();
   const [notesData, setNotesData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -1246,12 +1252,15 @@ function NotesTab() {
       </div>
       <div className="px-4 space-y-3">
         {notesData.map(n => (
-          <div key={n.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
+          <div key={n.id} onClick={() => requirePremium(n.id, !!n.isFree, () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center"><Notebook className="w-6 h-6 text-purple-600" /></div>
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{n.title}</h4>
                 <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                {n.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <Crown className="w-4 h-4 text-ev-gold" />}
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </div>
@@ -1719,13 +1728,13 @@ function LeaderboardTab() {
 
 // ==================== EXAM PAGE ====================
 function ExamPage() {
-  const { goBack, selectedTest, user, firebaseUser } = useAppStore();
+  const { goBack, selectedTest, selectedTestType, user, firebaseUser } = useAppStore();
   const { setLastTestResult } = useAppStore();
   const [currentQ, setCurrentQ] = useState(0);
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(2700); // 45 min default
-  const [testTitle, setTestTitle] = useState("Mock Test");
+  const [testTitle, setTestTitle] = useState("Test");
   const lang = useAppStore(s => s.language);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showQuestionNav, setShowQuestionNav] = useState(false);
@@ -1739,27 +1748,45 @@ function ExamPage() {
   // Marked for review: set of question indices
   const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set());
 
-  // Fetch questions from Firestore — try testId first, then fallback to category
+  // Fetch questions from Firestore — use testType to fetch metadata from correct collection
   useEffect(() => {
     async function fetchQuestions() {
       try {
-        // First, get the mock test details to find its category
+        // Get test metadata from the correct collection based on testType
         let testCategory: string | undefined;
+
         if (selectedTest) {
           try {
-            const { getMockTestById } = await import("@/lib/services/firestore");
-            const testData = await getMockTestById(selectedTest);
+            let testData: any = null;
+            switch (selectedTestType) {
+              case "freeTest":
+                testData = await getFreeTestById(selectedTest);
+                break;
+              case "dailyQuiz":
+                testData = await getDailyQuizById(selectedTest);
+                break;
+              case "testSeries":
+                testData = await getTestSeriesById(selectedTest);
+                break;
+              case "popularTest":
+                testData = await getPopularTestById(selectedTest);
+                break;
+              case "mockTest":
+              default:
+                testData = await getMockTestById(selectedTest);
+                break;
+            }
+
             if (testData) {
               testCategory = testData.category;
-              setTestTitle(testData.title || "Mock Test");
-              // Set timer from test duration
+              setTestTitle(testData.title || "Test");
               if (testData.duration) {
                 const durationSec = testData.duration * 60;
                 setTimeLeft(durationSec);
                 setInitialDuration(durationSec);
               }
             }
-          } catch (e) { console.error("MockTest fetch error:", e); }
+          } catch (e) { console.error("Test data fetch error:", e); }
         }
         // Fetch questions: testId first, then category fallback
         const data = await getQuestions(selectedTest || undefined, testCategory);
@@ -1770,7 +1797,7 @@ function ExamPage() {
       finally { setLoading(false); }
     }
     fetchQuestions();
-  }, [selectedTest]);
+  }, [selectedTest, selectedTestType]);
 
   // Timer
   useEffect(() => {

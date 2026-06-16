@@ -9,6 +9,9 @@ export type AppView =
   | "upcoming-exams" | "upcoming-exam-detail" | "daily-tips" | "daily-tip-detail"
   | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail";
 
+// Test source collection type — tells ExamPage which collection to query
+export type TestSourceType = "mockTest" | "freeTest" | "dailyQuiz" | "testSeries" | "popularTest";
+
 // Views that are "root" views — pressing back on these should exit the app
 const ROOT_VIEWS: AppView[] = ["home"];
 
@@ -59,6 +62,8 @@ interface AppState {
   setLanguage: (lang: string) => void;
   selectedTest: string | null;
   setSelectedTest: (id: string | null) => void;
+  selectedTestType: TestSourceType | null;
+  setSelectedTestType: (type: TestSourceType | null) => void;
   selectedNoteId: string | null;
   setSelectedNoteId: (id: string | null) => void;
   selectedPaperId: string | null;
@@ -155,6 +160,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLanguage: (lang) => set({ language: lang }),
   selectedTest: null,
   setSelectedTest: (id) => set({ selectedTest: id }),
+  selectedTestType: null,
+  setSelectedTestType: (type) => set({ selectedTestType: type }),
   selectedNoteId: null,
   setSelectedNoteId: (id) => set({ selectedNoteId: id }),
   selectedPaperId: null,

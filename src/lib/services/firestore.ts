@@ -735,6 +735,7 @@ export interface PreviousPaperData {
   solutionUrl: string;
   description: string;
   isActive: boolean;
+  isFree: boolean;
   imageUrl: string;
   createdAt?: string;
 }
@@ -1082,6 +1083,19 @@ export async function deleteTestSeries(id: string) {
   }
 }
 
+export async function getTestSeriesById(id: string) {
+  try {
+    const docRef = doc(db, TEST_SERIES_COLLECTION, id);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as Record<string, unknown>;
+    return convertTimestamps({ ...data, id: snapshot.id }) as TestSeriesData;
+  } catch (error) {
+    console.error("Error getting test series by ID:", error);
+    throw error;
+  }
+}
+
 // ============================================================
 // 12. freeTests Collection
 // ============================================================
@@ -1161,6 +1175,19 @@ export async function deleteFreeTest(id: string) {
     return true;
   } catch (error) {
     console.error("Error deleting free test:", error);
+    throw error;
+  }
+}
+
+export async function getFreeTestById(id: string) {
+  try {
+    const docRef = doc(db, FREE_TESTS_COLLECTION, id);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as Record<string, unknown>;
+    return convertTimestamps({ ...data, id: snapshot.id }) as FreeTestData;
+  } catch (error) {
+    console.error("Error getting free test by ID:", error);
     throw error;
   }
 }
@@ -1246,6 +1273,19 @@ export async function deleteDailyQuiz(id: string) {
   }
 }
 
+export async function getDailyQuizById(id: string) {
+  try {
+    const docRef = doc(db, DAILY_QUIZ_COLLECTION, id);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as Record<string, unknown>;
+    return convertTimestamps({ ...data, id: snapshot.id }) as DailyQuizData;
+  } catch (error) {
+    console.error("Error getting daily quiz by ID:", error);
+    throw error;
+  }
+}
+
 // ============================================================
 // 14. popularTests Collection
 // ============================================================
@@ -1316,6 +1356,19 @@ export async function updatePopularTest(id: string, data: Partial<Omit<PopularTe
     return { id, ...data };
   } catch (error) {
     console.error("Error updating popular test:", error);
+    throw error;
+  }
+}
+
+export async function getPopularTestById(id: string) {
+  try {
+    const docRef = doc(db, POPULAR_TESTS_COLLECTION, id);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as Record<string, unknown>;
+    return convertTimestamps({ ...data, id: snapshot.id }) as PopularTestData;
+  } catch (error) {
+    console.error("Error getting popular test by ID:", error);
     throw error;
   }
 }

@@ -18,6 +18,7 @@ import {
   Crown, CreditCard, IndianRupee, Compass
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -482,7 +483,7 @@ interface CrudField {
 
 function CrudAdminPanel<T extends Record<string, any>>({
   title, subtitle, icon: Icon, color, collectionName,
-  fields, fetchData, onAdd, onUpdate, onDelete, renderExtra,
+  fields, fetchData, onAdd, onUpdate, onDelete, renderExtra, rowActions,
 }: {
   title: string;
   subtitle: string;
@@ -495,6 +496,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
   onUpdate: (id: string, data: any) => Promise<any>;
   onDelete: (id: string) => Promise<any>;
   renderExtra?: (item: T, onEdit: (item: T) => void, onDelete: (id: string) => void) => React.ReactNode;
+  rowActions?: (item: T) => React.ReactNode;
 }) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -886,6 +888,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {rowActions && rowActions(item)}
                       <button onClick={() => openEditDialog(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
                       <button onClick={() => { setDeletingId(item.id || item.uid); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
@@ -1261,10 +1264,76 @@ function CrudAdminPanel<T extends Record<string, any>>({
   );
 }
 
+// ==================== HELPER: Test Admin with Question Picker ====================
+function TestAdminWithPicker({
+  title, subtitle, icon, color, collectionName, fields, fetchData, onAdd, onUpdate, onDelete,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  collectionName: string;
+  fields: CrudField[];
+  fetchData: () => Promise<any[] | null>;
+  onAdd: (data: any) => Promise<any>;
+  onUpdate: (id: string, data: any) => Promise<any>;
+  onDelete: (id: string) => Promise<any>;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTestId, setPickerTestId] = useState("");
+  const [pickerTestTitle, setPickerTestTitle] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const openPicker = (item: any) => {
+    setPickerTestId(item.id || "");
+    setPickerTestTitle(item.title || item.name || "Test");
+    setPickerOpen(true);
+  };
+
+  // Wrap fetchData to trigger refresh after question save
+  const wrappedFetchData = useCallback(async () => {
+    const result = await fetchData();
+    return result;
+  }, [fetchData, refreshKey]);
+
+  return (
+    <>
+      <CrudAdminPanel
+        title={title}
+        subtitle={subtitle}
+        icon={icon}
+        color={color}
+        collectionName={collectionName}
+        fields={fields}
+        fetchData={wrappedFetchData}
+        onAdd={onAdd}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        rowActions={(item: any) => (
+          <button
+            onClick={() => openPicker(item)}
+            className="p-2 rounded-lg hover:bg-purple-50 text-purple-600 transition-colors"
+            title="Manage Questions"
+          >
+            <FileQuestion className="w-4 h-4" />
+          </button>
+        )}
+      />
+      <QuestionPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        testId={pickerTestId}
+        testTitle={pickerTestTitle}
+        onSave={() => setRefreshKey(k => k + 1)}
+      />
+    </>
+  );
+}
+
 // ==================== MOCK TESTS ADMIN ====================
 function MockTestsAdmin() {
   return (
-    <CrudAdminPanel
+    <TestAdminWithPicker
       title="Mock Tests"
       subtitle="Manage all mock tests"
       icon={BookOpen}
@@ -1785,7 +1854,7 @@ Exp: Jana Gana Mana was written by Rabindranath Tagore`;
 // ==================== TEST SERIES ADMIN ====================
 function TestSeriesAdmin() {
   return (
-    <CrudAdminPanel
+    <TestAdminWithPicker
       title="Test Series"
       subtitle="Manage test series packages"
       icon={Trophy}
@@ -1812,7 +1881,7 @@ function TestSeriesAdmin() {
 // ==================== FREE TESTS ADMIN ====================
 function FreeTestsAdmin() {
   return (
-    <CrudAdminPanel
+    <TestAdminWithPicker
       title="Free Tests"
       subtitle="Manage free practice tests"
       icon={Zap}
@@ -1840,7 +1909,7 @@ function FreeTestsAdmin() {
 // ==================== DAILY QUIZ ADMIN ====================
 function DailyQuizAdmin() {
   return (
-    <CrudAdminPanel
+    <TestAdminWithPicker
       title="Daily Quiz"
       subtitle="Manage daily quiz challenges"
       icon={Brain}
@@ -1869,7 +1938,7 @@ function DailyQuizAdmin() {
 // ==================== POPULAR TESTS ADMIN ====================
 function PopularTestsAdmin() {
   return (
-    <CrudAdminPanel
+    <TestAdminWithPicker
       title="Popular Tests"
       subtitle="Manage featured/popular tests on home"
       icon={Star}
@@ -2097,6 +2166,7 @@ function PreviousPapersAdmin() {
         { key: "downloadUrl", label: "Download URL / File", type: "file" },
         { key: "solutionUrl", label: "Solution URL", type: "url", placeholder: "Solution PDF link" },
         { key: "isActive", label: "Active", type: "switch" },
+        { key: "isFree", label: "Free Access", type: "switch" },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("previousPapers")}
