@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anyone to read all documents (user app needs to read data)
+    match /{document=**} {
+      allow read: if true;
+    }
+
+    // Allow authenticated users to write all documents (admin operations)
+    match /{document=**} {
+      allow write: if request.auth != null;
+    }
+
+    // Special: allow unauthenticated writes to supportTickets (guest users can create tickets)
+    match /supportTickets/{ticketId} {
+      allow create: if true;
+    }
+
+    // Special: allow unauthenticated writes to users collection (registration flow)
+    match /users/{userId} {
+      allow create: if true;
+      allow update: if request.auth != null || true;
+    }
+  }
+}
