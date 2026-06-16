@@ -2264,6 +2264,11 @@ export default function ExamVaultApp() {
     window.history.pushState({ appState: true }, "");
     sentinelReady.current = true;
 
+    // Helper: ensure sentinel exists (may be called from multiple places)
+    const ensureSentinel = () => {
+      try { window.history.pushState({ appState: true }, ""); } catch {}
+    };
+
     const handlePopState = (_event: PopStateEvent) => {
       const store = useAppStore.getState();
 
@@ -2281,7 +2286,15 @@ export default function ExamVaultApp() {
 
       // If we can go back in our internal view history, do that
       if (store.viewHistory.length > 0) {
-        store.goBack();
+        // Don't go back to a root view — that should show exit dialog
+        const prevView = store.viewHistory[store.viewHistory.length - 1];
+        const ROOT_VIEWS = ["home"];
+        if (ROOT_VIEWS.includes(prevView) && store.viewHistory.length === 1) {
+          // Only root left — show exit dialog instead of going to home from home
+          store.setExitConfirmVisible(true);
+        } else {
+          store.goBack();
+        }
       } else {
         // We're at root (home) — show exit confirmation dialog
         store.setExitConfirmVisible(true);
@@ -2297,15 +2310,50 @@ export default function ExamVaultApp() {
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
         // Page was restored from bfcache — re-establish our sentinel
-        window.history.pushState({ appState: true }, "");
+        ensureSentinel();
       }
+    };
+
+    // Fallback: beforeunload shows native browser confirmation if popstate missed
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const store = useAppStore.getState();
+      if (!store.isExitingApp) {
+        e.preventDefault();
+        // Modern browsers require returnValue to be set
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    // Fallback: when page regains focus/visibility, re-establish sentinel
+    // (handles cases where OS killed and restored the PWA)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        ensureSentinel();
+      }
+    };
+
+    // Fallback: on resume (PWA), ensure sentinel is alive
+    const handleResume = () => {
+      ensureSentinel();
     };
 
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("resume", handleResume);
+
+    // Periodically ensure sentinel is alive (some Android WebViews lose it)
+    const sentinelInterval = setInterval(ensureSentinel, 2000);
+
     return () => {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("resume", handleResume);
+      clearInterval(sentinelInterval);
     };
   }, []);
 
