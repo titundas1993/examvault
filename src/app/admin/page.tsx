@@ -1283,6 +1283,30 @@ function TestAdminWithPicker({
   const [pickerTestId, setPickerTestId] = useState("");
   const [pickerTestTitle, setPickerTestTitle] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
+  const [postCreatePrompt, setPostCreatePrompt] = useState<{ show: boolean; title: string }>({ show: false, title: "" });
+
+  // Fetch question counts for each test
+  const fetchQuestionCounts = useCallback(async () => {
+    try {
+      const data = await adminGetCollection("questions");
+      const counts: Record<string, number> = {};
+      const items = Array.isArray(data) ? data : [];
+      items.forEach((q: any) => {
+        const tid = q.testId || "";
+        if (tid) {
+          counts[tid] = (counts[tid] || 0) + 1;
+        }
+      });
+      setQuestionCounts(counts);
+    } catch (err) {
+      console.error("Failed to fetch question counts:", err);
+    }
+  }, [refreshKey]);
+
+  useEffect(() => {
+    fetchQuestionCounts();
+  }, [fetchQuestionCounts]);
 
   const openPicker = (item: any) => {
     setPickerTestId(item.id || "");
@@ -1296,8 +1320,32 @@ function TestAdminWithPicker({
     return result;
   }, [fetchData, refreshKey]);
 
+  // Wrap onAdd to show post-creation prompt
+  const wrappedOnAdd = useCallback(async (data: any) => {
+    const result = await onAdd(data);
+    // Show prompt to add questions after creation
+    const newTitle = data.title || data.name || "Test";
+    setPostCreatePrompt({ show: true, title: newTitle });
+    return result;
+  }, [onAdd]);
+
   return (
     <>
+      {/* ── How-to-Add Banner ── */}
+      <div className="mb-4 rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50/60 px-5 py-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5">
+            <FileQuestion className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-bold text-purple-800">Question kaise add karein?</h4>
+            <p className="text-xs text-purple-600 mt-1 leading-relaxed">
+              Pehle test create karein → Phir table mein us test ke row ke paas <span className="inline-flex items-center gap-1 font-bold text-purple-700">"Add Questions"</span> button dabayein → Questions select karein → Save karein.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <CrudAdminPanel
         title={title}
         subtitle={subtitle}
@@ -1306,26 +1354,75 @@ function TestAdminWithPicker({
         collectionName={collectionName}
         fields={fields}
         fetchData={wrappedFetchData}
-        onAdd={onAdd}
+        onAdd={wrappedOnAdd}
         onUpdate={onUpdate}
         onDelete={onDelete}
-        rowActions={(item: any) => (
-          <button
-            onClick={() => openPicker(item)}
-            className="p-2 rounded-lg hover:bg-purple-50 text-purple-600 transition-colors"
-            title="Manage Questions"
-          >
-            <FileQuestion className="w-4 h-4" />
-          </button>
-        )}
+        rowActions={(item: any) => {
+          const qCount = questionCounts[item.id || ""] || 0;
+          return (
+            <button
+              onClick={(e) => { e.stopPropagation(); openPicker(item); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
+              title="Questions add/remove karein"
+            >
+              <FileQuestion className="w-3.5 h-3.5" />
+              Add Questions
+              {qCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
+                  {qCount}
+                </span>
+              )}
+            </button>
+          );
+        }}
       />
+
       <QuestionPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         testId={pickerTestId}
         testTitle={pickerTestTitle}
-        onSave={() => setRefreshKey(k => k + 1)}
+        onSave={() => { setRefreshKey(k => k + 1); fetchQuestionCounts(); }}
       />
+
+      {/* ── Post-Creation Prompt ── */}
+      <Dialog open={postCreatePrompt.show} onOpenChange={(open) => { if (!open) setPostCreatePrompt({ show: false, title: "" }); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-white" />
+              </div>
+              Test Created!
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              <span className="font-semibold text-foreground">"{postCreatePrompt.title}"</span> successfully create ho gaya.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl bg-purple-50 border border-purple-200 p-4">
+            <p className="text-sm text-purple-800 font-medium">
+              Ab is test mein questions add karein?
+            </p>
+            <p className="text-xs text-purple-600 mt-1">
+              Aap table mein us test ke row ke paas <b>"Add Questions"</b> button se bhi questions add kar sakte hain.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPostCreatePrompt({ show: false, title: "" })}>
+              Baad Mein
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+              onClick={() => {
+                setPostCreatePrompt({ show: false, title: "" });
+              }}
+            >
+              <FileQuestion className="w-4 h-4 mr-1" />
+              Samajh Gaya
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
