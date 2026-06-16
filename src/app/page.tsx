@@ -375,7 +375,7 @@ function AutoRotatingBanners() {
             animate={{ opacity: i === currentIndex ? 1 : 0.5, scale: i === currentIndex ? 1 : 0.95 }}
             transition={{ duration: 0.4 }}
             className={`min-w-full rounded-2xl bg-gradient-to-r ${b.gradient || b.color || gradients[i % gradients.length]} p-5 flex items-center justify-between shadow-lg cursor-pointer`}
-            onClick={() => setView("mocktests")}
+            onClick={() => { if (b.link) { window.open(b.link, "_blank"); } else { setView("mocktests"); } }}
           >
             <div>
               <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
@@ -1050,6 +1050,21 @@ function PreviousPaperDetail() {
         </div>
       </div>
 
+      {/* Extra Info */}
+      {(paper as any).subject || (paper as any).examType || (paper as any).totalQuestions ? (
+        <div className="px-4 mb-3">
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {(paper as any).subject && <div><span className="text-gray-500">Subject:</span> <span className="font-semibold text-ev-navy">{(paper as any).subject}</span></div>}
+              {(paper as any).examType && <div><span className="text-gray-500">Type:</span> <span className="font-semibold text-ev-navy">{(paper as any).examType}</span></div>}
+              {(paper as any).totalQuestions && <div><span className="text-gray-500">Questions:</span> <span className="font-semibold text-ev-navy">{(paper as any).totalQuestions}</span></div>}
+              {(paper as any).totalMarks && <div><span className="text-gray-500">Marks:</span> <span className="font-semibold text-ev-navy">{(paper as any).totalMarks}</span></div>}
+              {(paper as any).duration && <div><span className="text-gray-500">Duration:</span> <span className="font-semibold text-ev-navy">{(paper as any).duration} min</span></div>}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Action buttons */}
       <div className="px-4 space-y-3">
         {paper.downloadUrl ? (
@@ -1078,6 +1093,21 @@ function PreviousPaperDetail() {
           </div>
         )}
       </div>
+
+      {/* Solution URL */}
+      {(paper as any).solutionUrl && (
+        <div className="px-4 mt-2">
+          <a
+            href={(paper as any).solutionUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 rounded-xl bg-white border-2 border-dashed border-ev-orange/40 text-ev-orange font-semibold text-sm flex items-center justify-center gap-2 hover:bg-ev-orange/5 transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            View Solution
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -1223,6 +1253,20 @@ function NoteDetail() {
             className="w-full h-48 object-cover rounded-2xl shadow-sm"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
+        </div>
+      ) : null}
+
+      {/* Extra Info */}
+      {((note as any).author || (note as any).language || (note as any).isFree !== undefined) ? (
+        <div className="px-4 mb-3">
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {(note as any).author && <div><span className="text-gray-500">Author:</span> <span className="font-semibold text-ev-navy">{(note as any).author}</span></div>}
+              {(note as any).language && <div><span className="text-gray-500">Language:</span> <span className="font-semibold text-ev-navy">{(note as any).language}</span></div>}
+              <div><span className="text-gray-500">Access:</span> <span className={`font-semibold ${(note as any).isFree ? "text-ev-green" : "text-ev-orange"}`}>{(note as any).isFree ? "Free" : "Premium"}</span></div>
+            </div>
+            {(note as any).topics && <div className="mt-2 text-sm"><span className="text-gray-500">Topics:</span> <span className="text-ev-navy">{(note as any).topics}</span></div>}
+          </div>
         </div>
       ) : null}
 

@@ -567,7 +567,10 @@ function CrudAdminPanel<T extends Record<string, any>>({
     setEditingItem(null);
     const initial: Record<string, any> = {};
     fields.forEach(f => {
-      initial[f.key] = f.type === "switch" ? true : f.type === "number" ? 0 : "";
+      if (f.type === "switch") initial[f.key] = true;
+      else if (f.type === "number") initial[f.key] = 0;
+      else if (f.key === "targetUsers") initial[f.key] = "all";
+      else initial[f.key] = "";
     });
     setFormData(initial);
     setDialogOpen(true);
@@ -1925,8 +1928,8 @@ function AnnouncementsAdmin() {
       collectionName="announcements"
       fields={[
         { key: "title", label: "Title", type: "text", placeholder: "Announcement title", required: true },
-        { key: "message", label: "Message", type: "textarea", placeholder: "Announcement details..." },
-        { key: "type", label: "Type", type: "select", options: [{ label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Urgent", value: "urgent" }, { label: "Update", value: "update" }] },
+        { key: "description", label: "Description", type: "textarea", placeholder: "Announcement details..." },
+        { key: "type", label: "Type", type: "select", options: [{ label: "New", value: "new" }, { label: "Alert", value: "alert" }, { label: "Offer", value: "offer" }, { label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Urgent", value: "urgent" }, { label: "Update", value: "update" }] },
         { key: "priority", label: "Priority", type: "select", options: [{ label: "Low", value: "low" }, { label: "Medium", value: "medium" }, { label: "High", value: "high" }] },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "imageUrl", label: "Image", type: "image" },

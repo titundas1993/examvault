@@ -99,15 +99,21 @@ export async function deleteExam(id: string) {
 export async function getExams() {
   try {
     const q = query(
-      collection(db, EXAMS_COLLECTION),
-      orderBy("examDate", "asc")
+      collection(db, EXAMS_COLLECTION)
     );
     const snapshot = await getDocs(q);
     const exams = snapshot.docs.map((d) => {
       const data = d.data() as Record<string, unknown>;
       return convertTimestamps({ ...data, id: d.id } as Record<string, unknown>);
     });
-    return exams as ExamData[];
+    // Filter active and sort by examDate client-side
+    return exams
+      .filter((e: any) => e.isActive !== false)
+      .sort((a: any, b: any) => {
+        const dateA = a.examDate ? new Date(a.examDate as string).getTime() : Infinity;
+        const dateB = b.examDate ? new Date(b.examDate as string).getTime() : Infinity;
+        return dateA - dateB;
+      }) as ExamData[];
   } catch (error) {
     console.error("Error getting exams:", error);
     throw error;
@@ -713,7 +719,14 @@ export interface PreviousPaperData {
   name: string;
   year: number;
   category: string;
+  subject: string;
+  examType: string;
+  totalQuestions: number;
+  totalMarks: number;
+  duration: number;
   downloadUrl: string;
+  solutionUrl: string;
+  description: string;
   isActive: boolean;
   imageUrl: string;
   createdAt?: string;
@@ -805,8 +818,13 @@ export interface NotesData {
   id?: string;
   title: string;
   category: string;
+  examCategory: string;
+  author: string;
+  language: string;
+  topics: string;
   pages: number;
   downloadUrl: string;
+  isFree: boolean;
   isActive: boolean;
   imageUrl: string;
   description: string;
@@ -1065,6 +1083,8 @@ export interface FreeTestData {
   duration: number;
   questions: number;
   marks: number;
+  difficulty: string;
+  imageUrl: string;
   isActive: boolean;
   description: string;
   createdAt?: string;
