@@ -99,6 +99,7 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
   };
 
   const handleNotificationClick = async (notification: NotificationData) => {
+    // Mark as read
     if (!notification.isRead && notification.id) {
       try {
         await markAsRead(notification.id);
@@ -110,9 +111,18 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
         console.error("Error marking notification as read:", err);
       }
     }
-    if (notification.link) {
+
+    // Navigate based on linkType
+    const linkType = notification.linkType || "none";
+    const store = useAppStore.getState();
+
+    if (linkType === "internal" && notification.targetView) {
+      onClose();
+      store.setView(notification.targetView);
+    } else if (linkType === "external" && notification.link) {
       window.open(notification.link, "_blank", "noopener");
     }
+    // "none" or "detail" → do nothing extra (notification panel stays open)
   };
 
   return (
@@ -228,7 +238,7 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
                             <Clock className="w-3 h-3" />
                             {notification.createdAt ? timeAgo(notification.createdAt) : ""}
                           </span>
-                          {notification.link && (
+                          {notification.linkType === "external" && notification.link && (
                             <span className="text-[10px] text-ev-orange flex items-center gap-0.5">
                               <ExternalLink className="w-3 h-3" />
                               Link

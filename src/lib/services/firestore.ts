@@ -353,6 +353,8 @@ export interface NotificationData {
   message: string;
   type: "info" | "warning" | "success" | "promo";
   link: string;
+  linkType: LinkActionType;
+  targetView: string;
   imageUrl: string;
   targetUsers: "all" | "specific";
   isRead: boolean;

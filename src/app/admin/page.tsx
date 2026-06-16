@@ -2056,7 +2056,9 @@ function NotificationsAdmin() {
         { key: "message", label: "Message", type: "textarea", placeholder: "Notification message..." },
         { key: "type", label: "Type", type: "select", options: [{ label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Success", value: "success" }, { label: "Promo", value: "promo" }] },
         { key: "targetUsers", label: "Target", type: "select", options: [{ label: "All Users", value: "all" }, { label: "Specific Users", value: "specific" }] },
-        { key: "link", label: "Link URL", type: "url", placeholder: "https://..." },
+        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
+        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
+        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
         { key: "imageUrl", label: "Image", type: "image" },
       ]}
       fetchData={() => adminGetCollection("notifications")}
