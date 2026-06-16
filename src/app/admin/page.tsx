@@ -15,7 +15,7 @@ import {
   BookMarked, Headphones, UserCog,
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
-  Crown, CreditCard, IndianRupee
+  Crown, CreditCard, IndianRupee, Compass
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +65,7 @@ type AdminView =
   | "banners" | "announcements" | "upcoming-exams" | "daily-tips"
   | "notifications" | "previous-papers" | "notes" | "free-tests"
   | "daily-quiz" | "popular-tests" | "support" | "users" | "settings"
-  | "bulk-import" | "categories" | "plans" | "payments";
+  | "bulk-import" | "categories" | "plans" | "payments" | "navigation";
 
 // Dynamic categories — loaded from Firestore, with defaults as fallback
 // These are mutable so all admin components see updated categories
@@ -144,6 +144,7 @@ const ADMIN_SIDEBAR_ITEMS: { icon: React.ComponentType<{ className?: string }>; 
   { icon: Crown, label: "Plans & Pricing", view: "plans", color: "from-ev-gold to-amber-500" },
   { icon: CreditCard, label: "Payments", view: "payments", color: "from-green-500 to-emerald-600" },
   { icon: Trash2, label: "Data Mgmt", view: "bulk-import", color: "from-red-500 to-rose-600" },
+  { icon: Compass, label: "Navigation", view: "navigation", color: "from-cyan-600 to-blue-700" },
 ];
 
 // ==================== UPLOAD HELPER ====================
@@ -229,7 +230,7 @@ export default function AdminPage() {
   useEffect(() => {
     // Read initial view from URL hash
     const hash = window.location.hash.replace("#", "") as AdminView;
-    const validViews: AdminView[] = ["dashboard", "mock-tests", "questions", "test-series", "banners", "announcements", "upcoming-exams", "daily-tips", "notifications", "previous-papers", "notes", "free-tests", "daily-quiz", "popular-tests", "support", "users", "settings", "bulk-import", "categories"];
+    const validViews: AdminView[] = ["dashboard", "mock-tests", "questions", "test-series", "banners", "announcements", "upcoming-exams", "daily-tips", "notifications", "previous-papers", "notes", "free-tests", "daily-quiz", "popular-tests", "support", "users", "settings", "bulk-import", "categories", "plans", "payments", "navigation"];
     if (hash && validViews.includes(hash)) {
       setCurrentView(hash);
     } else {
@@ -369,6 +370,7 @@ export default function AdminPage() {
               {currentView === "categories" && <CategoriesAdmin />}
               {currentView === "plans" && <PlansAdmin />}
               {currentView === "payments" && <PaymentsAdmin />}
+              {currentView === "navigation" && <NavigationAdmin />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -3578,3 +3580,71 @@ function PaymentsAdmin() {
     </div>
   );
 }
+
+// ==================== NAVIGATION ADMIN ====================
+const NAV_ICON_OPTIONS = [
+  { label: "Home", value: "Home" },
+  { label: "Book Open (Mock Tests)", value: "BookOpen" },
+  { label: "Trophy (Test Series)", value: "Trophy" },
+  { label: "Crown (Premium)", value: "Crown" },
+  { label: "Zap (Free Tests)", value: "Zap" },
+  { label: "Brain (Quizzes)", value: "Brain" },
+  { label: "File Text (Papers)", value: "FileText" },
+  { label: "Notebook (Notes)", value: "Notebook" },
+  { label: "Calendar (Upcoming Exams)", value: "CalendarDays" },
+  { label: "Sparkles (Daily Tips)", value: "Sparkles" },
+  { label: "Award (Leaderboard)", value: "Award" },
+  { label: "User (Profile)", value: "User" },
+  { label: "Settings", value: "Settings" },
+  { label: "Help Circle (Support)", value: "HelpCircle" },
+  { label: "Megaphone", value: "Megaphone" },
+  { label: "Bell (Notifications)", value: "Bell" },
+  { label: "Star", value: "Star" },
+  { label: "Target", value: "Target" },
+  { label: "Trending Up", value: "TrendingUp" },
+];
+
+const NAV_COLOR_OPTIONS = [
+  { label: "Navy", value: "text-ev-navy" },
+  { label: "Orange", value: "text-ev-orange" },
+  { label: "Gold", value: "text-ev-gold" },
+  { label: "Green", value: "text-ev-green" },
+  { label: "Purple", value: "text-purple-600" },
+  { label: "Blue", value: "text-blue-600" },
+  { label: "Cyan", value: "text-cyan-600" },
+  { label: "Red", value: "text-ev-red" },
+  { label: "Amber", value: "text-amber-600" },
+  { label: "Teal", value: "text-teal-600" },
+  { label: "Gray", value: "text-gray-600" },
+];
+
+function NavigationAdmin() {
+  return (
+    <CrudAdminPanel
+      title="Navigation"
+      subtitle="Control Bottom Nav, Side Menu & Quick Links"
+      icon={Compass}
+      color="from-cyan-600 to-blue-700"
+      collectionName="navigation"
+      fields={[
+        { key: "label", label: "Label", type: "text", placeholder: "e.g. Mock Tests", required: true },
+        { key: "icon", label: "Icon", type: "select", options: NAV_ICON_OPTIONS, required: true },
+        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, required: true },
+        { key: "location", label: "Show In", type: "select", options: [
+          { label: "\ud83d\udcf1 Bottom Nav Bar", value: "bottomnav" },
+          { label: "\ud83d\udccb Side Menu", value: "sidemenu" },
+          { label: "\u26a1 Home Quick Links", value: "quicklinks" },
+        ], required: true },
+        { key: "color", label: "Color", type: "select", options: NAV_COLOR_OPTIONS },
+        { key: "order", label: "Display Order", type: "number" },
+        { key: "requireAuth", label: "Require Login", type: "switch" },
+        { key: "isActive", label: "Active", type: "switch" },
+      ]}
+      fetchData={() => adminGetCollection("navigation")}
+      onAdd={(data) => adminAddDoc("navigation", data)}
+      onUpdate={(id, data) => adminUpdateDoc("navigation", id, data)}
+      onDelete={(id) => adminDeleteDoc("navigation", id)}
+    />
+  );
+}
+

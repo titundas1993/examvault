@@ -45,6 +45,59 @@ import PaymentModal from "@/components/user/PaymentModal";
 // Shared Components
 import GuestLockModal from "@/components/shared/GuestLockModal";
 
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Home, BookOpen, Trophy, Crown, Zap, Brain, FileText, Notebook,
+  CalendarDays, Sparkles, Award, User, Settings, HelpCircle,
+  Megaphone, Bell, Star, Target, TrendingUp,
+};
+
+// Quick link gradient/bg mapping
+const QUICKLINK_BG: Record<string, string> = {
+  "text-ev-navy": "bg-gradient-to-br from-ev-navy to-blue-800 shadow-ev-navy/30",
+  "text-ev-orange": "bg-gradient-to-br from-ev-orange to-orange-600 shadow-ev-orange/30",
+  "text-ev-gold": "bg-gradient-to-br from-ev-gold to-amber-500 shadow-amber-500/30",
+  "text-ev-green": "bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/30",
+  "text-purple-600": "bg-gradient-to-br from-purple-500 to-purple-600 shadow-purple-500/30",
+  "text-blue-600": "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/30",
+  "text-cyan-600": "bg-gradient-to-br from-cyan-500 to-cyan-600 shadow-cyan-500/30",
+  "text-amber-600": "bg-gradient-to-br from-amber-500 to-orange-500 shadow-amber-500/30",
+  "text-teal-600": "bg-gradient-to-br from-teal-500 to-teal-600 shadow-teal-500/30",
+  "text-ev-red": "bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/30",
+  "text-gray-600": "bg-gradient-to-br from-gray-500 to-gray-600 shadow-gray-500/30",
+};
+
+// Default nav items (fallback when no Firestore data)
+const DEFAULT_BOTTOM_NAV = [
+  { label: "Home", icon: "Home", targetView: "home", location: "bottomnav", order: 0, isActive: true, color: "text-ev-navy", requireAuth: false },
+  { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "bottomnav", order: 1, isActive: true, color: "text-blue-600", requireAuth: false },
+  { label: "Leaderboard", icon: "Award", targetView: "leaderboard", location: "bottomnav", order: 2, isActive: true, color: "text-amber-600", requireAuth: false },
+  { label: "Notes", icon: "Notebook", targetView: "notes", location: "bottomnav", order: 3, isActive: true, color: "text-teal-600", requireAuth: false },
+  { label: "Profile", icon: "User", targetView: "profile", location: "bottomnav", order: 4, isActive: true, color: "text-ev-navy", requireAuth: false },
+];
+
+const DEFAULT_SIDE_MENU = [
+  { label: "Home", icon: "Home", targetView: "home", location: "sidemenu", order: 0, isActive: true, color: "text-ev-navy", requireAuth: false },
+  { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "sidemenu", order: 1, isActive: true, color: "text-blue-600", requireAuth: false },
+  { label: "Premium Plans", icon: "Crown", targetView: "pricing", location: "sidemenu", order: 2, isActive: true, color: "text-ev-gold", requireAuth: false },
+  { label: "Free Tests", icon: "Zap", targetView: "free-tests", location: "sidemenu", order: 3, isActive: true, color: "text-ev-green", requireAuth: false },
+  { label: "Free Quizzes", icon: "Brain", targetView: "free-quizzes", location: "sidemenu", order: 4, isActive: true, color: "text-purple-600", requireAuth: false },
+  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "sidemenu", order: 5, isActive: true, color: "text-ev-orange", requireAuth: false },
+  { label: "Upcoming Exams", icon: "CalendarDays", targetView: "upcoming-exams", location: "sidemenu", order: 6, isActive: true, color: "text-cyan-600", requireAuth: false },
+  { label: "Daily Tips", icon: "Sparkles", targetView: "daily-tips", location: "sidemenu", order: 7, isActive: true, color: "text-amber-600", requireAuth: false },
+  { label: "Notes", icon: "Notebook", targetView: "notes", location: "sidemenu", order: 8, isActive: true, color: "text-teal-600", requireAuth: false },
+  { label: "Leaderboard", icon: "Award", targetView: "leaderboard", location: "sidemenu", order: 9, isActive: true, color: "text-amber-600", requireAuth: false },
+  { label: "Profile", icon: "User", targetView: "profile", location: "sidemenu", order: 10, isActive: true, color: "text-ev-navy", requireAuth: false },
+  { label: "Settings", icon: "Settings", targetView: "settings", location: "sidemenu", order: 11, isActive: true, color: "text-gray-600", requireAuth: false },
+  { label: "Support", icon: "HelpCircle", targetView: "support", location: "sidemenu", order: 12, isActive: true, color: "text-ev-orange", requireAuth: false },
+];
+
+const DEFAULT_QUICK_LINKS = [
+  { label: "Free Tests", icon: "Zap", targetView: "free-tests", location: "quicklinks", order: 0, isActive: true, color: "text-ev-green", requireAuth: false },
+  { label: "Test Series", icon: "Trophy", targetView: "test-series", location: "quicklinks", order: 1, isActive: true, color: "text-ev-gold", requireAuth: false },
+  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "quicklinks", order: 2, isActive: true, color: "text-ev-orange", requireAuth: false },
+  { label: "Notes", icon: "Notebook", targetView: "notes", location: "quicklinks", order: 3, isActive: true, color: "text-purple-600", requireAuth: false },
+];
+
 // ==================== ALL DATA FROM FIREBASE ====================
 // ==================== SPLASH SCREEN ====================
 function SplashScreen({ onComplete }: { onComplete: () => void }) {
@@ -203,25 +256,11 @@ function Header() {
 
 // ==================== SIDE MENU ====================
 function SideMenu() {
-  const { sidebarOpen, setSidebarOpen, setView, setUser, user } = useAppStore();
-  const lang = useAppStore(s => s.language);
+  const { sidebarOpen, setSidebarOpen, setView, setUser, user, navigationItems } = useAppStore();
+  const requireAuth = useRequireAuth();
 
-  const menuItems = [
-    { icon: Home, label: t("home", lang), view: "home" as const, color: "text-ev-navy" },
-    { icon: BookOpen, label: t("mockTests", lang), view: "mocktests" as const, color: "text-blue-600" },
-    { icon: Trophy, label: t("testSeries", lang), view: "test-series" as const, color: "text-ev-gold" },
-    { icon: Crown, label: "Premium Plans", view: "pricing" as const, color: "text-ev-gold" },
-    { icon: Zap, label: t("freeTests", lang), view: "free-tests" as const, color: "text-ev-green" },
-    { icon: Brain, label: t("freeQuizzes", lang), view: "free-quizzes" as const, color: "text-purple-600" },
-    { icon: FileText, label: t("previousPapers", lang), view: "previous-papers" as const, color: "text-ev-orange" },
-    { icon: CalendarDays, label: "Upcoming Exams", view: "upcoming-exams" as const, color: "text-cyan-600" },
-    { icon: Sparkles, label: "Daily Tips", view: "daily-tips" as const, color: "text-amber-600" },
-    { icon: Notebook, label: t("notes", lang), view: "notes" as const, color: "text-teal-600" },
-    { icon: Award, label: t("leaderboard", lang), view: "leaderboard" as const, color: "text-amber-600" },
-    { icon: User, label: t("profile", lang), view: "profile" as const, color: "text-ev-navy" },
-    { icon: Settings, label: t("settings", lang), view: "settings" as const, color: "text-gray-600" },
-    { icon: HelpCircle, label: t("support", lang), view: "support" as const, color: "text-ev-orange" },
-  ];
+  const menuItems = navigationItems.filter(i => i.location === "sidemenu").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const fallback = menuItems.length === 0 ? DEFAULT_SIDE_MENU : menuItems;
 
   return (
     <AnimatePresence>
@@ -257,17 +296,24 @@ function SideMenu() {
               )}
             </div>
             <div className="py-4">
-              {menuItems.map((item) => (
-                <button
-                  key={item.view}
-                  onClick={() => { setView(item.view); setSidebarOpen(false); }}
-                  className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors"
-                >
-                  <item.icon className={`w-5 h-5 ${item.color}`} />
-                  <span className="font-medium text-gray-700">{item.label}</span>
-                  <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
-                </button>
-              ))}
+              {fallback.map((item, idx) => {
+                const IconComp = ICON_MAP[item.icon] || HelpCircle;
+                return (
+                  <button
+                    key={item.id || idx}
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
+                      else setView(item.targetView as any);
+                    }}
+                    className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <IconComp className={`w-5 h-5 ${item.color}`} />
+                    <span className="font-medium text-gray-700">{item.label}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+                  </button>
+                );
+              })}
               {user?.role !== "guest" && (
                 <button onClick={() => { setUser(null); setView("login"); setSidebarOpen(false); }} className="w-full flex items-center gap-3 px-6 py-3 text-red-600 font-semibold hover:bg-red-50 transition-colors">
                   <LogOut className="w-5 h-5" /> Logout
@@ -577,12 +623,8 @@ function HomeTab() {
     fetchData();
   }, [currentView]);
 
-  const quickLinks = [
-    { icon: Zap, label: t("freeTests", lang), view: "free-tests" as const, bg: "bg-gradient-to-br from-green-500 to-emerald-600", shadow: "shadow-green-500/30" },
-    { icon: Trophy, label: t("testSeries", lang), view: "test-series" as const, bg: "bg-gradient-to-br from-ev-gold to-amber-500", shadow: "shadow-amber-500/30" },
-    { icon: FileText, label: t("previousPapers", lang), view: "previous-papers" as const, bg: "bg-gradient-to-br from-ev-orange to-orange-600", shadow: "shadow-orange-500/30" },
-    { icon: Notebook, label: t("notes", lang), view: "notes" as const, bg: "bg-gradient-to-br from-purple-500 to-purple-600", shadow: "shadow-purple-500/30" },
-  ];
+  const navQuickLinks = navigationItems.filter(i => i.location === "quicklinks").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const quickLinksData = navQuickLinks.length === 0 ? DEFAULT_QUICK_LINKS : navQuickLinks.slice(0, 4);
 
   return (
     <div className="pb-6">
@@ -602,21 +644,28 @@ function HomeTab() {
       {/* Quick Links Grid */}
       <div className="px-4 mb-5">
         <div className="grid grid-cols-4 gap-3">
-          {quickLinks.map((item, i) => (
+          {quickLinksData.map((item, i) => {
+            const IconComp = ICON_MAP[item.icon] || Zap;
+            const bgClass = QUICKLINK_BG[item.color] || "bg-gradient-to-br from-gray-500 to-gray-600 shadow-gray-500/30";
+            return (
             <motion.button
-              key={item.view}
+              key={item.id || i}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + i * 0.05 }}
-              onClick={() => requireAuth(() => setView(item.view))}
+              onClick={() => {
+                if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
+                else requireAuth(() => setView(item.targetView as any));
+              }}
               className="flex flex-col items-center gap-2"
             >
-              <div className={`w-14 h-14 rounded-2xl ${item.bg} ${item.shadow} shadow-lg flex items-center justify-center`}>
-                <item.icon className="w-6 h-6 text-white" />
+              <div className={`w-14 h-14 rounded-2xl ${bgClass} shadow-lg flex items-center justify-center`}>
+                <IconComp className="w-6 h-6 text-white" />
               </div>
               <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{item.label}</span>
             </motion.button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -2219,31 +2268,34 @@ function ResultPage() {
 
 // ==================== BOTTOM NAV ====================
 function BottomNav() {
-  const { currentView, setView } = useAppStore();
-  const lang = useAppStore(s => s.language);
+  const { currentView, setView, navigationItems, user } = useAppStore();
+  const requireAuth = useRequireAuth();
 
-  const tabs = [
-    { icon: Home, label: t("home", lang), view: "home" as const },
-    { icon: BookOpen, label: t("mockTests", lang), view: "mocktests" as const },
-    { icon: Trophy, label: t("leaderboard", lang), view: "leaderboard" as const },
-    { icon: Notebook, label: t("notes", lang), view: "notes" as const },
-    { icon: User, label: t("profile", lang), view: "profile" as const },
-  ];
+  const tabs = navigationItems.filter(i => i.location === "bottomnav").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const fallback = tabs.length === 0 ? DEFAULT_BOTTOM_NAV : tabs;
+  const items = fallback.slice(0, 5); // Max 5 bottom nav items
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-40 pb-safe">
       <div className="flex items-center justify-around py-1.5 px-2 max-w-lg mx-auto">
-        {tabs.map(tab => (
-          <button
-            key={tab.view}
-            onClick={() => setView(tab.view)}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all ${currentView === tab.view ? "text-ev-orange" : "text-gray-400 hover:text-gray-600"}`}
-          >
-            <tab.icon className={`w-5 h-5 ${currentView === tab.view ? "text-ev-orange" : ""}`} />
-            <span className={`text-[10px] font-semibold ${currentView === tab.view ? "text-ev-orange" : ""}`}>{tab.label}</span>
-            {currentView === tab.view && <div className="w-1 h-1 rounded-full bg-ev-orange" />}
-          </button>
-        ))}
+        {items.map((item, idx) => {
+          const IconComp = ICON_MAP[item.icon] || Home;
+          const isActive = currentView === item.targetView;
+          return (
+            <button
+              key={item.id || idx}
+              onClick={() => {
+                if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
+                else setView(item.targetView as any);
+              }}
+              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all ${isActive ? "text-ev-orange" : "text-gray-400 hover:text-gray-600"}`}
+            >
+              <IconComp className={`w-5 h-5 ${isActive ? "text-ev-orange" : ""}`} />
+              <span className={`text-[10px] font-semibold ${isActive ? "text-ev-orange" : ""}`}>{item.label}</span>
+              {isActive && <div className="w-1 h-1 rounded-full bg-ev-orange" />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -2371,6 +2423,18 @@ export default function ExamVaultApp() {
           }
         }).catch(console.error);
       }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time navigation items from admin
+  useEffect(() => {
+    const q = query(collection(db, "navigation"), where("isActive", "==", true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      useAppStore.getState().setNavigationItems(items);
+    }, () => {
+      // On error, navigation will use defaults (empty array → defaults kick in)
     });
     return () => unsubscribe();
   }, []);

@@ -103,6 +103,8 @@ interface AppState {
   setShowPaymentModal: (show: boolean) => void;
   paymentModalData: { planId: string; planName: string; amount: number; type: string } | null;
   setPaymentModalData: (data: { planId: string; planName: string; amount: number; type: string } | null) => void;
+  navigationItems: { id?: string; label: string; icon: string; targetView: string; location: string; order: number; isActive: boolean; color: string; requireAuth: boolean }[];
+  setNavigationItems: (items: { id?: string; label: string; icon: string; targetView: string; location: string; order: number; isActive: boolean; color: string; requireAuth: boolean }[]) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -237,4 +239,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowPaymentModal: (show) => set({ showPaymentModal: show }),
   paymentModalData: null,
   setPaymentModalData: (data) => set({ paymentModalData: data }),
+  navigationItems: [],
+  setNavigationItems: (items) => set({ navigationItems: items }),
 }));

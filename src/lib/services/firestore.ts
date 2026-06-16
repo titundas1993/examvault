@@ -2098,3 +2098,32 @@ export async function verifyPayment(data: {
     throw error;
   }
 }
+
+// ============================================================
+// NAVIGATION ITEMS (admin-controlled nav)
+// ============================================================
+
+export interface NavigationItem {
+  id?: string;
+  label: string;
+  icon: string;           // Lucide icon name e.g. "Home", "BookOpen"
+  targetView: string;     // AppView name
+  location: "bottomnav" | "sidemenu" | "quicklinks";
+  order: number;
+  isActive: boolean;
+  color: string;          // Tailwind text color class
+  requireAuth: boolean;
+}
+
+const NAVIGATION_COLLECTION = "navigation";
+
+export async function getNavigationItems() {
+  try {
+    const q = query(collection(db, NAVIGATION_COLLECTION), where("isActive", "==", true));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ ...d.data(), id: d.id } as NavigationItem));
+  } catch (error) {
+    console.error("Error getting navigation:", error);
+    throw error;
+  }
+}
