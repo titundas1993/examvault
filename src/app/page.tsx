@@ -69,6 +69,49 @@ import PaymentModal from "@/components/user/PaymentModal";
 // Shared Components
 import GuestLockModal from "@/components/shared/GuestLockModal";
 
+// ==================== IN-FILE ERROR BOUNDARY ====================
+class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("AppErrorBoundary:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white">
+          <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-5">
+            <span className="text-3xl">💥</span>
+          </div>
+          <h2 className="text-xl font-bold text-red-700 mb-2">Something Crashed</h2>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 max-w-md w-full">
+            <p className="text-sm text-red-700 font-mono" style={{wordBreak:'break-word'}}>
+              {this.state.error.message}
+            </p>
+            {this.state.error.stack && (
+              <pre className="mt-3 text-xs text-red-500 overflow-auto max-h-40 whitespace-pre-wrap" style={{wordBreak:'break-word'}}>
+                {this.state.error.stack.split('\n').slice(0, 15).join('\n')}
+              </pre>
+            )}
+          </div>
+          <button
+            onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg"
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Home, BookOpen, Trophy, Crown, Zap, Brain, FileText, Notebook,
   CalendarDays, Sparkles, Award, User, Settings, HelpCircle,
@@ -2651,47 +2694,49 @@ export default function ExamVaultApp() {
 
   // User App
   return (
-    <div className={`min-h-screen ${useAppStore.getState().isDark ? "dark bg-gray-900" : "bg-gray-50"} pb-16`}>
-      {/* Maintenance Mode Overlay */}
-      {appSettings.maintenanceMode && (
-        <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">
-            <Settings className="w-10 h-10 text-ev-orange animate-spin" style={{ animationDuration: '3s' }} />
+    <AppErrorBoundary>
+      <div className={`min-h-screen ${useAppStore.getState().isDark ? "dark bg-gray-900" : "bg-gray-50"} pb-16`}>
+        {/* Maintenance Mode Overlay */}
+        {appSettings.maintenanceMode && (
+          <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">
+              <Settings className="w-10 h-10 text-ev-orange animate-spin" style={{ animationDuration: '3s' }} />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">Under Maintenance</h2>
+            <p className="text-gray-400 text-sm max-w-xs">We&apos;re making some improvements. Please check back in a little while.</p>
           </div>
-          <h2 className="text-2xl font-black text-white mb-2">Under Maintenance</h2>
-          <p className="text-gray-400 text-sm max-w-xs">We&apos;re making some improvements. Please check back in a little while.</p>
-        </div>
-      )}
-      <Header />
-      <SideMenu />
-      <AnimatePresence mode="wait">
-        <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-          {currentView === "home" && <HomeTab />}
-          {currentView === "mocktests" && <MockTestsTab />}
-          {currentView === "test-series" && <TestSeriesTab />}
-          {currentView === "free-tests" && <FreeTestsTab />}
-          {currentView === "free-quizzes" && <FreeQuizzesTab />}
-          {currentView === "previous-papers" && <PreviousPapersTab />}
-          {currentView === "previous-paper-detail" && <PreviousPaperDetail />}
-          {currentView === "notes" && <NotesTab />}
-          {currentView === "note-detail" && <NoteDetail />}
-          {currentView === "profile" && <ProfileTab />}
-          {currentView === "settings" && <SettingsTab />}
-          {currentView === "support" && <SupportTab />}
-          {currentView === "leaderboard" && <LeaderboardTab />}
-          {currentView === "upcoming-exams" && <UpcomingExamsTab />}
-          {currentView === "upcoming-exam-detail" && <UpcomingExamDetail />}
-          {currentView === "daily-tips" && <DailyTipsTab />}
-          {currentView === "daily-tip-detail" && <DailyTipDetail />}
-          {currentView === "announcement-detail" && <AnnouncementDetail />}
-          {currentView === "notifications" && <NotificationPanel open={true} onClose={() => useAppStore.getState().setView("home")} />}
-          {currentView === "pricing" && <PricingPage />}
-        </motion.div>
-      </AnimatePresence>
-      <BottomNav />
-      <GuestLockModal />
-      <PaymentModal />
-      <ExitConfirmDialog />
-    </div>
+        )}
+        <Header />
+        <SideMenu />
+        <AnimatePresence mode="wait">
+          <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            {currentView === "home" && <HomeTab />}
+            {currentView === "mocktests" && <MockTestsTab />}
+            {currentView === "test-series" && <TestSeriesTab />}
+            {currentView === "free-tests" && <FreeTestsTab />}
+            {currentView === "free-quizzes" && <FreeQuizzesTab />}
+            {currentView === "previous-papers" && <PreviousPapersTab />}
+            {currentView === "previous-paper-detail" && <PreviousPaperDetail />}
+            {currentView === "notes" && <NotesTab />}
+            {currentView === "note-detail" && <NoteDetail />}
+            {currentView === "profile" && <ProfileTab />}
+            {currentView === "settings" && <SettingsTab />}
+            {currentView === "support" && <SupportTab />}
+            {currentView === "leaderboard" && <LeaderboardTab />}
+            {currentView === "upcoming-exams" && <UpcomingExamsTab />}
+            {currentView === "upcoming-exam-detail" && <UpcomingExamDetail />}
+            {currentView === "daily-tips" && <DailyTipsTab />}
+            {currentView === "daily-tip-detail" && <DailyTipDetail />}
+            {currentView === "announcement-detail" && <AnnouncementDetail />}
+            {currentView === "notifications" && <NotificationPanel open={true} onClose={() => useAppStore.getState().setView("home")} />}
+            {currentView === "pricing" && <PricingPage />}
+          </motion.div>
+        </AnimatePresence>
+        <BottomNav />
+        <GuestLockModal />
+        <PaymentModal />
+        <ExitConfirmDialog />
+      </div>
+    </AppErrorBoundary>
   );
 }
