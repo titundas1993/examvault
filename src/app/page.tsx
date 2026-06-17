@@ -576,7 +576,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
 // ==================== HOME TAB ====================
 function HomeTab() {
-  const { setView, user, currentView } = useAppStore();
+  const { setView, user, currentView, navigationItems } = useAppStore();
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
