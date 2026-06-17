@@ -714,9 +714,9 @@ function HomeTab() {
             >
               <div className="flex items-center gap-3">
                 {test.imageUrl ? (
-                  <img src={test.imageUrl} alt={test.title} className="w-20 h-20 rounded-2xl object-cover shadow-md" />
+                  <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
                 ) : (
-                  <div className={"w-20 h-20 rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
+                  <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
                     {test.isFree ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
                   </div>
                 )}
@@ -814,9 +814,9 @@ function MockTestsTab() {
           <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
-                <img src={test.imageUrl} alt={test.title} className="w-20 h-20 rounded-2xl object-cover shadow-md" />
+                <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
               ) : (
-                <div className={"w-20 h-20 rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
+                <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
                   {test.isFree ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
                 </div>
               )}
@@ -876,9 +876,9 @@ function TestSeriesTab() {
           <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); }, { name: s.title, price: s.price || 0 })}>
               {s.imageUrl ? (
-                <img src={s.imageUrl} alt={s.title} className="w-20 h-20 rounded-2xl object-cover shadow-md flex-shrink-0" />
+                <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-9 h-9 text-ev-gold" /></div>
+                <div className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-9 h-9 text-ev-gold" /></div>
               )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
@@ -948,9 +948,9 @@ function FreeTestsTab() {
           <div key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); }} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
-                <img src={test.imageUrl} alt={test.title} className="w-20 h-20 rounded-2xl object-cover shadow-md" />
+                <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-green-50 flex items-center justify-center"><Zap className="w-9 h-9 text-ev-green" /></div>
+                <div className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl bg-green-50 flex items-center justify-center"><Zap className="w-9 h-9 text-ev-green" /></div>
               )}
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{test.title}</h4>
