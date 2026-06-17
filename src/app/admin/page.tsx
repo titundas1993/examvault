@@ -1389,6 +1389,7 @@ function TestAdminWithPicker({
       </div>
 
       <CrudAdminPanel
+        key={refreshKey}
         title={title}
         subtitle={subtitle}
         icon={icon}

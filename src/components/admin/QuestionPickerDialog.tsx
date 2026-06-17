@@ -263,36 +263,35 @@ export default function QuestionPickerDialog({
       await Promise.all(updates);
 
       // Auto-assign category + subject from ALL currently selected questions to the test
-      // Find the most common category and subject among selected questions
-      if (collectionName && selectedIds.size > 0) {
-        const selectedQuestions = questions.filter(q => selectedIds.has(q.id));
-        const catCount: Record<string, number> = {};
-        const subCount: Record<string, number> = {};
-        selectedQuestions.forEach(q => {
-          if (q.category) catCount[q.category] = (catCount[q.category] || 0) + 1;
-          if (q.subject) subCount[q.subject] = (subCount[q.subject] || 0) + 1;
-        });
-        // Most common category (ties resolved by first match)
-        const topCat = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0];
-        const topSub = Object.entries(subCount).sort((a, b) => b[1] - a[1])[0]?.[0];
-        const testUpdate: Record<string, any> = {};
-        if (topCat) testUpdate.category = topCat;
-        if (topSub) testUpdate.subject = topSub;
-        // Also update question count
-        testUpdate.questions = selectedIds.size;
-        if (Object.keys(testUpdate).length > 0) {
+      if (collectionName && testId) {
+        if (selectedIds.size > 0) {
+          const selectedQuestions = questions.filter(q => selectedIds.has(q.id));
+          const catCount: Record<string, number> = {};
+          const subCount: Record<string, number> = {};
+          selectedQuestions.forEach(q => {
+            if (q.category) catCount[q.category] = (catCount[q.category] || 0) + 1;
+            if (q.subject) subCount[q.subject] = (subCount[q.subject] || 0) + 1;
+          });
+          // Most common category (ties resolved by first match)
+          const topCat = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+          const topSub = Object.entries(subCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+          const testUpdate: Record<string, any> = {};
+          if (topCat) testUpdate.category = topCat;
+          if (topSub) testUpdate.subject = topSub;
+          // Also update question count
+          testUpdate.questions = selectedIds.size;
           try {
             await adminUpdateDoc(collectionName, testId, testUpdate);
           } catch (e) {
             console.error("Failed to auto-update test category/subject:", e);
           }
-        }
-      } else if (collectionName && selectedIds.size === 0) {
-        // No questions selected — clear category/subject and reset count
-        try {
-          await adminUpdateDoc(collectionName, testId, { category: "", subject: "", questions: 0 });
-        } catch (e) {
-          console.error("Failed to clear test category/subject:", e);
+        } else {
+          // No questions selected — clear category/subject and reset count
+          try {
+            await adminUpdateDoc(collectionName, testId, { category: "", subject: "", questions: 0 });
+          } catch (e) {
+            console.error("Failed to clear test category/subject:", e);
+          }
         }
       }
 
