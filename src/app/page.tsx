@@ -2595,11 +2595,17 @@ if (typeof window !== "undefined") {
       window.history.pushState({ appState: true }, "");
 
       const cur = store.currentView;
-      // Simple rule: Home + back = exit confirm, everything else = go back
+      // Simple rule:
+      // 1. Home + back = exit warning (app will close)
+      // 2. Any other page + back = goBack() if history exists, else go to home
+      //    (next back press from home will show exit warning)
       if (cur === "home") {
         store.setExitConfirmVisible(true);
-      } else {
+      } else if (store.viewHistory.length > 0) {
         store.goBack();
+      } else {
+        // No history — go to home first, then back will trigger exit warning
+        store.setView("home");
       }
     });
 
