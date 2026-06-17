@@ -733,9 +733,6 @@ function HomeTab() {
                     <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{test.questions} Q</span>
                   </div>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-xs text-gray-400">{test.attempts || 0}+ attempts</span>
-                </div>
               </div>
             </motion.div>
           ))}
@@ -826,9 +823,6 @@ function MockTestsTab() {
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-xs text-gray-400">{test.attempts || 0}+ attempts</span>
               </div>
             </div>
             {!test.isFree && test.price > 0 && (
