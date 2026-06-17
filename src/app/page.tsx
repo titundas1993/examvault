@@ -2586,21 +2586,27 @@ function BackButtonHandler() {
 
   // Register popstate handler — NEVER remove it
   useEffect(() => {
-    // Push initial sentinel
-    window.history.pushState({ appState: true, view: "home" }, "");
+    // Push ONE sentinel entry — this is the only browser history entry.
+    // All in-app navigation is handled via Zustand state (not browser history).
+    // When user presses back, the popstate fires, we push the sentinel back
+    // so browser never actually navigates away, and we handle navigation internally.
+    window.history.pushState({ appState: true }, "");
 
     const handlePopState = () => {
       const store = useAppStore.getState();
       if (store.isExitingApp) return;
-      // Re-push sentinel so browser doesn't actually navigate away
-      window.history.pushState({ appState: true, view: store.currentView }, "");
+      // Immediately re-push the sentinel so browser can't navigate away
+      window.history.pushState({ appState: true }, "");
 
       const cur = store.currentView;
       if (cur === "home") {
+        // Already on home → show exit warning
         store.setExitConfirmVisible(true);
       } else if (store.viewHistory.length > 0) {
+        // Has history → go back to previous in-app view
         store.goBack();
       } else {
+        // No history → go to home
         store.setView("home");
       }
     };
@@ -2615,13 +2621,6 @@ function BackButtonHandler() {
     // Removing them causes a race condition where back button events are missed
     // during React re-renders (early returns for exam/result/test-info).
   }, []);
-
-  // Push a NEW history entry for every view change
-  // This ensures browser back button has entries to go through
-  // instead of leaving the app entirely
-  useEffect(() => {
-    window.history.pushState({ appState: true, view: currentView }, "");
-  }, [currentView]);
 
   // Scroll saver
   useEffect(() => {
