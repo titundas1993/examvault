@@ -2582,25 +2582,25 @@ function ExitConfirmDialog() {
 // This component MUST be rendered BEFORE any early returns so it stays mounted
 // regardless of which view (exam, result, test-info, etc.) is shown.
 function BackButtonHandler() {
+  const currentView = useAppStore(s => s.currentView);
+
+  // Register popstate handler — NEVER remove it
   useEffect(() => {
     // Push initial sentinel
-    window.history.pushState({ appState: true }, "");
+    window.history.pushState({ appState: true, view: "home" }, "");
 
     const handlePopState = () => {
       const store = useAppStore.getState();
       if (store.isExitingApp) return;
       // Re-push sentinel so browser doesn't actually navigate away
-      window.history.pushState({ appState: true }, "");
+      window.history.pushState({ appState: true, view: store.currentView }, "");
 
       const cur = store.currentView;
       if (cur === "home") {
-        // Home + back = ask to exit app
         store.setExitConfirmVisible(true);
       } else if (store.viewHistory.length > 0) {
-        // Has history → go back to previous view
         store.goBack();
       } else {
-        // No history → go to home (next back will exit)
         store.setView("home");
       }
     };
@@ -2611,16 +2611,16 @@ function BackButtonHandler() {
 
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("pageshow", handlePageShow);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      window.removeEventListener("pageshow", handlePageShow);
-    };
+    // NOTE: We intentionally do NOT clean up these listeners.
+    // Removing them causes a race condition where back button events are missed
+    // during React re-renders (early returns for exam/result/test-info).
   }, []);
 
-  // Also keep browser history in sync + save scroll
-  const currentView = useAppStore(s => s.currentView);
+  // Push a NEW history entry for every view change
+  // This ensures browser back button has entries to go through
+  // instead of leaving the app entirely
   useEffect(() => {
-    window.history.replaceState({ appState: true, view: currentView }, "");
+    window.history.pushState({ appState: true, view: currentView }, "");
   }, [currentView]);
 
   // Scroll saver
