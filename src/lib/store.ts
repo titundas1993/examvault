@@ -113,7 +113,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentView: "splash",
+  currentView: "home",
   viewHistory: [],
   scrollPositions: {},
   setView: (view) => {

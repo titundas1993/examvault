@@ -1,28 +1,5 @@
 "use client";
 
-// Global error capture — shows error on screen instead of white screen
-if (typeof window !== 'undefined') {
-  window.onerror = function(msg, source, lineno, colno, error) {
-    console.error('GLOBAL ERROR:', msg, source, lineno, colno, error);
-    const el = document.getElementById('__ev_error_debug');
-    if (el) {
-      el.style.display = 'flex';
-      el.querySelector('.ev-error-msg')!.textContent = String(msg);
-      el.querySelector('.ev-error-stack')!.textContent = error?.stack || `${source}:${lineno}:${colno}`;
-    }
-    return false;
-  };
-  window.addEventListener('unhandledrejection', function(event) {
-    console.error('UNHANDLED PROMISE:', event.reason);
-    const el = document.getElementById('__ev_error_debug');
-    if (el) {
-      el.style.display = 'flex';
-      el.querySelector('.ev-error-msg')!.textContent = 'Promise: ' + String(event.reason?.message || event.reason);
-      el.querySelector('.ev-error-stack')!.textContent = event.reason?.stack || String(event.reason);
-    }
-  });
-}
-
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
@@ -166,106 +143,6 @@ const DEFAULT_QUICK_LINKS = [
 ];
 
 // ==================== ALL DATA FROM FIREBASE ====================
-// ==================== SPLASH SCREEN ====================
-function SplashScreen({ onComplete }: { onComplete: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 2500);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <div className="fixed inset-0 bg-ev-navy flex flex-col items-center justify-center z-50">
-      <motion.div
-        initial={{ scale: 0, rotate: -180 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ duration: 0.8, type: "spring" }}
-        className="mb-6"
-      >
-        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-2xl shadow-ev-orange/30">
-          <span className="text-5xl">📚</span>
-        </div>
-      </motion.div>
-      <motion.h1
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="text-4xl font-black text-white tracking-tight"
-      >
-        EXAM<span className="text-ev-orange">VAULT</span>
-      </motion.h1>
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.8 }}
-        className="text-ev-gold/80 text-sm mt-2 tracking-wide"
-      >
-        Mock Tests, PYQs & Exam Updates
-      </motion.p>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2 }}
-        className="mt-10"
-      >
-        <div className="w-8 h-8 border-3 border-ev-orange border-t-transparent rounded-full animate-spin" />
-      </motion.div>
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ delay: 1, duration: 1.5 }}
-        className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-ev-orange via-ev-gold to-ev-orange origin-left"
-        style={{ width: "100%" }}
-      />
-    </div>
-  );
-}
-
-// ==================== ONBOARDING ====================
-function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
-  const [step, setStep] = useState(0);
-  const slides = [
-    { emoji: "📝", title: "Practice Mock Tests", desc: "Thousands of questions for all competitive exams", color: "from-ev-navy to-blue-700" },
-    { emoji: "📄", title: "Previous Year Papers", desc: "Solve actual exam papers from past years", color: "from-ev-orange to-red-600" },
-    { emoji: "🏆", title: "Track Your Progress", desc: "Leaderboard, analytics & performance reports", color: "from-ev-gold to-amber-600" },
-  ];
-
-  return (
-    <div className={`min-h-screen bg-gradient-to-br ${slides[step].color} flex flex-col items-center justify-center p-6`}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -50 }}
-          className="text-center"
-        >
-          <div className="text-8xl mb-8 animate-float">{slides[step].emoji}</div>
-          <h2 className="text-3xl font-bold text-white mb-3">{slides[step].title}</h2>
-          <p className="text-white/80 text-lg">{slides[step].desc}</p>
-        </motion.div>
-      </AnimatePresence>
-      <div className="flex gap-2 mt-12 mb-8">
-        {slides.map((_, i) => (
-          <div key={i} className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === step ? "w-8 bg-white" : "bg-white/40"}`} />
-        ))}
-      </div>
-      <div className="flex gap-3 w-full max-w-sm">
-        <button onClick={onComplete} className="flex-1 py-3 rounded-xl text-white/80 border border-white/30 font-medium">
-          Skip
-        </button>
-        <button
-          onClick={() => step < 2 ? setStep(step + 1) : onComplete()}
-          className="flex-1 py-3 rounded-xl bg-white text-ev-navy font-bold shadow-lg"
-        >
-          {step < 2 ? "Next" : "Get Started"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
-
 // ==================== HEADER ====================
 function Header() {
   const { setView, setSidebarOpen, language, setLanguage, unreadNotificationCount, user } = useAppStore();
@@ -2449,26 +2326,14 @@ function ExitConfirmDialog() {
   );
 }
 
-// ==================== MAIN APP ====================
-export default function ExamVaultApp() {
+// ==================== MAIN APP (INNER) ====================
+// Split into inner/outer so the ErrorBoundary wraps ALL hooks + rendering
+function ExamVaultAppInner() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
-  const [showSplash, setShowSplash] = useState(true);
-  // Check localStorage — if onboarding already completed, skip it
-  // Using useEffect instead of useState initializer to avoid hydration mismatch
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const onboardingCheckedRef = useRef(false);
+  const isDark = useAppStore(s => s.isDark);
 
-  useEffect(() => {
-    if (onboardingCheckedRef.current) return;
-    onboardingCheckedRef.current = true;
-    const onboardingDone = typeof window !== 'undefined' && localStorage.getItem('ev_onboarding_done') === 'true';
-    if (!onboardingDone && !showSplash) {
-      setShowOnboarding(true);
-    }
-  }, [showSplash]);
   // Track if view change came from popstate (back button) to avoid double pushState
   const isBackNavigation = useRef(false);
-  // Track if the initial sentinel has been set up
   const sentinelReady = useRef(false);
 
   // Load user profile from localStorage on mount
@@ -2479,21 +2344,17 @@ export default function ExamVaultApp() {
         const parsed = JSON.parse(saved);
         useAppStore.getState().setUserProfile(parsed);
       }
-      // Load app settings from localStorage cache first (fast)
       const savedSettings = localStorage.getItem('ev_app_settings');
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
         useAppStore.getState().setAppSettings(parsedSettings);
       }
     } catch (e) { /* ignore */ }
-    // Then fetch fresh settings from Firestore (async)
     const fetchSettings = async () => {
       try {
         const settings = await getAppSettings();
-        if (settings) {
-          useAppStore.getState().setAppSettings(settings);
-        }
-      } catch (e) { /* ignore - will use localStorage cache */ }
+        if (settings) useAppStore.getState().setAppSettings(settings);
+      } catch (e) { /* ignore */ }
     };
     fetchSettings();
   }, []);
@@ -2510,7 +2371,6 @@ export default function ExamVaultApp() {
           role: "user",
           uid: user.uid,
         });
-        // Check subscription status after login
         checkSubscriptionStatus(user.uid).then((status) => {
           if (status.isPremium) {
             useAppStore.getState().setSubscription({
@@ -2528,80 +2388,60 @@ export default function ExamVaultApp() {
 
   // Real-time navigation items from admin
   useEffect(() => {
-    const q = query(collection(db, "navigation"), where("isActive", "==", true));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-      useAppStore.getState().setNavigationItems(items);
-    }, () => {
-      // On error, navigation will use defaults (empty array → defaults kick in)
-    });
-    return () => unsubscribe();
+    try {
+      const q = query(collection(db, "navigation"), where("isActive", "==", true));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        useAppStore.getState().setNavigationItems(items);
+      }, () => { /* use defaults */ });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Navigation listener failed, using defaults");
+    }
   }, []);
 
   // Fetch notifications
   useEffect(() => {
     const fetchNotifs = async () => {
-      const notifs = await getNotifications();
-      if (notifs) {
-        useAppStore.getState().setNotifications(notifs);
-        useAppStore.getState().setUnreadNotificationCount(notifs.filter((n: any) => !n.isRead).length);
-      }
+      try {
+        const notifs = await getNotifications();
+        if (notifs) {
+          useAppStore.getState().setNotifications(notifs);
+          useAppStore.getState().setUnreadNotificationCount(notifs.filter((n: any) => !n.isRead).length);
+        }
+      } catch (e) { /* ignore */ }
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Handle hardware back button — CRITICAL FOR PWA
-  // Strategy: Keep only ONE history entry (sentinel) above the real page entry.
-  // On every popstate, re-push the sentinel so the browser never navigates away.
-  // All in-app navigation is handled via Zustand store, not browser history.
+  // Handle hardware back button — PWA back navigation
   useEffect(() => {
-    // Set up the sentinel — push one entry above the current page
-    // When back is pressed, browser goes to this sentinel → popstate fires → we re-push
     window.history.pushState({ appState: true }, "");
     sentinelReady.current = true;
 
     const handlePopState = (_event: PopStateEvent) => {
       const store = useAppStore.getState();
-
-      // If the user explicitly clicked Exit, let the browser handle the back navigation naturally
-      if (store.isExitingApp) {
-        return;
-      }
-
-      // CRITICAL: Re-push sentinel immediately so the browser can't navigate away
-      // This must happen synchronously BEFORE any async operations
+      if (store.isExitingApp) return;
       window.history.pushState({ appState: true }, "");
-
-      // Mark this as back navigation so the currentView effect doesn't pushState again
       isBackNavigation.current = true;
-
-      // If we can go back in our internal view history, do that
       if (store.viewHistory.length > 0) {
-        // Don't go back to a root view — that should show exit dialog
         const prevView = store.viewHistory[store.viewHistory.length - 1];
         const ROOT_VIEWS = ["home"];
         if (ROOT_VIEWS.includes(prevView) && store.viewHistory.length === 1) {
-          // Only root left — show exit dialog instead of going to home from home
           store.setExitConfirmVisible(true);
         } else {
           store.goBack();
         }
       } else {
-        // We're at root (home) — show exit confirmation dialog
         store.setExitConfirmVisible(true);
       }
-
-      // Reset the flag after React has processed the state update
       setTimeout(() => { isBackNavigation.current = false; }, 100);
     };
 
-    // Handle pageshow event — when browser restores page from bfcache
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        window.history.pushState({ appState: true }, "");
-      }
+      if (event.persisted) window.history.pushState({ appState: true }, "");
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -2612,71 +2452,23 @@ export default function ExamVaultApp() {
     };
   }, []);
 
-  // Keep the sentinel updated with current view info (replaceState, NOT pushState)
-  // This ensures we never add extra history entries during forward navigation
+  // Keep sentinel updated with current view
   useEffect(() => {
-    if (currentView === "splash" || currentView === "onboarding") return;
-    if (!sentinelReady.current) return;
-    if (isBackNavigation.current) return;
-    // Only replace the current top entry — never push new ones
+    if (!sentinelReady.current || isBackNavigation.current) return;
     window.history.replaceState({ appState: true, view: currentView }, "");
   }, [currentView]);
 
-  // Restore scroll position when view changes (goBack restores from store, forward nav scrolls to top)
+  // Restore scroll position on view change
   useEffect(() => {
-    if (currentView === "splash" || currentView === "onboarding") return;
     const { scrollPositions } = useAppStore.getState();
     const savedY = scrollPositions[currentView];
-    // If there's a saved scroll position for this view, restore it; otherwise scroll to top
     if (savedY !== undefined && savedY > 0) {
-      // Delay to let the DOM render the view first
       const timer = setTimeout(() => window.scrollTo(0, savedY), 50);
       return () => clearTimeout(timer);
     } else {
       window.scrollTo(0, 0);
     }
   }, [currentView]);
-
-  // Splash → Onboarding → Home
-  if (showSplash) {
-    return (
-      <>
-        <SplashScreen onComplete={() => {
-          // Only show onboarding if user hasn't completed it before
-          const onboardingDone = localStorage.getItem('ev_onboarding_done') === 'true';
-          if (onboardingDone) {
-            setShowSplash(false);
-            useAppStore.getState().setView("home");
-          } else {
-            setShowSplash(false);
-            setShowOnboarding(true);
-          }
-        }} />
-        <ExitConfirmDialog />
-      </>
-    );
-  }
-
-  if (showOnboarding) {
-    return (
-      <>
-        <OnboardingScreen onComplete={() => {
-          // Mark onboarding as completed so it never shows again
-          localStorage.setItem('ev_onboarding_done', 'true');
-          setShowOnboarding(false);
-          useAppStore.getState().setView("home");
-        }} />
-        <ExitConfirmDialog />
-      </>
-    );
-  }
-
-  // If currentView is still splash after onboarding, go home (use useEffect to avoid render-time state update)
-  useEffect(() => {
-    if (currentView === "splash" && !showSplash && !showOnboarding) {
-      useAppStore.getState().setView("home");
-    }
-  }, [currentView, showSplash, showOnboarding]);
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
@@ -2692,51 +2484,57 @@ export default function ExamVaultApp() {
     return <><ResultPage /><ExitConfirmDialog /></>;
   }
 
-  // User App
+  // Main App
+  return (
+    <div className={`min-h-screen ${isDark ? "dark bg-gray-900" : "bg-gray-50"} pb-16`}>
+      {appSettings.maintenanceMode && (
+        <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">
+            <Settings className="w-10 h-10 text-ev-orange animate-spin" style={{ animationDuration: '3s' }} />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">Under Maintenance</h2>
+          <p className="text-gray-400 text-sm max-w-xs">We&apos;re making some improvements. Please check back in a little while.</p>
+        </div>
+      )}
+      <Header />
+      <SideMenu />
+      <AnimatePresence mode="wait">
+        <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          {currentView === "home" && <HomeTab />}
+          {currentView === "mocktests" && <MockTestsTab />}
+          {currentView === "test-series" && <TestSeriesTab />}
+          {currentView === "free-tests" && <FreeTestsTab />}
+          {currentView === "free-quizzes" && <FreeQuizzesTab />}
+          {currentView === "previous-papers" && <PreviousPapersTab />}
+          {currentView === "previous-paper-detail" && <PreviousPaperDetail />}
+          {currentView === "notes" && <NotesTab />}
+          {currentView === "note-detail" && <NoteDetail />}
+          {currentView === "profile" && <ProfileTab />}
+          {currentView === "settings" && <SettingsTab />}
+          {currentView === "support" && <SupportTab />}
+          {currentView === "leaderboard" && <LeaderboardTab />}
+          {currentView === "upcoming-exams" && <UpcomingExamsTab />}
+          {currentView === "upcoming-exam-detail" && <UpcomingExamDetail />}
+          {currentView === "daily-tips" && <DailyTipsTab />}
+          {currentView === "daily-tip-detail" && <DailyTipDetail />}
+          {currentView === "announcement-detail" && <AnnouncementDetail />}
+          {currentView === "notifications" && <NotificationPanel open={true} onClose={() => useAppStore.getState().setView("home")} />}
+          {currentView === "pricing" && <PricingPage />}
+        </motion.div>
+      </AnimatePresence>
+      <BottomNav />
+      <GuestLockModal />
+      <PaymentModal />
+      <ExitConfirmDialog />
+    </div>
+  );
+}
+
+// ==================== MAIN APP (OUTER — Error Boundary wrapper) ====================
+export default function ExamVaultApp() {
   return (
     <AppErrorBoundary>
-      <div className={`min-h-screen ${useAppStore.getState().isDark ? "dark bg-gray-900" : "bg-gray-50"} pb-16`}>
-        {/* Maintenance Mode Overlay */}
-        {appSettings.maintenanceMode && (
-          <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">
-              <Settings className="w-10 h-10 text-ev-orange animate-spin" style={{ animationDuration: '3s' }} />
-            </div>
-            <h2 className="text-2xl font-black text-white mb-2">Under Maintenance</h2>
-            <p className="text-gray-400 text-sm max-w-xs">We&apos;re making some improvements. Please check back in a little while.</p>
-          </div>
-        )}
-        <Header />
-        <SideMenu />
-        <AnimatePresence mode="wait">
-          <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-            {currentView === "home" && <HomeTab />}
-            {currentView === "mocktests" && <MockTestsTab />}
-            {currentView === "test-series" && <TestSeriesTab />}
-            {currentView === "free-tests" && <FreeTestsTab />}
-            {currentView === "free-quizzes" && <FreeQuizzesTab />}
-            {currentView === "previous-papers" && <PreviousPapersTab />}
-            {currentView === "previous-paper-detail" && <PreviousPaperDetail />}
-            {currentView === "notes" && <NotesTab />}
-            {currentView === "note-detail" && <NoteDetail />}
-            {currentView === "profile" && <ProfileTab />}
-            {currentView === "settings" && <SettingsTab />}
-            {currentView === "support" && <SupportTab />}
-            {currentView === "leaderboard" && <LeaderboardTab />}
-            {currentView === "upcoming-exams" && <UpcomingExamsTab />}
-            {currentView === "upcoming-exam-detail" && <UpcomingExamDetail />}
-            {currentView === "daily-tips" && <DailyTipsTab />}
-            {currentView === "daily-tip-detail" && <DailyTipDetail />}
-            {currentView === "announcement-detail" && <AnnouncementDetail />}
-            {currentView === "notifications" && <NotificationPanel open={true} onClose={() => useAppStore.getState().setView("home")} />}
-            {currentView === "pricing" && <PricingPage />}
-          </motion.div>
-        </AnimatePresence>
-        <BottomNav />
-        <GuestLockModal />
-        <PaymentModal />
-        <ExitConfirmDialog />
-      </div>
+      <ExamVaultAppInner />
     </AppErrorBoundary>
   );
 }
