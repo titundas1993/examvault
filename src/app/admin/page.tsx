@@ -612,13 +612,10 @@ function CrudAdminPanel<T extends Record<string, any>>({
   };
 
   const handleSave = async () => {
-    // Validate required fields before saving
-    const missingRequired = fields.filter(f => f.required && !formData[f.key]?.toString()?.trim());
-    // Also check allowOther fields where "Others" is selected but custom text is empty
+    // Check allowOther fields where "Others" is selected but custom text is empty
     const missingOther = fields.filter(f => f.allowOther && formData[f.key] === "Others" && !otherValues[f.key]?.trim());
-    const allMissing = [...missingRequired, ...missingOther];
-    if (allMissing.length > 0) {
-      showToast(`Please fill in: ${allMissing.map(f => f.label).join(", ")}`, "error");
+    if (missingOther.length > 0) {
+      showToast(`Please fill in custom value for: ${missingOther.map(f => f.label).join(", ")}`, "error");
       return;
     }
     setSaving(true);
