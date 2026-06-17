@@ -1789,6 +1789,10 @@ function TestInfoScreen() {
           case "popularTest": data = await getPopularTestById(testId); break;
           case "mockTest": default: data = await getMockTestById(testId); break;
         }
+        // Fallback: if not found in primary collection, try mockTests (e.g. free tests from mockTests collection)
+        if (!data) {
+          data = await getMockTestById(testId);
+        }
         if (data) setTestData(data);
       } catch (e) { console.error("Test info fetch error:", e); }
       finally { setLoading(false); }
@@ -1950,6 +1954,11 @@ function ExamPage() {
               default:
                 testData = await getMockTestById(selectedTest);
                 break;
+            }
+
+            // Fallback: if not found in primary collection, try mockTests
+            if (!testData) {
+              testData = await getMockTestById(selectedTest);
             }
 
             if (testData) {
