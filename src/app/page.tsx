@@ -233,7 +233,7 @@ function SideMenu() {
                   <X className="w-5 h-5 text-white" />
                 </button>
               </div>
-              {user?.role === "guest" && (
+              {(!user || user.role === "guest") && (
                 <button onClick={() => { setView("login"); setSidebarOpen(false); }} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-semibold text-sm">
                   Login / Register
                 </button>
@@ -258,7 +258,7 @@ function SideMenu() {
                   </button>
                 );
               })}
-              {user?.role !== "guest" && (
+              {user?.role === "user" && (
                 <button onClick={async () => { try { await authLogout(); } catch(e) { console.error(e); } setUser(null); setFirebaseUser(null); setView("login"); setSidebarOpen(false); }} className="w-full flex items-center gap-3 px-6 py-3 text-red-600 font-semibold hover:bg-red-50 transition-colors">
                   <LogOut className="w-5 h-5" /> Logout
                 </button>
@@ -276,12 +276,13 @@ function SideMenu() {
   );
 }
 
-// ==================== GUEST CHECK HOOK ====================
+// ==================== AUTH CHECK HOOK ====================
 function useRequireAuth(): (action: () => void) => void {
-  const { user, setShowGuestModal } = useAppStore();
+  const { user, setView } = useAppStore();
   return (action: () => void) => {
-    if (user?.role === "guest") {
-      setShowGuestModal(true);
+    // No user or guest → go to login page directly
+    if (!user || user.role === "guest") {
+      setView("login");
     } else {
       action();
     }
@@ -292,14 +293,14 @@ function useRequireAuth(): (action: () => void) => void {
 function useRequirePremium(): (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => void {
   const { subscription, setView, setShowPaymentModal, setPaymentModalData, user, setShowGuestModal } = useAppStore();
   return (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => {
-    // Free tests — always allow (even for guests)
+    // Free tests — always allow (even without login)
     if (isFree) {
       action();
       return;
     }
-    // Guest check — guests can only access free content
-    if (user?.role === "guest") {
-      setShowGuestModal(true);
+    // No user or guest → go to login page
+    if (!user || user.role === "guest") {
+      setView("login");
       return;
     }
     // Premium test — check subscription
@@ -2476,13 +2477,12 @@ function ExamVaultAppInner() {
           }
         }).catch(console.error);
       } else {
-        // No Firebase user — check if there's a guest user in store
-        // Only redirect to login if the current user is NOT a guest
+        // No Firebase user — if user was logged in (not guest/null), clear and go home
         const currentUser = store.user;
-        if (currentUser && currentUser.role !== "guest") {
-          // User was logged in via Firebase but now signed out — go to login
+        if (currentUser && currentUser.role === "user") {
+          // User was logged in via Firebase but now signed out — go to home (not login)
           store.setUser(null);
-          store.setView("login");
+          store.setView("home");
         }
       }
     });
@@ -2585,10 +2585,8 @@ function ExamVaultAppInner() {
     );
   }
 
-  // If no user and not on login/register, redirect to login
-  if (!user && currentView !== "login" && currentView !== "register") {
-    useAppStore.getState().setView("login");
-  }
+  // No user? Allow browsing home page — login only when they try restricted actions
+  // (Free Tests accessible without login, other features redirect to login on click)
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
