@@ -1782,7 +1782,7 @@ function ExamPage() {
             }
           } catch (e) { console.error("Test data fetch error:", e); }
         }
-        // Fetch questions: testId first, then category fallback
+        // Fetch questions for this specific test only
         const data = await getQuestions(selectedTest || undefined, testCategory);
         if (data && data.length > 0) {
           setQuestions(data);

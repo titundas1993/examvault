@@ -1427,12 +1427,9 @@ export async function getQuestions(testId?: string, category?: string) {
         const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
         return dateA - dateB;
       });
-      // If we found questions by testId, return them
-      if (questions.length > 0) {
-        return questions as QuestionData[];
-      }
-      // Fallback: if no questions with this testId, try category-based fetch
-      // This handles questions that were added before testId linking was implemented
+      // If testId was provided, always return only those questions (even if empty)
+      // This prevents questions from OTHER tests leaking into this test
+      return questions as QuestionData[];
     }
     if (category) {
       // Fetch questions by category
