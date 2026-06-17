@@ -1445,6 +1445,7 @@ function MockTestsAdmin() {
         { key: "difficulty", label: "Difficulty", type: "select", options: [
           { label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" },
         ] },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
         { key: "isFree", label: "Free Test", type: "switch" },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "description", label: "Description", type: "textarea", placeholder: "Test description..." },
@@ -2063,6 +2064,7 @@ function PopularTestsAdmin() {
         { key: "questions", label: "Questions", type: "number" },
         { key: "attempts", label: "Attempts", type: "number" },
         { key: "rating", label: "Rating", type: "number" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
         { key: "isFree", label: "Free", type: "switch" },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "description", label: "Description", type: "textarea" },
