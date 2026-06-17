@@ -1483,6 +1483,10 @@ function QuestionsAdmin() {
   const [testSeries, setTestSeries] = useState<any[]>([]);
   const [popularTests, setPopularTests] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [customCategory, setCustomCategory] = useState("");
+  const [customSubject, setCustomSubject] = useState("");
+  const [bulkCustomCategory, setBulkCustomCategory] = useState("");
+  const [bulkCustomSubject, setBulkCustomSubject] = useState("");
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
@@ -1522,13 +1526,22 @@ function QuestionsAdmin() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      let saveData = { ...formData };
+      if (saveData.category === "Others" && customCategory.trim()) {
+        saveData.category = customCategory.trim();
+      }
+      if (saveData.subject === "Others" && customSubject.trim()) {
+        saveData.subject = customSubject.trim();
+      }
       if (editingItem) {
-        const { id, createdAt, ...rest } = formData;
+        const { id, createdAt, ...rest } = saveData;
         await adminUpdateDoc("questions", editingItem.id, rest);
       } else {
-        await adminAddDoc("questions", formData);
+        await adminAddDoc("questions", saveData);
       }
       setDialogOpen(false);
+      setCustomCategory("");
+      setCustomSubject("");
       loadQuestions();
     } catch (e) { console.error(e); }
     setSaving(false);
@@ -1550,6 +1563,8 @@ function QuestionsAdmin() {
     if (!bulkText.trim()) return;
     setBulkImporting(true);
     try {
+      const effectiveBulkCategory = bulkCategory === "Others" && bulkCustomCategory.trim() ? bulkCustomCategory.trim() : bulkCategory;
+      const effectiveBulkSubject = bulkSubject === "Others" && bulkCustomSubject.trim() ? bulkCustomSubject.trim() : bulkSubject;
       const questionsList: any[] = [];
       let parseErrors: string[] = [];
       const text = bulkText.trim();
@@ -1566,8 +1581,8 @@ function QuestionsAdmin() {
             const ans = parts[5].toUpperCase().trim();
             if (parts[0] && parts[1] && parts[2] && parts[3] && parts[4] && ["A", "B", "C", "D"].includes(ans)) {
               questionsList.push({
-                category: bulkCategory,
-                subject: bulkSubject,
+                category: effectiveBulkCategory,
+                subject: effectiveBulkSubject,
                 difficulty: bulkDifficulty,
                 marks: 1,
                 testId: bulkTestId || "",
@@ -1591,8 +1606,8 @@ function QuestionsAdmin() {
         for (let i = 0; i < blocks.length; i++) {
           const lines = blocks[i].trim().split("\n").map(l => l.trim()).filter(l => l);
           let q: any = {
-            category: bulkCategory,
-            subject: bulkSubject,
+            category: effectiveBulkCategory,
+            subject: effectiveBulkSubject,
             difficulty: bulkDifficulty,
             marks: 1,
             testId: bulkTestId || "",
@@ -1692,6 +1707,8 @@ function QuestionsAdmin() {
         <button onClick={() => {
           setEditingItem(null);
           setFormData({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK", difficulty: "medium", marks: 1, testId: "" });
+          setCustomCategory("");
+          setCustomSubject("");
           setDialogOpen(true);
         }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
         <button onClick={() => { loadCategoriesIntoGlobals(); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
@@ -1716,7 +1733,7 @@ function QuestionsAdmin() {
                   <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => { setEditingItem(q); setFormData({ question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD, correctAnswer: q.correctAnswer, explanation: q.explanation || "", category: q.category, subject: q.subject, difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || "" }); setDialogOpen(true); }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditingItem(q); const catInList = EXAM_CATEGORIES.some(c => c.value === q.category); const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject); setFormData({ question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD, correctAnswer: q.correctAnswer, explanation: q.explanation || "", category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others", difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || "" }); setCustomCategory(catInList ? "" : q.category); setCustomSubject(subInList ? "" : q.subject); setDialogOpen(true); }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
                       <button onClick={() => { setDeletingId(q.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </TableCell>
@@ -1740,9 +1757,19 @@ function QuestionsAdmin() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Correct Answer</Label><Select value={formData.correctAnswer || "A"} onValueChange={v => setFormData({ ...formData, correctAnswer: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["A", "B", "C", "D"].map(a => <SelectItem key={a} value={a}>Option {a}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label className="font-medium">Category</Label><Select value={formData.category || "WBCS"} onValueChange={v => setFormData({ ...formData, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label className="font-medium">Subject</Label><Select value={formData.subject || "GK"} onValueChange={v => setFormData({ ...formData, subject: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Category</Label><Select value={formData.category || "WBCS"} onValueChange={v => { setFormData({ ...formData, category: v }); if (v !== "Others") setCustomCategory(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Subject</Label><Select value={formData.subject || "GK"} onValueChange={v => { setFormData({ ...formData, subject: v }); if (v !== "Others") setCustomSubject(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
             </div>
+            {(formData.category === "Others" || formData.subject === "Others") && (
+              <div className="grid grid-cols-2 gap-4">
+                {formData.category === "Others" && (
+                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
+                )}
+                {formData.subject === "Others" && (
+                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={customSubject} onChange={e => setCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Difficulty</Label><Select value={formData.difficulty || "medium"} onValueChange={v => setFormData({ ...formData, difficulty: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
               <div><Label className="font-medium">Marks</Label><Input type="number" value={formData.marks || 1} onChange={e => setFormData({ ...formData, marks: Number(e.target.value) })} /></div>
@@ -1773,7 +1800,7 @@ function QuestionsAdmin() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="font-medium">Category</Label>
-                <Select value={bulkCategory} onValueChange={setBulkCategory}>
+                <Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -1782,7 +1809,7 @@ function QuestionsAdmin() {
               </div>
               <div>
                 <Label className="font-medium">Subject</Label>
-                <Select value={bulkSubject} onValueChange={setBulkSubject}>
+                <Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -1815,6 +1842,16 @@ function QuestionsAdmin() {
                 </Select>
               </div>
             </div>
+            {(bulkCategory === "Others" || bulkSubject === "Others") && (
+              <div className="grid grid-cols-2 gap-4">
+                {bulkCategory === "Others" && (
+                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={bulkCustomCategory} onChange={e => setBulkCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
+                )}
+                {bulkSubject === "Others" && (
+                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={bulkCustomSubject} onChange={e => setBulkCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
+                )}
+              </div>
+            )}
 
             {/* File Upload Section */}
             <div className="space-y-3">
