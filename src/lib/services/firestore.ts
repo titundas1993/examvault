@@ -2180,3 +2180,82 @@ export async function getNavigationItems() {
     throw error;
   }
 }
+
+// ============================================================
+// 14. ratings Collection — User ratings for tests
+// ============================================================
+
+export interface RatingData {
+  id?: string;
+  testId: string;
+  testType: string;
+  userId: string;
+  rating: number;
+  createdAt?: string;
+}
+
+const RATINGS_COLLECTION = "ratings";
+
+export async function submitRating(testId: string, testType: string, userId: string, rating: number): Promise<void> {
+  try {
+    const q = query(
+      collection(db, RATINGS_COLLECTION),
+      where("testId", "==", testId),
+      where("userId", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      await addDoc(collection(db, RATINGS_COLLECTION), {
+        testId,
+        testType,
+        userId,
+        rating,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      await updateDoc(doc(db, RATINGS_COLLECTION, snapshot.docs[0].id), {
+        rating,
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    // Recalculate average rating for the test
+    const allRatings = await getDocs(query(collection(db, RATINGS_COLLECTION), where("testId", "==", testId)));
+    const ratings = allRatings.docs.map(d => d.data().rating as number);
+    const average = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : 0;
+
+    const collectionMap: Record<string, string> = {
+      mockTest: "mockTests",
+      freeTest: "freeTests",
+      dailyQuiz: "dailyQuiz",
+      testSeries: "testSeries",
+      popularTest: "mockTests",
+    };
+
+    const collectionName = collectionMap[testType] || "mockTests";
+    await updateDoc(doc(db, collectionName, testId), {
+      rating: average,
+      ratingCount: ratings.length,
+    });
+  } catch (error) {
+    console.error("Error submitting rating:", error);
+    throw error;
+  }
+}
+
+export async function getUserRating(testId: string, userId: string): Promise<number | null> {
+  try {
+    const q = query(
+      collection(db, RATINGS_COLLECTION),
+      where("testId", "==", testId),
+      where("userId", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].data().rating as number;
+  } catch (error) {
+    console.error("Error getting user rating:", error);
+    return null;
+  }
+}

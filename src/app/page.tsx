@@ -12,6 +12,7 @@ import {
   getAnnouncements, getQuestions, getLeaderboard, getAppSettings,
   saveTestResult, getUserTestResults, getTestLeaderboard,
   addLeaderboardEntry, updateLeaderboardEntry,
+  submitRating, getUserRating,
   checkSubscriptionStatus, hasPurchasedItem,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
   NotesData, PreviousPaperData,
@@ -735,10 +736,11 @@ function HomeTab() {
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <div className="flex items-center gap-0.5">
-                    <Star className="w-3.5 h-3.5 text-ev-gold fill-ev-gold" />
-                    <span className="text-sm font-bold text-ev-navy">{test.rating || 0}</span>
+                    {[1,2,3,4,5].map(s => (
+                      <Star key={s} className={"w-3.5 h-3.5 " + ((test.rating || 0) >= s ? "text-ev-gold fill-ev-gold" : "text-gray-300")} />
+                    ))}
                   </div>
-                  <span className="text-xs text-gray-400">{test.attempts || 0}+</span>
+                  <span className="text-xs text-gray-400">{test.rating || 0} ({test.ratingCount || 0})</span>
                 </div>
               </div>
             </motion.div>
@@ -832,8 +834,12 @@ function MockTestsTab() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-0.5"><Star className="w-3 h-3 text-ev-gold fill-ev-gold" /><span className="text-sm font-bold">{test.rating || 0}</span></div>
-                <span className="text-xs text-gray-400">{test.attempts || 0}+</span>
+                <div className="flex items-center gap-0.5">
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} className={"w-3 h-3 " + ((test.rating || 0) >= s ? "text-ev-gold fill-ev-gold" : "text-gray-300")} />
+                  ))}
+                </div>
+                <span className="text-xs text-gray-400">{test.rating || 0} ({test.ratingCount || 0})</span>
               </div>
             </div>
             {!test.isFree && test.price > 0 && (
@@ -2307,7 +2313,11 @@ function ExamPage() {
 
 // ==================== RESULT PAGE ====================
 function ResultPage() {
-  const { goBack, lastTestResult } = useAppStore();
+  const { goBack, lastTestResult, user, selectedTestType } = useAppStore();
+  const [userRating, setUserRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [existingRating, setExistingRating] = useState<number | null>(null);
 
   const score = lastTestResult?.scoredMarks ?? 0;
   const total = lastTestResult?.totalMarks ?? 0;
@@ -2315,6 +2325,31 @@ function ResultPage() {
   const timeUsedSec = lastTestResult?.timeUsedSeconds ?? 0;
   const mins = Math.floor(timeUsedSec / 60);
   const secs = timeUsedSec % 60;
+  const testId = lastTestResult?.testId || "";
+
+  // Check if user already rated this test
+  useEffect(() => {
+    if (testId && user?.uid) {
+      getUserRating(testId, user.uid).then(r => {
+        if (r) {
+          setExistingRating(r);
+          setUserRating(r);
+          setRatingSubmitted(true);
+        }
+      });
+    }
+  }, [testId, user?.uid]);
+
+  const handleRate = async (rating: number) => {
+    setUserRating(rating);
+    if (!user?.uid || !testId) return;
+    try {
+      await submitRating(testId, selectedTestType || "mockTest", user.uid, rating);
+      setRatingSubmitted(true);
+    } catch (e) {
+      console.error("Rating failed:", e);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ev-navy to-blue-800 flex flex-col items-center justify-center p-6">
@@ -2338,6 +2373,45 @@ function ResultPage() {
           </div>
         ))}
       </div>
+
+      {/* Rating Section */}
+      {user?.uid && testId && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="w-full max-w-sm mt-4 mb-6 bg-white/10 backdrop-blur-xl rounded-2xl p-5"
+        >
+          <h3 className="text-white font-bold text-center mb-3">
+            {ratingSubmitted ? "Thank you for rating!" : "Rate this test"}
+          </h3>
+          <div className="flex justify-center gap-2">
+            {[1, 2, 3, 4, 5].map(s => (
+              <button
+                key={s}
+                onClick={() => handleRate(s)}
+                onMouseEnter={() => setHoverRating(s)}
+                onMouseLeave={() => setHoverRating(0)}
+                className="transition-transform active:scale-90"
+              >
+                <Star
+                  className={"w-9 h-9 transition-colors " + (
+                    (hoverRating || userRating) >= s
+                      ? "text-ev-gold fill-ev-gold"
+                      : "text-white/30"
+                  )}
+                />
+              </button>
+            ))}
+          </div>
+          {userRating > 0 && (
+            <p className="text-center text-white/60 text-sm mt-2">
+              {userRating === 1 ? "Poor" : userRating === 2 ? "Fair" : userRating === 3 ? "Good" : userRating === 4 ? "Very Good" : "Excellent"}
+            </p>
+          )}
+        </motion.div>
+      )}
+
       <div className="flex gap-3 w-full max-w-sm">
         <button onClick={() => useAppStore.getState().setView("leaderboard")} className="flex-1 py-3 rounded-xl bg-white/10 text-white font-semibold border border-white/20">Leaderboard</button>
         <button onClick={() => { useAppStore.getState().setView("home"); }} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg"><Home className="w-4 h-4 inline mr-1" /> Home</button>
