@@ -2687,15 +2687,24 @@ function ExamVaultAppInner() {
       if (store.isExitingApp) return;
       window.history.pushState({ appState: true }, "");
       isBackNavigation.current = true;
-      if (store.viewHistory.length > 0) {
+      const cur = store.currentView;
+      // If user is in an active exam (not submitted), show confirm before leaving
+      const EXAM_VIEWS = ["exam", "test-info"];
+      if (EXAM_VIEWS.includes(cur)) {
+        // Go back to previous view (mocktests / free-tests etc.)
+        store.goBack();
+      } else if (store.viewHistory.length > 0) {
         const prevView = store.viewHistory[store.viewHistory.length - 1];
         const ROOT_VIEWS = ["home"];
         if (ROOT_VIEWS.includes(prevView) && store.viewHistory.length === 1) {
+          store.setExitConfirmVisible(true);
+        } else if (ROOT_VIEWS.includes(cur) && store.viewHistory.length <= 1) {
           store.setExitConfirmVisible(true);
         } else {
           store.goBack();
         }
       } else {
+        // No history and on root view → exit confirm
         store.setExitConfirmVisible(true);
       }
       setTimeout(() => { isBackNavigation.current = false; }, 100);
@@ -2719,15 +2728,39 @@ function ExamVaultAppInner() {
     window.history.replaceState({ appState: true, view: currentView }, "");
   }, [currentView]);
 
+  // Continuously save scroll position while user scrolls (debounced)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const handleScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const store = useAppStore.getState();
+        const y = window.scrollY;
+        if (y > 0) {
+          store.scrollPositions[store.currentView] = y;
+        }
+      }, 150);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
   // Restore scroll position on view change
   useEffect(() => {
     const { scrollPositions } = useAppStore.getState();
     const savedY = scrollPositions[currentView];
     if (savedY !== undefined && savedY > 0) {
-      const timer = setTimeout(() => window.scrollTo(0, savedY), 50);
-      return () => clearTimeout(timer);
+      // Multiple attempts to ensure DOM is fully rendered before scrolling
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
+        // Second attempt after a short delay for lazy-loaded content
+        setTimeout(() => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior }), 100);
+      });
     } else {
-      window.scrollTo(0, 0);
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     }
   }, [currentView]);
 

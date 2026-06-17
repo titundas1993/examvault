@@ -57,7 +57,7 @@ import {
 import {
   adminAddDoc, adminUpdateDoc, adminDeleteDoc, adminClearCollection,
   adminClearAll, adminUpdateAppSettings, adminGetAppSettings, adminGetCollection,
-  adminImportCollection, adminLogin, adminLogout, hasAdminToken, adminSyncUsers,
+  adminImportCollection, adminLogin, adminLogout, hasAdminToken, adminSyncUsers, adminSeedDatabase,
 } from "@/lib/services/admin-api";
 
 // ==================== ADMIN VIEWS ====================
@@ -391,22 +391,10 @@ function DashboardView({ navigateTo }: { navigateTo: (view: AdminView) => void }
     setSeeding(true);
     setSeedResult(null);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("ev_admin_token") : null;
-      const res = await fetch("/api/admin/seed", {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + (token || "examvault-admin-2025"),
-          "Content-Type": "application/json",
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSeedResult("✅ Data seeded! " + data.total + " items added. Refresh to see updated counts.");
-        // Reload stats
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        setSeedResult("❌ Error: " + (data.error || "Unknown error"));
-      }
+      const data = await adminSeedDatabase();
+      setSeedResult("✅ Data seeded! " + data.total + " items added. Refresh to see updated counts.");
+      // Reload stats
+      setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       setSeedResult("❌ Failed: " + e.message);
     } finally {
@@ -3912,7 +3900,16 @@ function PlansAdmin() {
   const loadPlans = useCallback(async () => {
     try {
       const data = await getAllPlans();
-      setPlans(data);
+      // Normalize: ensure features is always an array (seed data may store it as a string)
+      const normalized = data.map((p: any) => ({
+        ...p,
+        features: Array.isArray(p.features) ? p.features : typeof p.features === "string" ? p.features.split(",") : [],
+        durationDays: p.durationDays ?? p.duration ?? 0,
+        type: p.type === "subscription" || p.type === "one_time" ? p.type : "subscription",
+        isPopular: p.isPopular ?? false,
+        order: p.order ?? 0,
+      }));
+      setPlans(normalized);
     } catch (e) { console.error("Load plans error:", e); }
     finally { setLoading(false); }
   }, []);
@@ -3929,9 +3926,9 @@ function PlansAdmin() {
     setEditingPlan(plan);
     setFormData({
       name: plan.name, description: plan.description, price: plan.price,
-      originalPrice: plan.originalPrice || 0, durationDays: plan.durationDays,
-      type: plan.type, features: plan.features.join("\n"),
-      isActive: plan.isActive, isPopular: plan.isPopular, order: plan.order,
+      originalPrice: plan.originalPrice || 0, durationDays: plan.durationDays ?? plan.duration ?? 0,
+      type: plan.type, features: Array.isArray(plan.features) ? plan.features.join("\n") : String(plan.features || ""),
+      isActive: plan.isActive, isPopular: plan.isPopular ?? false, order: plan.order ?? 0,
     });
     setShowForm(true);
   };

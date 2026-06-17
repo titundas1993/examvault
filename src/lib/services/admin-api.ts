@@ -286,3 +286,45 @@ export async function adminSyncUsers() {
   if (!result.success) throw new Error(result.error || "Sync failed");
   return result;
 }
+
+// ==================== Seed Database ====================
+
+const SEED_API = "/api/admin/seed";
+
+export async function adminSeedDatabase() {
+  let token = getAdminToken();
+  if (!token) {
+    throw new Error("Not authenticated — please log in again");
+  }
+  const response = await fetch(SEED_API, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    const newToken = await tryAutoReLogin();
+    if (newToken) {
+      const retryToken = getAdminToken() || newToken;
+      const retryResponse = await fetch(SEED_API, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${retryToken}`,
+        },
+      });
+      const result = await retryResponse.json();
+      if (!result.success) throw new Error(result.error || "Seed failed");
+      return result;
+    }
+    removeAdminToken();
+    clearAdminCreds();
+    throw new Error("Session expired — please login again");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error || "Seed failed");
+  return result;
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminToken } from "../login/route";
 
 let adminDb: any = null;
 
@@ -21,7 +22,9 @@ async function getAdminDb() {
           const serviceAccount = JSON.parse(fs.readFileSync(keyPath, "utf8"));
           initializeApp({ credential: cert(serviceAccount) });
         } else {
-          throw new Error("No Firebase Admin credentials found.");
+          throw new Error(
+            "Firebase Admin credentials not found. Please set FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, and FIREBASE_PROJECT_ID in your .env file, or place a firebase-admin-key.json in the project root. See .env.example for details."
+          );
         }
       }
     }
@@ -210,10 +213,10 @@ const NOTES = [
 ];
 
 const PLANS = [
-  { name: "Free Plan", price: 0, type: "free", duration: 0, features: "Access to Free Tests,Daily Quiz,Basic Notes,Limited Previous Papers", isActive: true, description: "Start your preparation with free access to basic tests and study materials." },
-  { name: "Silver Plan", price: 199, type: "monthly", duration: 30, features: "All Free Plan features,5 Mock Tests per month,Detailed Solutions,Previous Papers Access", isActive: true, description: "Perfect for beginners who want more practice with detailed solutions." },
-  { name: "Gold Plan", price: 499, type: "monthly", duration: 30, features: "All Silver features,Unlimited Mock Tests,Full Test Series Access,Priority Support,Ad-free Experience", isActive: true, description: "Most popular plan for serious aspirants with unlimited access." },
-  { name: "Platinum Plan", price: 999, type: "yearly", duration: 365, features: "All Gold features,1 Year Access,Personalized Study Plan,1-on-1 Doubt Sessions,Certificate on Completion", isActive: true, description: "Ultimate preparation package with personalized guidance and 1 year access." },
+  { name: "Free Plan", price: 0, originalPrice: 0, type: "subscription", durationDays: 0, features: ["Access to Free Tests", "Daily Quiz", "Basic Notes", "Limited Previous Papers"], isActive: true, isPopular: false, order: 1, description: "Start your preparation with free access to basic tests and study materials." },
+  { name: "Silver Plan", price: 199, originalPrice: 399, type: "subscription", durationDays: 30, features: ["All Free Plan features", "5 Mock Tests per month", "Detailed Solutions", "Previous Papers Access"], isActive: true, isPopular: false, order: 2, description: "Perfect for beginners who want more practice with detailed solutions." },
+  { name: "Gold Plan", price: 499, originalPrice: 999, type: "subscription", durationDays: 30, features: ["All Silver features", "Unlimited Mock Tests", "Full Test Series Access", "Priority Support", "Ad-free Experience"], isActive: true, isPopular: true, order: 3, description: "Most popular plan for serious aspirants with unlimited access." },
+  { name: "Platinum Plan", price: 999, originalPrice: 3588, type: "subscription", durationDays: 365, features: ["All Gold features", "1 Year Access", "Personalized Study Plan", "1-on-1 Doubt Sessions", "Certificate on Completion"], isActive: true, isPopular: false, order: 4, description: "Ultimate preparation package with personalized guidance and 1 year access." },
 ];
 
 const NAVIGATION_ITEMS = [
@@ -245,16 +248,42 @@ const NAVIGATION_ITEMS = [
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
+    // Auth check — use the same verifyAdminToken as other admin routes
     const authHeader = request.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
-    const adminToken = process.env.ADMIN_TOKEN || "examvault-admin-2025";
-    if (token !== adminToken) {
+    if (!verifyAdminToken(token)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const db = await getAdminDb();
     const results: Record<string, number> = {};
+    const cleared: Record<string, number> = {};
+
+    // Helper to clear a collection before seeding (prevents duplicates)
+    async function clearCollection(collectionName: string) {
+      let deleted = 0;
+      try {
+        const snapshot = await db.collection(collectionName).limit(500).get();
+        if (snapshot.empty) return;
+        const batch = db.batch();
+        snapshot.docs.forEach((doc: any) => batch.delete(doc.ref));
+        await batch.commit();
+        deleted = snapshot.size;
+        // If there were 500 docs, there might be more — delete again
+        if (snapshot.size === 500) {
+          const more = await db.collection(collectionName).limit(500).get();
+          if (!more.empty) {
+            const batch2 = db.batch();
+            more.docs.forEach((doc: any) => batch2.delete(doc.ref));
+            await batch2.commit();
+            deleted += more.size;
+          }
+        }
+      } catch (e) {
+        console.error(`Error clearing ${collectionName}:`, e);
+      }
+      cleared[collectionName] = deleted;
+    }
 
     // Helper to add a batch of documents
     async function seedCollection(collectionName: string, items: any[]) {
@@ -271,20 +300,35 @@ export async function POST(request: NextRequest) {
       results[collectionName] = count;
     }
 
-    // Helper to add questions linked to tests
+    // Helper to add questions with proper structure (optionA/B/C/D + correctAnswer as A/B/C/D)
     async function seedQuestions(collectionName: string, items: any[]) {
       let count = 0;
       for (const item of items) {
         try {
           const docRef = db.collection(collectionName).doc();
+          // Find which option index is correct (0=A, 1=B, 2=C, 3=D)
+          let correctKey = "A"; // default
+          if (item.correctAnswer && item.options) {
+            const idx = item.options.indexOf(item.correctAnswer);
+            if (idx >= 0 && idx <= 3) {
+              correctKey = String.fromCharCode(65 + idx); // A, B, C, D
+            }
+          }
           await docRef.set({
-            ...item,
             id: docRef.id,
+            question: item.question,
+            optionA: item.options[0] || "",
+            optionB: item.options[1] || "",
+            optionC: item.options[2] || "",
+            optionD: item.options[3] || "",
+            correctAnswer: correctKey,
+            explanation: item.explanation || "",
+            category: item.category,
+            subject: item.subject,
+            difficulty: item.difficulty || "medium",
+            marks: item.marks || 4,
             type: "mcq",
-            options: item.options.map((text: string, index: number) => ({
-              key: String.fromCharCode(65 + index), // A, B, C, D
-              text,
-            })),
+            testId: item.testId || null,
             createdAt: new Date().toISOString(),
           });
           count++;
@@ -293,6 +337,12 @@ export async function POST(request: NextRequest) {
         }
       }
       results[collectionName] = count;
+    }
+
+    // Clear all collections first to prevent duplicates
+    const allCollections = ["mockTests", "freeTests", "dailyQuiz", "testSeries", "popularTests", "questions", "banners", "announcements", "upcomingExams", "dailyTips", "previousPapers", "notes", "plans", "navigation"];
+    for (const col of allCollections) {
+      await clearCollection(col);
     }
 
     // Seed all collections
@@ -313,7 +363,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Database seeded successfully with Indian competitive exam data!",
+      message: "Database seeded successfully! (old data cleared first)",
+      cleared,
       seeded: results,
       total: Object.values(results).reduce((a: number, b: number) => a + b, 0),
     });
