@@ -2577,15 +2577,70 @@ function ExitConfirmDialog() {
 
 // ==================== MAIN APP (INNER) ====================
 // Split into inner/outer so the ErrorBoundary wraps ALL hooks + rendering
+
+// ── Global back-button & scroll handlers (never unmount) ──
+// These are registered once at module level so they survive view changes,
+// early returns, and full-screen sub-screens (exam, result, test-info).
+if (typeof window !== "undefined") {
+  // Register popstate handler exactly once
+  if (!(window as any).__evBackHandlerInstalled) {
+    (window as any).__evBackHandlerInstalled = true;
+    // Push initial sentinel
+    window.history.pushState({ appState: true }, "");
+
+    window.addEventListener("popstate", () => {
+      const store = useAppStore.getState();
+      if (store.isExitingApp) return;
+      // Re-push sentinel so browser doesn't actually navigate away
+      window.history.pushState({ appState: true }, "");
+
+      const cur = store.currentView;
+      // If there's view history, go back
+      if (store.viewHistory.length > 0) {
+        const prevView = store.viewHistory[store.viewHistory.length - 1];
+        // If we'd land on home AND that's the only history entry → exit confirm
+        if (prevView === "home" && store.viewHistory.length === 1) {
+          store.setExitConfirmVisible(true);
+        } else {
+          store.goBack();
+        }
+      } else {
+        // No history — if on home, exit; otherwise go home
+        if (cur === "home") {
+          store.setExitConfirmVisible(true);
+        } else {
+          store.setView("home");
+        }
+      }
+    });
+
+    // Handle bfcache restore
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) window.history.pushState({ appState: true }, "");
+    });
+  }
+
+  // Register scroll position saver exactly once
+  if (!(window as any).__evScrollSaverInstalled) {
+    (window as any).__evScrollSaverInstalled = true;
+    let scrollTimer: ReturnType<typeof setTimeout>;
+    window.addEventListener("scroll", () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const store = useAppStore.getState();
+        const y = window.scrollY;
+        if (y > 0) {
+          store.scrollPositions[store.currentView] = y;
+        }
+      }, 100);
+    }, { passive: true });
+  }
+}
 function ExamVaultAppInner() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
   const isDark = useAppStore(s => s.isDark);
   const authLoading = useAppStore(s => s.authLoading);
   const user = useAppStore(s => s.user);
-
-  // Track if view change came from popstate (back button) to avoid double pushState
-  const isBackNavigation = useRef(false);
-  const sentinelReady = useRef(false);
 
   // Load user profile from localStorage on mount
   useEffect(() => {
@@ -2677,88 +2732,23 @@ function ExamVaultAppInner() {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle hardware back button — PWA back navigation
+  // Keep browser history in sync with current view
+  // (back-button handling is done at module level above)
   useEffect(() => {
-    window.history.pushState({ appState: true }, "");
-    sentinelReady.current = true;
-
-    const handlePopState = (_event: PopStateEvent) => {
-      const store = useAppStore.getState();
-      if (store.isExitingApp) return;
-      window.history.pushState({ appState: true }, "");
-      isBackNavigation.current = true;
-      const cur = store.currentView;
-      // If user is in an active exam (not submitted), show confirm before leaving
-      const EXAM_VIEWS = ["exam", "test-info"];
-      if (EXAM_VIEWS.includes(cur)) {
-        // Go back to previous view (mocktests / free-tests etc.)
-        store.goBack();
-      } else if (store.viewHistory.length > 0) {
-        const prevView = store.viewHistory[store.viewHistory.length - 1];
-        const ROOT_VIEWS = ["home"];
-        if (ROOT_VIEWS.includes(prevView) && store.viewHistory.length === 1) {
-          store.setExitConfirmVisible(true);
-        } else if (ROOT_VIEWS.includes(cur) && store.viewHistory.length <= 1) {
-          store.setExitConfirmVisible(true);
-        } else {
-          store.goBack();
-        }
-      } else {
-        // No history and on root view → exit confirm
-        store.setExitConfirmVisible(true);
-      }
-      setTimeout(() => { isBackNavigation.current = false; }, 100);
-    };
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) window.history.pushState({ appState: true }, "");
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    window.addEventListener("pageshow", handlePageShow);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      window.removeEventListener("pageshow", handlePageShow);
-    };
-  }, []);
-
-  // Keep sentinel updated with current view
-  useEffect(() => {
-    if (!sentinelReady.current || isBackNavigation.current) return;
     window.history.replaceState({ appState: true, view: currentView }, "");
   }, [currentView]);
-
-  // Continuously save scroll position while user scrolls (debounced)
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const handleScroll = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const store = useAppStore.getState();
-        const y = window.scrollY;
-        if (y > 0) {
-          store.scrollPositions[store.currentView] = y;
-        }
-      }, 150);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
 
   // Restore scroll position on view change
   useEffect(() => {
     const { scrollPositions } = useAppStore.getState();
     const savedY = scrollPositions[currentView];
     if (savedY !== undefined && savedY > 0) {
-      // Multiple attempts to ensure DOM is fully rendered before scrolling
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
-        // Second attempt after a short delay for lazy-loaded content
-        setTimeout(() => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior }), 100);
-      });
+      // Try multiple times — React rendering and lazy-loaded content may change layout
+      const scrollToSaved = () => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
+      requestAnimationFrame(scrollToSaved);
+      setTimeout(scrollToSaved, 50);
+      setTimeout(scrollToSaved, 150);
+      setTimeout(scrollToSaved, 300);
     } else {
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     }
