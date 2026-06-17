@@ -252,7 +252,7 @@ function SideMenu() {
                     }}
                     className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors"
                   >
-                    <IconComp className={`w-5 h-5 ${item.color}`} />
+                    <IconComp className={"w-5 h-5 " + (item.color || "")} />
                     <span className="font-medium text-gray-700">{item.label}</span>
                     <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
                   </button>
@@ -408,7 +408,7 @@ function AutoRotatingBanners() {
             initial={{ opacity: 0.5, scale: 0.95 }}
             animate={{ opacity: i === currentIndex ? 1 : 0.5, scale: i === currentIndex ? 1 : 0.95 }}
             transition={{ duration: 0.4 }}
-            className={`min-w-full rounded-2xl bg-gradient-to-r ${b.gradient || b.color || gradients[i % gradients.length]} p-5 flex items-center justify-between shadow-lg cursor-pointer`}
+            className={"min-w-full rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"}
             onClick={() => handleBannerClick(b, setView)}
           >
             <div>
@@ -434,7 +434,7 @@ function AutoRotatingBanners() {
             <button
               key={i}
               onClick={() => setCurrentIndex(i)}
-              className={`w-2 h-2 rounded-full transition-all ${i === currentIndex ? "bg-ev-orange w-6" : "bg-gray-300"}`}
+              className={"w-2 h-2 rounded-full transition-all " + (i === currentIndex ? "bg-ev-orange w-6" : "bg-gray-300")}
             />
           ))}
         </div>
@@ -522,7 +522,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
           </button>
           <div className="flex items-center gap-1.5">
             {announcements.map((_, i) => (
-              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); }} className={`rounded-full transition-all ${i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30"}`} />
+              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); }} className={"rounded-full transition-all " + (i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30")} />
             ))}
           </div>
           <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % announcements.length); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
@@ -620,7 +620,7 @@ function HomeTab() {
               }}
               className="flex flex-col items-center gap-2"
             >
-              <div className={`w-14 h-14 rounded-2xl ${bgClass} shadow-lg flex items-center justify-center`}>
+              <div className={"w-14 h-14 rounded-2xl " + bgClass + " shadow-lg flex items-center justify-center"}>
                 <IconComp className="w-6 h-6 text-white" />
               </div>
               <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{item.label}</span>
@@ -640,7 +640,7 @@ function HomeTab() {
             </div>
             <div className="flex items-center gap-1" id="announcement-dots">
               {announcements.map((_, i) => (
-                <span key={i} className={`w-1.5 h-1.5 rounded-full transition-all announcement-dot-${i} ${i === 0 ? "bg-ev-orange w-3" : "bg-ev-orange/30"}`} />
+                <span key={i} className={"w-1.5 h-1.5 rounded-full transition-all announcement-dot-" + i + " " + (i === 0 ? "bg-ev-orange w-3" : "bg-ev-orange/30")} />
               ))}
             </div>
           </div>
@@ -712,7 +712,14 @@ function HomeTab() {
               onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })}
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {test.imageUrl ? (
+                  <img src={test.imageUrl} alt={test.title} className="w-14 h-14 rounded-xl object-cover shadow-sm" />
+                ) : (
+                  <div className={"w-14 h-14 rounded-xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
+                    {test.isFree ? <Zap className="w-7 h-7 text-ev-green" /> : <Crown className="w-7 h-7 text-ev-gold" />}
+                  </div>
+                )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
@@ -796,7 +803,7 @@ function MockTestsTab() {
         </div>
         <div className="flex gap-2 overflow-x-auto pb-3">
           {categories.map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filter === f ? "bg-ev-navy text-white" : "bg-gray-100 text-gray-600"}`}>
+            <button key={f} onClick={() => setFilter(f)} className={"px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all " + (filter === f ? "bg-ev-navy text-white" : "bg-gray-100 text-gray-600")}>
               {f}
             </button>
           ))}
@@ -806,9 +813,13 @@ function MockTestsTab() {
         {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
           <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${test.isFree ? "bg-green-50" : "bg-ev-gold-light"}`}>
-                {test.isFree ? <Zap className="w-6 h-6 text-ev-green" /> : <Crown className="w-6 h-6 text-ev-gold" />}
-              </div>
+              {test.imageUrl ? (
+                <img src={test.imageUrl} alt={test.title} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
+              ) : (
+                <div className={"w-12 h-12 rounded-xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
+                  {test.isFree ? <Zap className="w-6 h-6 text-ev-green" /> : <Crown className="w-6 h-6 text-ev-gold" />}
+                </div>
+              )}
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h4 className="font-bold text-ev-navy">{test.title}</h4>
@@ -864,7 +875,11 @@ function TestSeriesTab() {
         {series.map(s => (
           <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); }, { name: s.title, price: s.price || 0 })}>
-              <div className="w-12 h-12 rounded-xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-6 h-6 text-ev-gold" /></div>
+              {s.imageUrl ? (
+                <img src={s.imageUrl} alt={s.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-6 h-6 text-ev-gold" /></div>
+              )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
                 <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
@@ -921,7 +936,7 @@ function FreeTestsTab() {
         {categories.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4">
             {categories.map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filter === f ? "bg-ev-green text-white" : "bg-gray-100 text-gray-600"}`}>
+              <button key={f} onClick={() => setFilter(f)} className={"px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all " + (filter === f ? "bg-ev-green text-white" : "bg-gray-100 text-gray-600")}>
                 {f}
               </button>
             ))}
@@ -932,7 +947,11 @@ function FreeTestsTab() {
         {filteredTests.map(test => (
           <div key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); }} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center"><Zap className="w-6 h-6 text-ev-green" /></div>
+              {test.imageUrl ? (
+                <img src={test.imageUrl} alt={test.title} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center"><Zap className="w-6 h-6 text-ev-green" /></div>
+              )}
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{test.title}</h4>
                 <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -950,7 +969,7 @@ function FreeTestsTab() {
           <div className="text-center py-12">
             <Zap className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-400 font-medium">
-              {freeTests.length === 0 ? "No free tests available yet" : `No tests found in "${filter}"`}
+              {freeTests.length === 0 ? "No free tests available yet" : ("No tests found in \"" + filter + "\"")}
             </p>
           </div>
         )}
@@ -987,7 +1006,7 @@ function FreeQuizzesTab() {
         {categories.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4">
             {categories.map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filter === f ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              <button key={f} onClick={() => setFilter(f)} className={"px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all " + (filter === f ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600")}>
                 {f}
               </button>
             ))}
@@ -1014,7 +1033,7 @@ function FreeQuizzesTab() {
           <div className="text-center py-12">
             <Brain className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-400 font-medium">
-              {quizzes.length === 0 ? "No quizzes available yet" : `No quizzes found in "${filter}"`}
+              {quizzes.length === 0 ? "No quizzes available yet" : ("No quizzes found in \"" + filter + "\"")}
             </p>
           </div>
         )}
@@ -1186,7 +1205,7 @@ function PreviousPaperDetail() {
             <div>
               <p className="text-ev-navy font-bold text-sm">{paper.name}</p>
               <p className="text-gray-500 text-xs">
-                {paper.category}{paper.year ? ` • ${paper.year}` : ""}
+                {paper.category}{paper.year ? (" \u2022 " + paper.year) : ""}
               </p>
             </div>
           </div>
@@ -1415,7 +1434,7 @@ function NoteDetail() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {(note as any).author && <div><span className="text-gray-500">Author:</span> <span className="font-semibold text-ev-navy">{(note as any).author}</span></div>}
               {(note as any).language && <div><span className="text-gray-500">Language:</span> <span className="font-semibold text-ev-navy">{(note as any).language}</span></div>}
-              <div><span className="text-gray-500">Access:</span> <span className={`font-semibold ${(note as any).isFree ? "text-ev-green" : "text-ev-orange"}`}>{(note as any).isFree ? "Free" : "Premium"}</span></div>
+              <div><span className="text-gray-500">Access:</span> <span className={"font-semibold " + ((note as any).isFree ? "text-ev-green" : "text-ev-orange")}>{(note as any).isFree ? "Free" : "Premium"}</span></div>
             </div>
             {(note as any).topics && <div className="mt-2 text-sm"><span className="text-gray-500">Topics:</span> <span className="text-ev-navy">{(note as any).topics}</span></div>}
           </div>
@@ -1504,7 +1523,7 @@ function ProfileTab() {
       const { db } = await import("@/lib/firebase");
       const { doc, updateDoc } = await import("firebase/firestore");
       
-      const fileRef = ref(storage, `profilePhotos/${user.uid}_${Date.now()}_${file.name}`);
+      const fileRef = ref(storage, "profilePhotos/" + user.uid + "_" + Date.now() + "_" + file.name);
       await uploadBytes(fileRef, file);
       const downloadUrl = await getDownloadURL(fileRef);
       
@@ -1724,8 +1743,8 @@ function LeaderboardTab() {
               const entry = top3[idx];
               const rank = idx + 1;
               return (
-                <div key={entry.id} className={`flex flex-col items-center ${rank === 1 ? "-mt-4" : ""}`}>
-                  <div className={`${rank === 1 ? "w-16 h-16 text-2xl" : "w-12 h-12 text-lg"} rounded-full bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-xl ring-2 ring-white/30 mb-2`}>
+                <div key={entry.id} className={"flex flex-col items-center " + (rank === 1 ? "-mt-4" : "")}>
+                  <div className={(rank === 1 ? "w-16 h-16 text-2xl" : "w-12 h-12 text-lg") + " rounded-full bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-xl ring-2 ring-white/30 mb-2"}>
                     {entry.photoUrl ? <img src={entry.photoUrl} alt="" className="w-full h-full rounded-full object-cover" /> : entry.name?.charAt(0) || "?"}
                   </div>
                   <p className="text-white font-bold text-sm">{entry.name?.split(" ")[0] || "User"}</p>
@@ -1852,7 +1871,7 @@ function ExamPage() {
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    return (m.toString().padStart(2, "0") + ":" + s.toString().padStart(2, "0"));
   };
 
   // Answer tracking
@@ -2093,7 +2112,7 @@ function ExamPage() {
         </div>
         {/* Progress bar */}
         <div className="w-full bg-white/20 rounded-full h-2 mb-1">
-          <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: `${((currentQ + 1) / questions.length) * 100}%` }} />
+          <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: (((currentQ + 1) / questions.length) * 100) + "%" }} />
         </div>
         <div className="flex items-center justify-between text-xs text-white/50">
           <span>Q{currentQ + 1}/{questions.length}</span>
@@ -2105,7 +2124,7 @@ function ExamPage() {
       <div className="px-4 pt-3 flex-shrink-0">
         <button onClick={() => setShowQuestionNav(!showQuestionNav)} className="flex items-center gap-2 text-sm font-semibold text-ev-navy bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm w-full justify-between">
           <span className="flex items-center gap-2"><Grid3X3 className="w-4 h-4 text-ev-orange" /> Question Navigator</span>
-          <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showQuestionNav ? "rotate-90" : ""}`} />
+          <ChevronRight className={"w-4 h-4 text-gray-400 transition-transform " + (showQuestionNav ? "rotate-90" : "")} />
         </button>
       </div>
 
@@ -2126,7 +2145,7 @@ function ExamPage() {
                     else if (isMarkedQ) bgClass = "bg-purple-300 text-white";
                     else if (isAnswered) bgClass = "bg-ev-green text-white";
                     return (
-                      <button key={i} onClick={() => { setCurrentQ(i); setShowQuestionNav(false); }} className={`w-9 h-9 rounded-lg text-xs font-bold flex items-center justify-center ${bgClass} transition-all active:scale-95`}>
+                      <button key={i} onClick={() => { setCurrentQ(i); setShowQuestionNav(false); }} className={"w-9 h-9 rounded-lg text-xs font-bold flex items-center justify-center " + bgClass + " transition-all active:scale-95"}>
                         {i + 1}
                       </button>
                     );
@@ -2148,7 +2167,7 @@ function ExamPage() {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-ev-navy text-white">Q{currentQ + 1}</span>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span>
+          <span className={"text-xs font-bold px-2 py-0.5 rounded-md " + (q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>{q.difficulty}</span>
           <span className="text-xs text-gray-400">{q.marks || 1} mark{(q.marks || 1) > 1 ? "s" : ""}</span>
           {isMarked && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-600">Marked</span>}
         </div>
@@ -2159,19 +2178,19 @@ function ExamPage() {
             const isCorrect = (submitted || isReviewMode) && q.correctAnswer === opt.key;
             const isWrong = (submitted || isReviewMode) && isSelected && q.correctAnswer !== opt.key;
             return (
-              <button key={opt.key} onClick={() => selectAnswer(opt.key)} className={`w-full p-4 rounded-xl border-2 text-left font-medium transition-all ${
+              <button key={opt.key} onClick={() => selectAnswer(opt.key)} className={"w-full p-4 rounded-xl border-2 text-left font-medium transition-all " + (
                 isWrong ? "border-red-400 bg-red-50 text-red-700" :
                 isCorrect ? "border-green-400 bg-green-50 text-green-700" :
                 isSelected ? "border-ev-orange bg-ev-orange/10 text-ev-navy" :
                 "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-              }`}>
+              )}>
                 <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  <span className={"w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 " + (
                     isWrong ? "bg-red-400 text-white" :
                     isCorrect ? "bg-green-400 text-white" :
                     isSelected ? "bg-ev-orange text-white" :
                     "bg-gray-100 text-gray-500"
-                  }`}>{opt.key}</span>
+                  )}>{opt.key}</span>
                   <span className="flex-1">{opt.text}</span>
                   {isSelected && !submitted && !isReviewMode && <CheckCircle className="w-5 h-5 text-ev-orange flex-shrink-0" />}
                   {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
@@ -2203,7 +2222,7 @@ function ExamPage() {
         <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 pb-safe">
           {/* Review mode: only Prev/Next navigation + Back to Results */}
           <div className="flex gap-2">
-            <button onClick={goPrev} disabled={currentQ === 0} className={`py-3 px-5 rounded-xl font-bold text-sm flex items-center gap-1 ${currentQ === 0 ? "bg-gray-100 text-gray-300 cursor-not-allowed" : "bg-gray-100 text-ev-navy hover:bg-gray-200"}`}>
+            <button onClick={goPrev} disabled={currentQ === 0} className={"py-3 px-5 rounded-xl font-bold text-sm flex items-center gap-1 " + (currentQ === 0 ? "bg-gray-100 text-gray-300 cursor-not-allowed" : "bg-gray-100 text-ev-navy hover:bg-gray-200")}>
               <ChevronLeft className="w-4 h-4" /> Prev
             </button>
             <button onClick={() => { setIsReviewMode(false); setSubmitted(true); }} className="flex-1 py-3 rounded-xl bg-ev-navy text-white font-bold shadow-lg text-sm">Back to Results</button>
@@ -2222,8 +2241,8 @@ function ExamPage() {
       <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 pb-safe">
         {/* Mark for review + Skip */}
         <div className="flex items-center gap-2 mb-3">
-          <button onClick={toggleMark} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isMarked ? "bg-purple-100 text-purple-600" : "bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-500"}`}>
-            <Bookmark className={`w-3.5 h-3.5 ${isMarked ? "fill-purple-600" : ""}`} /> {isMarked ? "Marked" : "Mark for Review"}
+          <button onClick={toggleMark} className={"flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all " + (isMarked ? "bg-purple-100 text-purple-600" : "bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-500")}>
+            <Bookmark className={"w-3.5 h-3.5 " + (isMarked ? "fill-purple-600" : "")} /> {isMarked ? "Marked" : "Mark for Review"}
           </button>
           {currentQ < questions.length - 1 && (
             <button onClick={goNext} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">
@@ -2233,7 +2252,7 @@ function ExamPage() {
         </div>
         {/* Prev / Submit / Next */}
         <div className="flex gap-2">
-          <button onClick={goPrev} disabled={currentQ === 0} className={`py-3 px-5 rounded-xl font-bold text-sm flex items-center gap-1 ${currentQ === 0 ? "bg-gray-100 text-gray-300 cursor-not-allowed" : "bg-gray-100 text-ev-navy hover:bg-gray-200"}`}>
+          <button onClick={goPrev} disabled={currentQ === 0} className={"py-3 px-5 rounded-xl font-bold text-sm flex items-center gap-1 " + (currentQ === 0 ? "bg-gray-100 text-gray-300 cursor-not-allowed" : "bg-gray-100 text-ev-navy hover:bg-gray-200")}>
             <ChevronLeft className="w-4 h-4" /> Prev
           </button>
           {currentQ === questions.length - 1 ? (
@@ -2306,14 +2325,14 @@ function ResultPage() {
       </motion.div>
       <div className="w-full max-w-sm space-y-3 mb-6">
         {[
-          { label: "Score", value: `${score}/${total}`, icon: Target, color: "text-ev-green" },
-          { label: "Correct", value: `${lastTestResult?.correctAnswers ?? 0}`, icon: CheckCircle, color: "text-green-400" },
-          { label: "Wrong", value: `${lastTestResult?.wrongAnswers ?? 0}`, icon: X, color: "text-red-400" },
-          { label: "Time", value: `${mins}m ${secs}s`, icon: Clock, color: "text-ev-gold" },
-          { label: "Accuracy", value: `${accuracy}%`, icon: TrendingUp, color: "text-ev-orange" },
+          { label: "Score", value: (score + "/" + total), icon: Target, color: "text-ev-green" },
+          { label: "Correct", value: (lastTestResult?.correctAnswers ?? 0).toString(), icon: CheckCircle, color: "text-green-400" },
+          { label: "Wrong", value: (lastTestResult?.wrongAnswers ?? 0).toString(), icon: X, color: "text-red-400" },
+          { label: "Time", value: (mins + "m " + secs + "s"), icon: Clock, color: "text-ev-gold" },
+          { label: "Accuracy", value: (accuracy + "%"), icon: TrendingUp, color: "text-ev-orange" },
         ].map((s, i) => (
           <div key={i} className="bg-white/10 backdrop-blur-xl rounded-xl p-4 flex items-center gap-3">
-            <s.icon className={`w-6 h-6 ${s.color}`} />
+            <s.icon className={"w-6 h-6 " + s.color} />
             <span className="text-white/80">{s.label}</span>
             <span className="ml-auto font-bold text-white text-lg">{s.value}</span>
           </div>
@@ -2349,10 +2368,10 @@ function BottomNav() {
                 if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
                 else setView(item.targetView as any);
               }}
-              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all ${isActive ? "text-ev-orange" : "text-gray-400 hover:text-gray-600"}`}
+              className={"flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all " + (isActive ? "text-ev-orange" : "text-gray-400 hover:text-gray-600")}
             >
-              <IconComp className={`w-5 h-5 ${isActive ? "text-ev-orange" : ""}`} />
-              <span className={`text-[10px] font-semibold ${isActive ? "text-ev-orange" : ""}`}>{item.label}</span>
+              <IconComp className={"w-5 h-5 " + (isActive ? "text-ev-orange" : "")} />
+              <span className={"text-[10px] font-semibold " + (isActive ? "text-ev-orange" : "")}>{item.label}</span>
               {isActive && <div className="w-1 h-1 rounded-full bg-ev-orange" />}
             </button>
           );
@@ -2604,7 +2623,7 @@ function ExamVaultAppInner() {
 
   // Main App
   return (
-    <div className={`min-h-screen ${isDark ? "dark bg-gray-900" : "bg-gray-50"} pb-16`}>
+    <div className={"min-h-screen " + (isDark ? "dark bg-gray-900" : "bg-gray-50") + " pb-16"}>
       {appSettings.maintenanceMode && (
         <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
           <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">

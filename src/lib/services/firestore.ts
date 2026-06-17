@@ -449,15 +449,18 @@ export interface MockTestData {
   id?: string;
   title: string;
   category: string;
+  subject?: string;
   duration: number;
   marks: number;
   questions: number;
   isFree: boolean;
+  price?: number;
   attempts: number;
   rating: number;
   difficulty: "easy" | "medium" | "hard";
   description: string;
   instructions: string;
+  imageUrl?: string;
   isActive: boolean;
   createdAt?: string;
 }
