@@ -262,9 +262,9 @@ export default function QuestionPickerDialog({
 
       await Promise.all(updates);
 
-      // Auto-assign category + subject from questions to the test
-      // Find the most common category and subject among all selected questions
-      if (toAdd.length > 0 && collectionName) {
+      // Auto-assign category + subject from ALL currently selected questions to the test
+      // Find the most common category and subject among selected questions
+      if (collectionName && selectedIds.size > 0) {
         const selectedQuestions = questions.filter(q => selectedIds.has(q.id));
         const catCount: Record<string, number> = {};
         const subCount: Record<string, number> = {};
@@ -272,20 +272,27 @@ export default function QuestionPickerDialog({
           if (q.category) catCount[q.category] = (catCount[q.category] || 0) + 1;
           if (q.subject) subCount[q.subject] = (subCount[q.subject] || 0) + 1;
         });
+        // Most common category (ties resolved by first match)
         const topCat = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0];
         const topSub = Object.entries(subCount).sort((a, b) => b[1] - a[1])[0]?.[0];
-        const testUpdate: Record<string, string> = {};
+        const testUpdate: Record<string, any> = {};
         if (topCat) testUpdate.category = topCat;
         if (topSub) testUpdate.subject = topSub;
         // Also update question count
-        const totalSelected = selectedIds.size;
-        if (totalSelected > 0) testUpdate.questions = String(totalSelected);
+        testUpdate.questions = selectedIds.size;
         if (Object.keys(testUpdate).length > 0) {
           try {
             await adminUpdateDoc(collectionName, testId, testUpdate);
           } catch (e) {
             console.error("Failed to auto-update test category/subject:", e);
           }
+        }
+      } else if (collectionName && selectedIds.size === 0) {
+        // No questions selected — clear category/subject and reset count
+        try {
+          await adminUpdateDoc(collectionName, testId, { category: "", subject: "", questions: 0 });
+        } catch (e) {
+          console.error("Failed to clear test category/subject:", e);
         }
       }
 
@@ -315,7 +322,7 @@ export default function QuestionPickerDialog({
     } finally {
       setSaving(false);
     }
-  }, [saving, selectedIds, originalLinkedIds, testId, onSave, onOpenChange]);
+  }, [saving, selectedIds, originalLinkedIds, testId, collectionName, questions, onSave, onOpenChange]);
 
   // ─── Cancel — discard changes ───────────────────────────────────────────
 
