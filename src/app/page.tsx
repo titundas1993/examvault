@@ -2578,59 +2578,89 @@ function ExitConfirmDialog() {
 // ==================== MAIN APP (INNER) ====================
 // Split into inner/outer so the ErrorBoundary wraps ALL hooks + rendering
 
-// ── Global back-button & scroll handlers (never unmount) ──
-// These are registered once at module level so they survive view changes,
-// early returns, and full-screen sub-screens (exam, result, test-info).
-if (typeof window !== "undefined") {
-  // Register popstate handler exactly once
-  if (!(window as any).__evBackHandlerInstalled) {
-    (window as any).__evBackHandlerInstalled = true;
+// ── BackButtonHandler: always rendered, never unmounted ──
+// This component MUST be rendered BEFORE any early returns so it stays mounted
+// regardless of which view (exam, result, test-info, etc.) is shown.
+function BackButtonHandler() {
+  useEffect(() => {
     // Push initial sentinel
     window.history.pushState({ appState: true }, "");
 
-    window.addEventListener("popstate", () => {
+    const handlePopState = () => {
       const store = useAppStore.getState();
       if (store.isExitingApp) return;
       // Re-push sentinel so browser doesn't actually navigate away
       window.history.pushState({ appState: true }, "");
 
       const cur = store.currentView;
-      // Simple rule:
-      // 1. Home + back = exit warning (app will close)
-      // 2. Any other page + back = goBack() if history exists, else go to home
-      //    (next back press from home will show exit warning)
       if (cur === "home") {
+        // Home + back = ask to exit app
         store.setExitConfirmVisible(true);
       } else if (store.viewHistory.length > 0) {
+        // Has history → go back to previous view
         store.goBack();
       } else {
-        // No history — go to home first, then back will trigger exit warning
+        // No history → go to home (next back will exit)
         store.setView("home");
       }
-    });
+    };
 
-    // Handle bfcache restore
-    window.addEventListener("pageshow", (event) => {
+    const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) window.history.pushState({ appState: true }, "");
-    });
-  }
+    };
 
-  // Register scroll position saver exactly once
-  if (!(window as any).__evScrollSaverInstalled) {
-    (window as any).__evScrollSaverInstalled = true;
-    let scrollTimer: ReturnType<typeof setTimeout>;
-    window.addEventListener("scroll", () => {
-      clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(() => {
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, []);
+
+  // Also keep browser history in sync + save scroll
+  const currentView = useAppStore(s => s.currentView);
+  useEffect(() => {
+    window.history.replaceState({ appState: true, view: currentView }, "");
+  }, [currentView]);
+
+  // Scroll saver
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const handleScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
         const store = useAppStore.getState();
         const y = window.scrollY;
         if (y > 0) {
           store.scrollPositions[store.currentView] = y;
         }
       }, 100);
-    }, { passive: true });
-  }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  // Scroll restorer
+  useEffect(() => {
+    const { scrollPositions } = useAppStore.getState();
+    const savedY = scrollPositions[currentView];
+    if (savedY !== undefined && savedY > 0) {
+      const scrollToSaved = () => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
+      requestAnimationFrame(scrollToSaved);
+      setTimeout(scrollToSaved, 50);
+      setTimeout(scrollToSaved, 150);
+      setTimeout(scrollToSaved, 300);
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [currentView]);
+
+  return null; // Invisible component — only handles back button & scroll
 }
+
 function ExamVaultAppInner() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
   const isDark = useAppStore(s => s.isDark);
@@ -2727,37 +2757,18 @@ function ExamVaultAppInner() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keep browser history in sync with current view
-  // (back-button handling is done at module level above)
-  useEffect(() => {
-    window.history.replaceState({ appState: true, view: currentView }, "");
-  }, [currentView]);
-
-  // Restore scroll position on view change
-  useEffect(() => {
-    const { scrollPositions } = useAppStore.getState();
-    const savedY = scrollPositions[currentView];
-    if (savedY !== undefined && savedY > 0) {
-      // Try multiple times — React rendering and lazy-loaded content may change layout
-      const scrollToSaved = () => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
-      requestAnimationFrame(scrollToSaved);
-      setTimeout(scrollToSaved, 50);
-      setTimeout(scrollToSaved, 150);
-      setTimeout(scrollToSaved, 300);
-    } else {
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    }
-  }, [currentView]);
-
   // Show loading spinner while auth state is being determined
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-lg mb-4 animate-pulse">
-          <BookOpen className="w-8 h-8 text-white" />
+      <>
+        <BackButtonHandler />
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-lg mb-4 animate-pulse">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <Loader2 className="w-8 h-8 animate-spin text-ev-orange" />
         </div>
-        <Loader2 className="w-8 h-8 animate-spin text-ev-orange" />
-      </div>
+      </>
     );
   }
 
@@ -2766,26 +2777,28 @@ function ExamVaultAppInner() {
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
-    return <><LoginScreen /><GuestLockModal /><ExitConfirmDialog /></>;
+    return <><BackButtonHandler /><LoginScreen /><GuestLockModal /><ExitConfirmDialog /></>;
   }
 
   // Test Info screen
   if (currentView === "test-info") {
-    return <><TestInfoScreen /><ExitConfirmDialog /></>;
+    return <><BackButtonHandler /><TestInfoScreen /><ExitConfirmDialog /></>;
   }
 
   // Exam/Result screens (full screen)
   if (currentView === "exam") {
-    return <><ExamPage /><ExitConfirmDialog /></>;
+    return <><BackButtonHandler /><ExamPage /><ExitConfirmDialog /></>;
   }
 
   if (currentView === "result") {
-    return <><ResultPage /><ExitConfirmDialog /></>;
+    return <><BackButtonHandler /><ResultPage /><ExitConfirmDialog /></>;
   }
 
   // Main App
   return (
-    <div className={"min-h-screen " + (isDark ? "dark bg-gray-900" : "bg-gray-50") + " pb-16"}>
+    <>
+      <BackButtonHandler />
+      <div className={"min-h-screen " + (isDark ? "dark bg-gray-900" : "bg-gray-50") + " pb-16"}>
       {appSettings.maintenanceMode && (
         <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
           <div className="w-20 h-20 rounded-full bg-ev-orange/20 flex items-center justify-center mb-6">
@@ -2826,6 +2839,7 @@ function ExamVaultAppInner() {
       <PaymentModal />
       <ExitConfirmDialog />
     </div>
+    </>
   );
 }
 
