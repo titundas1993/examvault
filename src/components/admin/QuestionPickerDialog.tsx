@@ -48,6 +48,7 @@ interface QuestionPickerDialogProps {
   onOpenChange: (open: boolean) => void;
   testId: string;
   testTitle: string;
+  collectionName: string;
   onSave: () => void;
 }
 
@@ -76,6 +77,7 @@ export default function QuestionPickerDialog({
   onOpenChange,
   testId,
   testTitle,
+  collectionName,
   onSave,
 }: QuestionPickerDialogProps) {
   // Data state
@@ -259,6 +261,33 @@ export default function QuestionPickerDialog({
       }
 
       await Promise.all(updates);
+
+      // Auto-assign category + subject from questions to the test
+      // Find the most common category and subject among all selected questions
+      if (toAdd.length > 0 && collectionName) {
+        const selectedQuestions = questions.filter(q => selectedIds.has(q.id));
+        const catCount: Record<string, number> = {};
+        const subCount: Record<string, number> = {};
+        selectedQuestions.forEach(q => {
+          if (q.category) catCount[q.category] = (catCount[q.category] || 0) + 1;
+          if (q.subject) subCount[q.subject] = (subCount[q.subject] || 0) + 1;
+        });
+        const topCat = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const topSub = Object.entries(subCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const testUpdate: Record<string, string> = {};
+        if (topCat) testUpdate.category = topCat;
+        if (topSub) testUpdate.subject = topSub;
+        // Also update question count
+        const totalSelected = selectedIds.size;
+        if (totalSelected > 0) testUpdate.questions = String(totalSelected);
+        if (Object.keys(testUpdate).length > 0) {
+          try {
+            await adminUpdateDoc(collectionName, testId, testUpdate);
+          } catch (e) {
+            console.error("Failed to auto-update test category/subject:", e);
+          }
+        }
+      }
 
       const addedCount = toAdd.length;
       const removedCount = toRemove.length;

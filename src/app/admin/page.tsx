@@ -479,6 +479,7 @@ interface CrudField {
   placeholder?: string;
   required?: boolean;
   dependsOn?: { field: string; value: string | string[] };
+  allowOther?: boolean; // If true, shows custom text input when "Others" is selected
 }
 
 function CrudAdminPanel<T extends Record<string, any>>({
@@ -525,6 +526,9 @@ function CrudAdminPanel<T extends Record<string, any>>({
   // File upload state
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // "Others" custom input state — tracks custom text for fields with allowOther
+  const [otherValues, setOtherValues] = useState<Record<string, string>>({});
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
@@ -579,33 +583,56 @@ function CrudAdminPanel<T extends Record<string, any>>({
       else initial[f.key] = "";
     });
     setFormData(initial);
+    setOtherValues({});
     setDialogOpen(true);
   };
 
   const openEditDialog = (item: T) => {
     setEditingItem(item);
     const initial: Record<string, any> = {};
+    const detectedOthers: Record<string, string> = {};
     fields.forEach(f => {
-      initial[f.key] = item[f.key] ?? (f.type === "switch" ? true : f.type === "number" ? 0 : "");
+      if (f.allowOther && f.type === "select" && f.options) {
+        const val = item[f.key] ?? "";
+        const isInOptions = f.options.some(o => o.value === val);
+        if (val && !isInOptions) {
+          // This is a custom value not in the dropdown — set to "Others" and store the custom text
+          initial[f.key] = "Others";
+          detectedOthers[f.key] = val;
+        } else {
+          initial[f.key] = val || (f.type === "switch" ? true : f.type === "number" ? 0 : "");
+        }
+      } else {
+        initial[f.key] = item[f.key] ?? (f.type === "switch" ? true : f.type === "number" ? 0 : "");
+      }
     });
     setFormData(initial);
+    setOtherValues(detectedOthers);
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Replace "Others" with custom values for allowOther fields
+      let saveData = { ...formData };
+      fields.forEach(f => {
+        if (f.allowOther && saveData[f.key] === "Others" && otherValues[f.key]?.trim()) {
+          saveData[f.key] = otherValues[f.key].trim();
+        }
+      });
       if (editingItem) {
         const itemId = editingItem.id || editingItem.uid || "";
-        const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+        const { id, uid, createdAt, updatedAt, ...cleanData } = saveData as any;
         await onUpdate(itemId, cleanData);
         showToast(`${title.slice(0, -1)} updated successfully!`, "success");
       } else {
-        const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+        const { id, uid, createdAt, updatedAt, ...cleanData } = saveData as any;
         await onAdd(cleanData);
         showToast(`${title.slice(0, -1)} created successfully!`, "success");
       }
       setDialogOpen(false);
+      setOtherValues({});
       loadItems();
     } catch (e) {
       console.error(e);
@@ -927,12 +954,27 @@ function CrudAdminPanel<T extends Record<string, any>>({
                     rows={3}
                   />
                 ) : field.type === "select" ? (
-                  <Select value={formData[field.key] || ""} onValueChange={v => setFormData({ ...formData, [field.key]: v })}>
-                    <SelectTrigger><SelectValue placeholder={field.placeholder || "Select..."} /></SelectTrigger>
-                    <SelectContent>
-                      {field.options?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Select value={formData[field.key] || ""} onValueChange={v => {
+                      setFormData({ ...formData, [field.key]: v });
+                      if (v !== "Others") {
+                        setOtherValues(prev => { const next = { ...prev }; delete next[field.key]; return next; });
+                      }
+                    }}>
+                      <SelectTrigger><SelectValue placeholder={field.placeholder || "Select..."} /></SelectTrigger>
+                      <SelectContent>
+                        {field.options?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {field.allowOther && formData[field.key] === "Others" && (
+                      <Input
+                        className="mt-2"
+                        value={otherValues[field.key] || ""}
+                        onChange={e => setOtherValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        placeholder={`Type custom ${field.label.toLowerCase()} name...`}
+                      />
+                    )}
+                  </>
                 ) : field.type === "switch" ? (
                   <div className="flex items-center gap-3">
                     <Switch checked={formData[field.key] ?? true} onCheckedChange={v => setFormData({ ...formData, [field.key]: v })} />
@@ -1382,6 +1424,7 @@ function TestAdminWithPicker({
         onOpenChange={setPickerOpen}
         testId={pickerTestId}
         testTitle={pickerTestTitle}
+        collectionName={collectionName}
         onSave={() => { setRefreshKey(k => k + 1); fetchQuestionCounts(); }}
       />
 
@@ -1438,7 +1481,8 @@ function MockTestsAdmin() {
       collectionName="mockTests"
       fields={[
         { key: "title", label: "Test Title", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "duration", label: "Duration (min)", type: "number", placeholder: "60" },
         { key: "marks", label: "Total Marks", type: "number", placeholder: "100" },
         { key: "questions", label: "No. of Questions", type: "number", placeholder: "50" },
@@ -2011,7 +2055,8 @@ function TestSeriesAdmin() {
       collectionName="testSeries"
       fields={[
         { key: "title", label: "Series Title", type: "text", placeholder: "e.g. WBCS Complete Pack", required: true },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "totalTests", label: "Total Tests", type: "number", placeholder: "25" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "499" },
         { key: "isFree", label: "Free", type: "switch" },
@@ -2038,7 +2083,8 @@ function FreeTestsAdmin() {
       collectionName="freeTests"
       fields={[
         { key: "title", label: "Test Title", type: "text", placeholder: "e.g. Free GK Test", required: true },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "duration", label: "Duration (min)", type: "number" },
         { key: "questions", label: "Questions", type: "number" },
         { key: "marks", label: "Total Marks", type: "number" },
@@ -2066,10 +2112,8 @@ function DailyQuizAdmin() {
       collectionName="dailyQuiz"
       fields={[
         { key: "title", label: "Quiz Title", type: "text", placeholder: "e.g. Daily GK Quiz", required: true },
-        { key: "category", label: "Category", type: "select", options: [
-          { label: "GK", value: "GK" }, { label: "Math", value: "Math" }, { label: "English", value: "English" },
-          { label: "Reasoning", value: "Reasoning" }, { label: "Science", value: "Science" }, { label: "Computer", value: "Computer" },
-        ], required: true },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "questions", label: "Questions", type: "number" },
         { key: "duration", label: "Duration (min)", type: "number" },
         { key: "participants", label: "Participants", type: "number" },
@@ -2095,7 +2139,8 @@ function PopularTestsAdmin() {
       collectionName="popularTests"
       fields={[
         { key: "title", label: "Test Title", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "duration", label: "Duration (min)", type: "number" },
         { key: "marks", label: "Total Marks", type: "number" },
         { key: "questions", label: "Questions", type: "number" },
@@ -2214,7 +2259,8 @@ function UpcomingExamsAdmin() {
       fields={[
         { key: "name", label: "Exam Name", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
         { key: "organizingBody", label: "Organizing Body", type: "text", placeholder: "e.g. PSC West Bengal" },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "examDate", label: "Exam Date", type: "date" },
         { key: "lastApplyDate", label: "Last Apply Date", type: "date" },
         { key: "eligibility", label: "Eligibility", type: "text", placeholder: "e.g. Graduate" },
@@ -2247,10 +2293,13 @@ function DailyTipsAdmin() {
       fields={[
         { key: "title", label: "Title", type: "text", placeholder: "Tip title", required: true },
         { key: "description", label: "Description", type: "textarea", placeholder: "Full tip content..." },
-        { key: "category", label: "Category", type: "select", options: [
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
+        { key: "tipType", label: "Tip Type", type: "select", options: [
           { label: "Study", value: "study" }, { label: "Exam Strategy", value: "exam-strategy" },
           { label: "Time Management", value: "time-management" }, { label: "Motivation", value: "motivation" },
-        ] },
+          { label: "Others", value: "Others" },
+        ], allowOther: true },
         { key: "referenceLink", label: "Reference Link", type: "url", placeholder: "https://..." },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "imageUrl", label: "Image", type: "image" },
@@ -2470,13 +2519,13 @@ function PreviousPapersAdmin() {
       fields={[
         { key: "name", label: "Paper Name", type: "text", placeholder: "e.g. WBCS 2025 Prelims", required: true },
         { key: "year", label: "Year", type: "number", placeholder: "2025" },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true },
-        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES },
+        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "examType", label: "Exam Type", type: "select", options: [
           { label: "Prelims", value: "Prelims" }, { label: "Mains", value: "Mains" },
           { label: "Tier I", value: "Tier I" }, { label: "Tier II", value: "Tier II" },
           { label: "Full", value: "Full" }, { label: "Others", value: "Others" },
-        ] },
+        ], allowOther: true },
         { key: "totalQuestions", label: "Total Questions", type: "number" },
         { key: "totalMarks", label: "Total Marks", type: "number" },
         { key: "duration", label: "Duration (min)", type: "number" },
@@ -2507,8 +2556,8 @@ function NotesAdmin() {
       collectionName="notes"
       fields={[
         { key: "title", label: "Title", type: "text", placeholder: "e.g. Indian History Notes", required: true },
-        { key: "category", label: "Category", type: "select", options: SUBJECT_CATEGORIES, required: true },
-        { key: "examCategory", label: "Exam Category", type: "select", options: EXAM_CATEGORIES },
+        { key: "category", label: "Category", type: "select", options: SUBJECT_CATEGORIES, required: true, allowOther: true },
+        { key: "examCategory", label: "Exam Category", type: "select", options: EXAM_CATEGORIES, allowOther: true },
         { key: "author", label: "Author", type: "text", placeholder: "e.g. ExamVault Team" },
         { key: "pages", label: "Pages", type: "number" },
         { key: "language", label: "Language", type: "select", options: [
