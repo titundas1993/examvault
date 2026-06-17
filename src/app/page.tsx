@@ -734,11 +734,7 @@ function HomeTab() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-0.5">
-                    <Star className="w-3.5 h-3.5 text-ev-gold fill-ev-gold" />
-                    <span className="text-sm font-bold text-ev-navy">{test.rating || 0}</span>
-                  </div>
-                  <span className="text-xs text-gray-400">{test.attempts || 0}+</span>
+                  <span className="text-xs text-gray-400">{test.attempts || 0}+ attempts</span>
                 </div>
               </div>
             </motion.div>
@@ -832,8 +828,7 @@ function MockTestsTab() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-0.5"><Star className="w-3 h-3 text-ev-gold fill-ev-gold" /><span className="text-sm font-bold">{test.rating || 0}</span></div>
-                <span className="text-xs text-gray-400">{test.attempts || 0}+</span>
+                <span className="text-xs text-gray-400">{test.attempts || 0}+ attempts</span>
               </div>
             </div>
             {!test.isFree && test.price > 0 && (
