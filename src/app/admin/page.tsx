@@ -15,7 +15,7 @@ import {
   BookMarked, Headphones, UserCog,
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
-  Crown, CreditCard, IndianRupee, Compass
+  Crown, CreditCard, IndianRupee, Compass, Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
@@ -383,6 +383,36 @@ export default function AdminPage() {
 // ==================== DASHBOARD VIEW ====================
 function DashboardView({ navigateTo }: { navigateTo: (view: AdminView) => void }) {
   const [stats, setStats] = useState({ users: 0, tests: 0, questions: 0, exams: 0, tips: 0, announcements: 0, papers: 0, notes: 0, banners: 0, series: 0, payments: 0, revenue: 0, activeSubs: 0 });
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState<string | null>(null);
+
+  const handleSeed = async () => {
+    if (!confirm("This will add sample Indian competitive exam data to your app. Continue?")) return;
+    setSeeding(true);
+    setSeedResult(null);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("ev_admin_token") : null;
+      const res = await fetch("/api/admin/seed", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + (token || "examvault-admin-2025"),
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSeedResult("✅ Data seeded! " + data.total + " items added. Refresh to see updated counts.");
+        // Reload stats
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setSeedResult("❌ Error: " + (data.error || "Unknown error"));
+      }
+    } catch (e: any) {
+      setSeedResult("❌ Failed: " + e.message);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   useEffect(() => {
     async function loadStats() {
@@ -465,6 +495,30 @@ function DashboardView({ navigateTo }: { navigateTo: (view: AdminView) => void }
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Seed Data Section */}
+      <div className="mt-6 bg-gradient-to-r from-ev-navy to-blue-800 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Database className="w-5 h-5" /> Seed Sample Data
+            </h3>
+            <p className="text-white/60 text-sm mt-1">Populate your app with real Indian competitive exam data (WBCS, SSC, Railway, Banking, UPSC)</p>
+          </div>
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            {seeding ? <><Loader2 className="w-4 h-4 animate-spin" /> Seeding...</> : <><Zap className="w-4 h-4" /> Seed Data</>}
+          </button>
+        </div>
+        {seedResult && (
+          <div className={"mt-4 p-3 rounded-lg text-sm font-medium " + (seedResult.startsWith("✅") ? "bg-green-500/20 text-green-200" : "bg-red-500/20 text-red-200")}>
+            {seedResult}
+          </div>
+        )}
       </div>
     </div>
   );
