@@ -746,7 +746,7 @@ function HomeTab() {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {dailyQuizzes.map(q => (
-            <div key={q.id} onClick={() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); }} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
+            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
               <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
@@ -962,6 +962,7 @@ function FreeTestsTab() {
 function FreeQuizzesTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
+  const requireAuth = useRequireAuth();
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
 
@@ -994,7 +995,7 @@ function FreeQuizzesTab() {
       </div>
       <div className="px-4 space-y-3">
         {filteredQuizzes.map(q => (
-          <div key={q.id} onClick={() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); }} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
+          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
