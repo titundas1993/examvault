@@ -2228,28 +2228,196 @@ function DailyTipsAdmin() {
 
 // ==================== NOTIFICATIONS ADMIN ====================
 function NotificationsAdmin() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [notifData, usersData] = await Promise.all([
+        adminGetCollection("notifications"),
+        adminGetCollection("users"),
+      ]);
+      if (Array.isArray(notifData)) setItems(notifData);
+      if (Array.isArray(usersData)) setUsers(usersData);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const openAdd = () => {
+    setEditingItem(null);
+    setFormData({ title: "", message: "", type: "info", targetUsers: "all", linkType: "internal", targetView: "", link: "", imageUrl: "", targetUserIds: [] });
+    setSelectedUserIds([]);
+    setUserSearch("");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setEditingItem(item);
+    setFormData({ title: item.title || "", message: item.message || "", type: item.type || "info", targetUsers: item.targetUsers || "all", linkType: item.linkType || "internal", targetView: item.targetView || "", link: item.link || "", imageUrl: item.imageUrl || "" });
+    setSelectedUserIds(item.targetUserIds || []);
+    setUserSearch("");
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const data = { ...formData, targetUserIds: formData.targetUsers === "specific" ? selectedUserIds : [] };
+      if (editingItem) {
+        await adminUpdateDoc("notifications", editingItem.id, data);
+        showToast("Notification updated");
+      } else {
+        await adminAddDoc("notifications", data);
+        showToast("Notification created");
+      }
+      setDialogOpen(false);
+      loadData();
+    } catch (e) { showToast("Save failed", "error"); console.error(e); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    try {
+      await adminDeleteDoc("notifications", deletingId);
+      showToast("Notification deleted");
+      setDeleteDialogOpen(false);
+      loadData();
+    } catch (e) { showToast("Delete failed", "error"); }
+  };
+
+  const toggleUser = (uid: string) => {
+    setSelectedUserIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+  };
+
+  const filteredUsers = users.filter((u: any) =>
+    !userSearch || (u.name || "").toLowerCase().includes(userSearch.toLowerCase()) || (u.email || "").toLowerCase().includes(userSearch.toLowerCase()) || (u.phone || "").includes(userSearch)
+  );
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div>;
+
   return (
-    <CrudAdminPanel
-      title="Notifications"
-      subtitle="Manage push notifications"
-      icon={BellRing}
-      color="from-indigo-500 to-purple-600"
-      collectionName="notifications"
-      fields={[
-        { key: "title", label: "Title", type: "text", placeholder: "Notification title", required: true },
-        { key: "message", label: "Message", type: "textarea", placeholder: "Notification message..." },
-        { key: "type", label: "Type", type: "select", options: [{ label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Success", value: "success" }, { label: "Promo", value: "promo" }] },
-        { key: "targetUsers", label: "Target", type: "select", options: [{ label: "All Users", value: "all" }, { label: "Specific Users", value: "specific" }] },
-        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
-        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
-        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
-        { key: "imageUrl", label: "Image", type: "image" },
-      ]}
-      fetchData={() => adminGetCollection("notifications")}
-      onAdd={(data) => adminAddDoc("notifications", data)}
-      onUpdate={(id, data) => adminUpdateDoc("notifications", id, data)}
-      onDelete={(id) => adminDeleteDoc("notifications", id)}
-    />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div><h2 className="text-2xl font-bold text-ev-navy flex items-center gap-2"><BellRing className="w-7 h-7" /> Notifications</h2><p className="text-gray-500 text-sm">Manage push notifications</p></div>
+        <button onClick={openAdd} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Notification</button>
+      </div>
+
+      <div className="bg-white rounded-2xl border overflow-hidden">
+        <Table>
+          <TableHeader><TableRow className="bg-gray-50"><TableHead>Title</TableHead><TableHead>Type</TableHead><TableHead>Target</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {items.map((item: any) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium">{item.title}</TableCell>
+                <TableCell><span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${item.type === "promo" ? "bg-ev-gold-light text-ev-gold" : item.type === "warning" ? "bg-red-50 text-red-600" : item.type === "success" ? "bg-green-50 text-ev-green" : "bg-blue-50 text-blue-600"}`}>{item.type}</span></TableCell>
+                <TableCell>
+                  {item.targetUsers === "all" ? <span className="text-sm font-medium text-gray-600">All Users</span> : (
+                    <span className="text-sm font-medium text-purple-600">
+                      {(item.targetUserIds || []).length} user{(item.targetUserIds || []).length !== 1 ? "s" : ""} selected
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => openEdit(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                    <button onClick={() => { setDeletingId(item.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {items.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-gray-400">No notifications yet</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingItem ? "Edit Notification" : "New Notification"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div><Label className="font-medium">Title *</Label><Input value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="Notification title" /></div>
+            <div><Label className="font-medium">Message</Label><Textarea value={formData.message || ""} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="Notification message..." rows={3} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label className="font-medium">Type</Label><Select value={formData.type || "info"} onValueChange={v => setFormData({ ...formData, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="info">Info</SelectItem><SelectItem value="warning">Warning</SelectItem><SelectItem value="success">Success</SelectItem><SelectItem value="promo">Promo</SelectItem></SelectContent></Select></div>
+              <div><Label className="font-medium">Target</Label><Select value={formData.targetUsers || "all"} onValueChange={v => { setFormData({ ...formData, targetUsers: v }); if (v === "all") setSelectedUserIds([]); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All Users</SelectItem><SelectItem value="specific">Specific Users</SelectItem></SelectContent></Select></div>
+            </div>
+
+            {/* User Selection — only when "Specific Users" */}
+            {formData.targetUsers === "specific" && (
+              <div className="space-y-2">
+                <Label className="font-medium">Select Users ({selectedUserIds.length} selected)</Label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input value={userSearch} onChange={e => setUserSearch(e.target.value)} placeholder="Search by name, email, phone..." className="pl-9" />
+                </div>
+                <div className="border rounded-xl max-h-48 overflow-y-auto">
+                  {filteredUsers.length === 0 && <div className="p-3 text-center text-sm text-gray-400">No users found</div>}
+                  {filteredUsers.map((u: any) => {
+                    const isChecked = selectedUserIds.includes(u.id);
+                    return (
+                      <label key={u.id} className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors ${isChecked ? "bg-indigo-50" : ""}`}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? "bg-indigo-500 border-indigo-500" : "border-gray-300"}`}>
+                          {isChecked && <CheckCircle className="w-4 h-4 text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-ev-navy truncate">{u.name || "Unknown"}</p>
+                          <p className="text-xs text-gray-400 truncate">{u.email || u.phone || "—"}</p>
+                        </div>
+                        {u.role === "admin" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-500">ADMIN</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+                {selectedUserIds.length > 0 && (
+                  <button onClick={() => setSelectedUserIds([])} className="text-xs text-red-500 hover:text-red-600 font-medium">Clear selection ({selectedUserIds.length})</button>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label className="font-medium">Click Action</Label><Select value={formData.linkType || "internal"} onValueChange={v => setFormData({ ...formData, linkType: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select></div>
+              {formData.linkType === "internal" && (
+                <div><Label className="font-medium">Navigate To</Label><Select value={formData.targetView || ""} onValueChange={v => setFormData({ ...formData, targetView: v })}><SelectTrigger><SelectValue placeholder="Select page..." /></SelectTrigger><SelectContent>{NAVIGATION_VIEWS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}</SelectContent></Select></div>
+              )}
+              {formData.linkType === "external" && (
+                <div><Label className="font-medium">External URL</Label><Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://..." /></div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Notification?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
+
+      {toast && <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg text-white font-medium text-sm z-50 ${toast.type === "success" ? "bg-ev-green" : "bg-red-500"}`}>{toast.message}</div>}
+    </div>
   );
 }
 
