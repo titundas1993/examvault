@@ -709,7 +709,7 @@ function HomeTab() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })}
+              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
@@ -747,7 +747,7 @@ function HomeTab() {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {dailyQuizzes.map(q => (
-            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
+            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
               <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
@@ -804,7 +804,7 @@ function MockTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
-          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
                 <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
@@ -863,7 +863,7 @@ function TestSeriesTab() {
       <div className="px-4 space-y-3">
         {series.map(s => (
           <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); }, { name: s.title, price: s.price || 0 })}>
+            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
               {s.imageUrl ? (
                 <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
               ) : (
@@ -934,7 +934,7 @@ function FreeTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {filteredTests.map(test => (
-          <div key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); }} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("test-info"); }} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
                 <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
@@ -1004,7 +1004,7 @@ function FreeQuizzesTab() {
       </div>
       <div className="px-4 space-y-3">
         {filteredQuizzes.map(q => (
-          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
+          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
@@ -1761,6 +1761,137 @@ function LeaderboardTab() {
       <div className="px-4 mt-4">
         <button onClick={() => requireAuth(() => setView("mocktests"))} className="w-full py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg">
           Start Test to Rank
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== TEST INFO SCREEN ====================
+function TestInfoScreen() {
+  const { goBack, selectedTest, selectedTestType, setView } = useAppStore();
+  const lang = useAppStore(s => s.language);
+  const [testData, setTestData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTest() {
+      if (!selectedTest) return;
+      try {
+        let data: any = null;
+        switch (selectedTestType) {
+          case "freeTest": data = await getFreeTestById(selectedTest); break;
+          case "dailyQuiz": data = await getDailyQuizById(selectedTest); break;
+          case "testSeries": data = await getTestSeriesById(selectedTest); break;
+          case "popularTest": data = await getMockTestById(selectedTest); break;
+          case "mockTest": default: data = await getMockTestById(selectedTest); break;
+        }
+        if (data) setTestData(data);
+      } catch (e) { console.error("Test info fetch error:", e); }
+      finally { setLoading(false); }
+    }
+    fetchTest();
+  }, [selectedTest, selectedTestType]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-ev-orange" />
+      </div>
+    );
+  }
+
+  if (!testData) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+        <p className="text-gray-500 mb-4">Test not found</p>
+        <button onClick={() => goBack()} className="px-6 py-2 bg-ev-orange text-white rounded-xl font-bold">Go Back</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-ev-navy to-blue-800 p-5 pt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10">
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <h2 className="text-white font-bold text-lg flex-1 truncate">{testData.title || "Test"}</h2>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {testData.category && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.category}</span>}
+          {testData.subject && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.subject}</span>}
+          {testData.isFree ? (
+            <span className="px-3 py-1 rounded-lg bg-green-500/30 text-green-200 text-xs font-bold">FREE</span>
+          ) : (
+            <span className="px-3 py-1 rounded-lg bg-ev-gold/30 text-ev-gold text-xs font-bold">PREMIUM</span>
+          )}
+        </div>
+      </div>
+
+      {/* Test Details */}
+      <div className="px-4 mt-4 space-y-4">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+            <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+            <p className="text-lg font-bold text-ev-navy">{testData.duration || 0}</p>
+            <p className="text-xs text-gray-500">Minutes</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+            <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+            <p className="text-lg font-bold text-ev-navy">{testData.questions || 0}</p>
+            <p className="text-xs text-gray-500">Questions</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+            <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
+            <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
+            <p className="text-xs text-gray-500">Marks</p>
+          </div>
+        </div>
+
+        {/* Description */}
+        {testData.description && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <h3 className="font-bold text-ev-navy mb-2 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-ev-orange" /> {lang === "bn" ? "বিবরণ" : "Description"}
+            </h3>
+            <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{testData.description}</p>
+          </div>
+        )}
+
+        {/* Instructions */}
+        {testData.instructions && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <h3 className="font-bold text-ev-navy mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" /> {lang === "bn" ? "নির্দেশনা" : "Instructions"}
+            </h3>
+            <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{testData.instructions}</p>
+          </div>
+        )}
+
+        {/* Difficulty */}
+        {testData.difficulty && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
+            <span className="font-bold text-ev-navy flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-ev-orange" /> {lang === "bn" ? "কঠিনতা" : "Difficulty"}
+            </span>
+            <span className={"text-xs font-bold px-3 py-1 rounded-lg " + (testData.difficulty === "easy" ? "bg-green-50 text-green-600" : testData.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
+              {testData.difficulty === "easy" ? (lang === "bn" ? "সহজ" : "Easy") : testData.difficulty === "hard" ? (lang === "bn" ? "কঠিন" : "Hard") : (lang === "bn" ? "মাঝারি" : "Medium")}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Start Test Button */}
+      <div className="px-4 mt-6">
+        <button
+          onClick={() => setView("exam")}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+        >
+          <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
         </button>
       </div>
     </div>
@@ -2599,6 +2730,11 @@ function ExamVaultAppInner() {
   // Auth screens
   if (currentView === "login" || currentView === "register") {
     return <><LoginScreen /><GuestLockModal /><ExitConfirmDialog /></>;
+  }
+
+  // Test Info screen
+  if (currentView === "test-info") {
+    return <><TestInfoScreen /><ExitConfirmDialog /></>;
   }
 
   // Exam/Result screens (full screen)

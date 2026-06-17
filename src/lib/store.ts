@@ -5,7 +5,7 @@ export type AppView =
   | "splash" | "onboarding" | "login" | "register"
   | "home" | "mocktests" | "test-series" | "free-tests" | "free-quizzes"
   | "previous-papers" | "notes" | "profile" | "settings" | "support"
-  | "exam" | "result" | "leaderboard" | "pricing"
+  | "test-info" | "exam" | "result" | "leaderboard" | "pricing"
   | "upcoming-exams" | "upcoming-exam-detail" | "daily-tips" | "daily-tip-detail"
   | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail";
 
