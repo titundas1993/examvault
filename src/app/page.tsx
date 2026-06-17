@@ -292,14 +292,14 @@ function useRequireAuth(): (action: () => void) => void {
 function useRequirePremium(): (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => void {
   const { subscription, setView, setShowPaymentModal, setPaymentModalData, user, setShowGuestModal } = useAppStore();
   return (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => {
-    // Guest check first
-    if (user?.role === "guest") {
-      setShowGuestModal(true);
-      return;
-    }
-    // Free tests — always allow
+    // Free tests — always allow (even for guests)
     if (isFree) {
       action();
+      return;
+    }
+    // Guest check — guests can only access free content
+    if (user?.role === "guest") {
+      setShowGuestModal(true);
       return;
     }
     // Premium test — check subscription
@@ -615,7 +615,7 @@ function HomeTab() {
               transition={{ delay: 0.1 + i * 0.05 }}
               onClick={() => {
                 if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
-                else requireAuth(() => setView(item.targetView as any));
+                else setView(item.targetView as any);
               }}
               className="flex flex-col items-center gap-2"
             >
@@ -746,7 +746,7 @@ function HomeTab() {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {dailyQuizzes.map(q => (
-            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
+            <div key={q.id} onClick={() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); }} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
               <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
@@ -891,7 +891,6 @@ function TestSeriesTab() {
 function FreeTestsTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
-  const requireAuth = useRequireAuth();
   const [freeTests, setFreeTests] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
 
@@ -930,7 +929,7 @@ function FreeTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {filteredTests.map(test => (
-          <div key={test.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); }} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center"><Zap className="w-6 h-6 text-ev-green" /></div>
               <div className="flex-1">
@@ -963,7 +962,6 @@ function FreeTestsTab() {
 function FreeQuizzesTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
-  const requireAuth = useRequireAuth();
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
 
@@ -996,7 +994,7 @@ function FreeQuizzesTab() {
       </div>
       <div className="px-4 space-y-3">
         {filteredQuizzes.map(q => (
-          <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
+          <div key={q.id} onClick={() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); }} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
