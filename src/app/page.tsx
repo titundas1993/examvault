@@ -1043,18 +1043,23 @@ function PreviousPapersTab() {
       </div>
       <div className="px-4 space-y-3">
         {papers.map(p => (
-          <div key={p.id} onClick={() => requirePremium(p.id, !!p.isFree, () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center"><FileText className="w-6 h-6 text-ev-orange" /></div>
-              <div className="flex-1">
-                <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
+          <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, !!p.isFree, () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
+              <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-ev-navy truncate">{p.name || p.title}</h4>
                 <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                {p.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <Crown className="w-4 h-4 text-ev-gold" />}
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                {p.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{p.price || 0}</span>}
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
             </div>
+            {!p.isFree && p.price > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: p.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{p.price}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -1270,18 +1275,23 @@ function NotesTab() {
       </div>
       <div className="px-4 space-y-3">
         {notesData.map(n => (
-          <div key={n.id} onClick={() => requirePremium(n.id, !!n.isFree, () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center"><Notebook className="w-6 h-6 text-purple-600" /></div>
-              <div className="flex-1">
-                <h4 className="font-bold text-ev-navy">{n.title}</h4>
+          <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, !!n.isFree, () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
+              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-ev-navy truncate">{n.title}</h4>
                 <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                {n.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <Crown className="w-4 h-4 text-ev-gold" />}
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                {n.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{n.price || 0}</span>}
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
             </div>
+            {!n.isFree && n.price > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: n.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{n.price}
+              </button>
+            )}
           </div>
         ))}
       </div>
