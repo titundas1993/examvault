@@ -1,5 +1,28 @@
 "use client";
 
+// Global error capture — shows error on screen instead of white screen
+if (typeof window !== 'undefined') {
+  window.onerror = function(msg, source, lineno, colno, error) {
+    console.error('GLOBAL ERROR:', msg, source, lineno, colno, error);
+    const el = document.getElementById('__ev_error_debug');
+    if (el) {
+      el.style.display = 'flex';
+      el.querySelector('.ev-error-msg')!.textContent = String(msg);
+      el.querySelector('.ev-error-stack')!.textContent = error?.stack || `${source}:${lineno}:${colno}`;
+    }
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function(event) {
+    console.error('UNHANDLED PROMISE:', event.reason);
+    const el = document.getElementById('__ev_error_debug');
+    if (el) {
+      el.style.display = 'flex';
+      el.querySelector('.ev-error-msg')!.textContent = 'Promise: ' + String(event.reason?.message || event.reason);
+      el.querySelector('.ev-error-stack')!.textContent = event.reason?.stack || String(event.reason);
+    }
+  });
+}
+
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";

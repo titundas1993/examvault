@@ -61,6 +61,36 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
+        {/* Debug error overlay — shown by global error handler */}
+        <div
+          id="__ev_error_debug"
+          style={{
+            display: "none",
+            position: "fixed",
+            inset: 0,
+            zIndex: 99999,
+            background: "rgba(0,0,0,0.85)",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div style={{
+            maxWidth: "500px",
+            width: "100%",
+            background: "#1e1e1e",
+            borderRadius: "16px",
+            padding: "24px",
+            border: "2px solid #ef4444",
+            overflow: "auto",
+            maxHeight: "80vh",
+          }}>
+            <p style={{ color: "#f87171", fontSize: "11px", fontWeight: 700, marginBottom: "4px", textTransform: "uppercase" }}>Error Detected</p>
+            <p className="ev-error-msg" style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 600, marginBottom: "12px", wordBreak: "break-word" }}></p>
+            <pre className="ev-error-stack" style={{ color: "#9ca3af", fontSize: "11px", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "#111", padding: "12px", borderRadius: "8px", maxHeight: "300px", overflow: "auto" }}></pre>
+          </div>
+        </div>
         <Toaster />
         {/* Service Worker Registration + BeforeUnload */}
         <script
