@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, randomBytes } from "crypto";
 
 // Admin credentials stored SERVER-SIDE only — never exposed to client
+// IMPORTANT: Set ADMIN_EMAIL and ADMIN_PASSWORD environment variables in production!
+// The fallback values below are for development only and should NOT be used in production.
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "titundas1993@gmail.com";
 const ADMIN_PASSWORD_HASH = getHash(process.env.ADMIN_PASSWORD || "Titun@43");
 
@@ -31,8 +33,23 @@ function cleanExpiredTokens() {
   }
 }
 
+// Simple rate limiting for login attempts
+const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    const attemptData = loginAttempts.get(clientIp);
+    if (attemptData && attemptData.count >= MAX_LOGIN_ATTEMPTS && Date.now() - attemptData.lastAttempt < LOGIN_WINDOW_MS) {
+      return NextResponse.json(
+        { success: false, error: "Too many login attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -46,11 +63,17 @@ export async function POST(request: NextRequest) {
     // Verify credentials on the server
     const inputHash = getHash(password);
     if (email !== ADMIN_EMAIL || inputHash !== ADMIN_PASSWORD_HASH) {
+      // Track failed attempt
+      const current = loginAttempts.get(clientIp) || { count: 0, lastAttempt: 0 };
+      loginAttempts.set(clientIp, { count: current.count + 1, lastAttempt: Date.now() });
       return NextResponse.json(
         { success: false, error: "Invalid credentials" },
         { status: 401 }
       );
     }
+
+    // Clear rate limit on successful login
+    loginAttempts.delete(clientIp);
 
     // Generate a new dynamic token
     cleanExpiredTokens();
@@ -95,14 +118,17 @@ export function verifyAdminToken(token: string | null): boolean {
   return true;
 }
 
-// Logout — remove token
+// Logout — remove token and persistent token
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token } = body;
+    const { token, persistentToken } = body;
     if (token) {
       activeTokens.delete(token);
     }
+    // Note: Persistent tokens can't be truly invalidated server-side without
+    // a persistent store (database). For now, the client removes it from localStorage.
+    // For production, consider adding a deny-list in Firestore.
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ success: true });

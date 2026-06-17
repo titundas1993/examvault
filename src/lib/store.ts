@@ -154,8 +154,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { viewHistory, currentView } = get();
     return viewHistory.length > 0 || !ROOT_VIEWS.includes(currentView);
   },
-  isDark: false,
-  toggleDark: () => set((s) => ({ isDark: !s.isDark })),
+  isDark: typeof window !== 'undefined' ? localStorage.getItem('ev_is_dark') === 'true' : false,
+  toggleDark: () => {
+    const newDark = !get().isDark;
+    set({ isDark: newDark });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ev_is_dark', String(newDark));
+      if (newDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  },
   language: "en",
   setLanguage: (lang) => set({ language: lang }),
   selectedTest: null,

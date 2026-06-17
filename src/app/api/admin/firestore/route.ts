@@ -163,12 +163,14 @@ export async function POST(request: NextRequest) {
       }
 
       case "clearAll": {
-        // Clear all known collections
+        // Clear all known collections (including new ones)
         const collections = [
           "upcomingExams", "dailyTips", "announcements", "notifications",
           "mockTests", "supportTickets", "users", "previousPapers", "notes",
           "banners", "testSeries", "freeTests", "dailyQuiz", "popularTests",
           "questions", "leaderboard", "appSettings",
+          "plans", "payments", "subscriptions", "purchases", "categories",
+          "navigation", "paymentWebhookLogs",
         ];
         let totalDeleted = 0;
         for (const col of collections) {
@@ -178,14 +180,20 @@ export async function POST(request: NextRequest) {
               totalDeleted++;
             } catch (e) { /* ignore */ }
           } else {
-            const snapshot = await db.collection(col).limit(500).get();
-            if (snapshot.docs.length > 0) {
-              const batch = db.batch();
-              snapshot.docs.forEach((doc: any) => {
-                batch.delete(doc.ref);
-                totalDeleted++;
-              });
-              await batch.commit();
+            // Delete all documents in batches (no 500 limit — repeat until empty)
+            let hasMore = true;
+            while (hasMore) {
+              const snapshot = await db.collection(col).limit(500).get();
+              if (snapshot.docs.length === 0) {
+                hasMore = false;
+              } else {
+                const batch = db.batch();
+                snapshot.docs.forEach((doc: any) => {
+                  batch.delete(doc.ref);
+                  totalDeleted++;
+                });
+                await batch.commit();
+              }
             }
           }
         }

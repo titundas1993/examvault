@@ -612,6 +612,15 @@ function CrudAdminPanel<T extends Record<string, any>>({
   };
 
   const handleSave = async () => {
+    // Validate required fields before saving
+    const missingRequired = fields.filter(f => f.required && !formData[f.key]?.toString()?.trim());
+    // Also check allowOther fields where "Others" is selected but custom text is empty
+    const missingOther = fields.filter(f => f.allowOther && formData[f.key] === "Others" && !otherValues[f.key]?.trim());
+    const allMissing = [...missingRequired, ...missingOther];
+    if (allMissing.length > 0) {
+      showToast(`Please fill in: ${allMissing.map(f => f.label).join(", ")}`, "error");
+      return;
+    }
     setSaving(true);
     try {
       // Replace "Others" with custom values for allowOther fields
@@ -2550,10 +2559,10 @@ function NotificationsAdmin() {
       const data = { ...formData, targetUserIds: formData.targetUsers === "specific" ? selectedUserIds : [] };
       if (editingItem) {
         await adminUpdateDoc("notifications", editingItem.id, data);
-        showToast("Notification updated");
+        showToast("Notification updated", "success");
       } else {
         await adminAddDoc("notifications", data);
-        showToast("Notification created");
+        showToast("Notification created", "success");
       }
       setDialogOpen(false);
       loadData();
@@ -3897,13 +3906,13 @@ function PlansAdmin() {
       }
       resetForm();
       loadPlans();
-    } catch (e) { console.error("Save plan error:", e); alert("Error saving plan"); }
+    } catch (e) { console.error("Save plan error:", e); showToast("Error saving plan", "error"); }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this plan?")) return;
     try { await deletePlan(id); loadPlans(); }
-    catch (e) { console.error("Delete plan error:", e); alert("Error deleting plan"); }
+    catch (e) { console.error("Delete plan error:", e); showToast("Error deleting plan", "error"); }
   };
 
   const handleSeedDefaultPlans = async () => {
@@ -3951,8 +3960,8 @@ function PlansAdmin() {
         await addPlan(plan as any);
       }
       loadPlans();
-      alert("3 default plans added successfully!");
-    } catch (e) { console.error("Seed plans error:", e); alert("Error adding default plans"); }
+      showToast("3 default plans added successfully!", "success");
+    } catch (e) { console.error("Seed plans error:", e); showToast("Error adding default plans", "error"); }
   };
 
   return (

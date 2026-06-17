@@ -38,20 +38,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    // Verify webhook signature if secret is configured
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || "";
-    if (webhookSecret) {
-      const expectedSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(body)
-        .digest("hex");
+    // Verify webhook signature — MANDATORY for security
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("CRITICAL: RAZORPAY_WEBHOOK_SECRET is not set! Webhook verification is impossible. Rejecting request.");
+      return NextResponse.json({ error: "Webhook secret not configured. Payment verification disabled for security." }, { status: 500 });
+    }
 
-      if (expectedSignature !== signature) {
-        console.error("Webhook signature mismatch");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-      }
-    } else {
-      console.warn("RAZORPAY_WEBHOOK_SECRET not set - skipping webhook signature verification");
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== signature) {
+      console.error("Webhook signature mismatch — possible fraudulent request");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
     const event = JSON.parse(body);

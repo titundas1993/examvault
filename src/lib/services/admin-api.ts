@@ -15,6 +15,9 @@ const PERSISTENT_TOKEN_KEY = "ev_admin_persistent_token";
 // Admin credentials cache for auto re-login after serverless cold start
 const ADMIN_CREDS_KEY = "ev_admin_creds";
 
+// NOTE: Admin credentials are stored encoded (not encrypted) for auto re-login.
+// This is a trade-off for UX convenience. In production, consider using
+// session-only cookies or a more secure credential storage mechanism.
 function saveAdminCreds(email: string, password: string) {
   try {
     localStorage.setItem(ADMIN_CREDS_KEY, btoa(JSON.stringify({ e: email, p: password })));
@@ -86,10 +89,10 @@ export function removeAdminToken() {
   try { localStorage.removeItem(PERSISTENT_TOKEN_KEY); } catch { /* ignore */ }
 }
 
-// Check if we have a token
+// Check if we have a token (check both dynamic and persistent tokens)
 export function hasAdminToken(): boolean {
   if (typeof window === "undefined") return false;
-  return !!localStorage.getItem(TOKEN_KEY);
+  return !!(localStorage.getItem(TOKEN_KEY) || localStorage.getItem(PERSISTENT_TOKEN_KEY));
 }
 
 // Login to admin API — returns token on success

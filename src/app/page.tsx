@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { onAuthChange } from "@/lib/services/auth";
+import { onAuthChange, logout as authLogout } from "@/lib/services/auth";
 import {
   getNotifications,
   getMockTests, getPopularTests, getFreeTests, getDailyQuiz,
@@ -259,7 +259,7 @@ function SideMenu() {
                 );
               })}
               {user?.role !== "guest" && (
-                <button onClick={() => { setUser(null); setView("login"); setSidebarOpen(false); }} className="w-full flex items-center gap-3 px-6 py-3 text-red-600 font-semibold hover:bg-red-50 transition-colors">
+                <button onClick={async () => { try { await authLogout(); } catch(e) { console.error(e); } setUser(null); setFirebaseUser(null); setView("login"); setSidebarOpen(false); }} className="w-full flex items-center gap-3 px-6 py-3 text-red-600 font-semibold hover:bg-red-50 transition-colors">
                   <LogOut className="w-5 h-5" /> Logout
                 </button>
               )}
