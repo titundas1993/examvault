@@ -27,7 +27,7 @@ import {
   Brain, Flame, Sparkles,
   Menu, X, LogOut, ArrowLeft,
   Edit, Download, Crown, Timer, AlertTriangle, Camera, Loader2,
-  CheckCircle, Bookmark, SkipForward, Grid3X3, Trash2, ExternalLink
+  CheckCircle, Bookmark, SkipForward, Grid3X3, Trash2, ExternalLink, ShoppingCart
 } from "lucide-react";
 
 // User Components
@@ -284,9 +284,9 @@ function useRequireAuth(): (action: () => void) => void {
 }
 
 // Premium access checker - shows pricing if not premium
-function useRequirePremium(): (testId: string, isFree: boolean, action: () => void) => void {
+function useRequirePremium(): (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => void {
   const { subscription, setView, setShowPaymentModal, setPaymentModalData, user, setShowGuestModal } = useAppStore();
-  return (testId: string, isFree: boolean, action: () => void) => {
+  return (testId: string, isFree: boolean, action: () => void, buyInfo?: { name: string; price: number }) => {
     // Guest check first
     if (user?.role === "guest") {
       setShowGuestModal(true);
@@ -305,6 +305,17 @@ function useRequirePremium(): (testId: string, isFree: boolean, action: () => vo
     // Check if purchased individually
     if (subscription.purchasedItemIds.includes(testId)) {
       action();
+      return;
+    }
+    // If buyInfo provided, open direct payment modal for this item
+    if (buyInfo && buyInfo.price > 0) {
+      setPaymentModalData({
+        planId: testId,
+        planName: buyInfo.name,
+        amount: buyInfo.price,
+        type: "one_time",
+      });
+      setShowPaymentModal(true);
       return;
     }
     // Not premium — show pricing page
@@ -692,7 +703,7 @@ function HomeTab() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("exam"); })}
+              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })}
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
               <div className="flex items-center justify-between">
@@ -787,7 +798,7 @@ function MockTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
-          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("exam"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${test.isFree ? "bg-green-50" : "bg-ev-gold-light"}`}>
                 {test.isFree ? <Zap className="w-6 h-6 text-ev-green" /> : <Crown className="w-6 h-6 text-ev-gold" />}
@@ -808,6 +819,11 @@ function MockTestsTab() {
                 <span className="text-xs text-gray-400">{test.attempts || 0}+</span>
               </div>
             </div>
+            {!test.isFree && test.price > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: test.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{test.price}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -840,17 +856,25 @@ function TestSeriesTab() {
       </div>
       <div className="px-4 space-y-3">
         {series.map(s => (
-          <div key={s.id} onClick={() => requirePremium(s.id, s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98]">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-ev-gold-light flex items-center justify-center"><Trophy className="w-6 h-6 text-ev-gold" /></div>
-              <div className="flex-1">
-                <h4 className="font-bold text-ev-navy">{s.title}</h4>
+          <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("exam"); }, { name: s.title, price: s.price || 0 })}>
+              <div className="w-12 h-12 rounded-xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-6 h-6 text-ev-gold" /></div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
                 <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex-shrink-0">
                 {s.isFree ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
               </div>
             </div>
+            {!s.isFree && (
+              <button
+                onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: s.price || 0 }); }}
+                className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
+              >
+                <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{s.price || 0}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -2134,6 +2158,7 @@ function ExamPage() {
                     "bg-gray-100 text-gray-500"
                   }`}>{opt.key}</span>
                   <span className="flex-1">{opt.text}</span>
+                  {isSelected && !submitted && !isReviewMode && <CheckCircle className="w-5 h-5 text-ev-orange flex-shrink-0" />}
                   {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
                   {isWrong && <X className="w-5 h-5 text-red-500 flex-shrink-0" />}
                 </div>
