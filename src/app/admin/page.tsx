@@ -31,7 +31,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -1477,6 +1477,10 @@ function QuestionsAdmin() {
   const [bulkTestId, setBulkTestId] = useState("");
   const [bulkImporting, setBulkImporting] = useState(false);
   const [mockTests, setMockTests] = useState<any[]>([]);
+  const [freeTests, setFreeTests] = useState<any[]>([]);
+  const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
+  const [testSeries, setTestSeries] = useState<any[]>([]);
+  const [popularTests, setPopularTests] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error") => {
@@ -1487,9 +1491,13 @@ function QuestionsAdmin() {
   const loadQuestions = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, mockTestsData] = await Promise.all([
+      const [data, mockTestsData, freeTestsData, dailyQuizData, testSeriesData, popularTestsData] = await Promise.all([
         adminGetCollection("questions"),
         adminGetCollection("mockTests"),
+        adminGetCollection("freeTests"),
+        adminGetCollection("dailyQuiz"),
+        adminGetCollection("testSeries"),
+        adminGetCollection("popularTests"),
       ]);
       if (Array.isArray(data)) {
         data.sort((a: any, b: any) => {
@@ -1499,9 +1507,11 @@ function QuestionsAdmin() {
         });
         setQuestions(data);
       }
-      if (Array.isArray(mockTestsData)) {
-        setMockTests(mockTestsData);
-      }
+      if (Array.isArray(mockTestsData)) setMockTests(mockTestsData);
+      if (Array.isArray(freeTestsData)) setFreeTests(freeTestsData);
+      if (Array.isArray(dailyQuizData)) setDailyQuiz(dailyQuizData);
+      if (Array.isArray(testSeriesData)) setTestSeries(testSeriesData);
+      if (Array.isArray(popularTestsData)) setPopularTests(popularTestsData);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
@@ -1735,7 +1745,7 @@ function QuestionsAdmin() {
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Difficulty</Label><Select value={formData.difficulty || "medium"} onValueChange={v => setFormData({ ...formData, difficulty: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
               <div><Label className="font-medium">Marks</Label><Input type="number" value={formData.marks || 1} onChange={e => setFormData({ ...formData, marks: Number(e.target.value) })} /></div>
-              <div><Label className="font-medium">Mock Test (Optional)</Label><Select value={formData.testId || "none"} onValueChange={v => setFormData({ ...formData, testId: v === "none" ? "" : v })}><SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger><SelectContent><SelectItem value="none">No specific test</SelectItem>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectContent></Select></div>
+              <div className="col-span-3"><Label className="font-medium">Assign to Test (Optional)</Label><Select value={formData.testId || "none"} onValueChange={v => setFormData({ ...formData, testId: v === "none" ? "" : v })}><SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger><SelectContent><SelectItem value="none">— No specific test —</SelectItem>{mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}{freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}</SelectContent></Select></div>
             </div>
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
@@ -1790,12 +1800,16 @@ function QuestionsAdmin() {
                 </Select>
               </div>
               <div>
-                <Label className="font-medium">Mock Test (Optional)</Label>
+                <Label className="font-medium">Assign to Test (Optional)</Label>
                 <Select value={bulkTestId || "none"} onValueChange={v => setBulkTestId(v === "none" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No specific test</SelectItem>
-                    {mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}
+                    <SelectItem value="none">— No specific test —</SelectItem>
+                    {mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}
+                    {freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
+                    {dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
+                    {testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
+                    {popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
                   </SelectContent>
                 </Select>
               </div>
