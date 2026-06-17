@@ -2595,22 +2595,11 @@ if (typeof window !== "undefined") {
       window.history.pushState({ appState: true }, "");
 
       const cur = store.currentView;
-      // If there's view history, go back
-      if (store.viewHistory.length > 0) {
-        const prevView = store.viewHistory[store.viewHistory.length - 1];
-        // If we'd land on home AND that's the only history entry → exit confirm
-        if (prevView === "home" && store.viewHistory.length === 1) {
-          store.setExitConfirmVisible(true);
-        } else {
-          store.goBack();
-        }
+      // Simple rule: Home + back = exit confirm, everything else = go back
+      if (cur === "home") {
+        store.setExitConfirmVisible(true);
       } else {
-        // No history — if on home, exit; otherwise go home
-        if (cur === "home") {
-          store.setExitConfirmVisible(true);
-        } else {
-          store.setView("home");
-        }
+        store.goBack();
       }
     });
 
