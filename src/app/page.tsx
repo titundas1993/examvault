@@ -864,6 +864,7 @@ function FreeTestsTab() {
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
   const [freeTests, setFreeTests] = useState<any[]>([]);
+  const [filter, setFilter] = useState("All");
 
   useEffect(() => {
     async function fetchData() {
@@ -880,24 +881,50 @@ function FreeTestsTab() {
     fetchData();
   }, []);
 
+  // Extract unique categories from test data
+  const categories = ["All", ...Array.from(new Set(freeTests.map((t: any) => t.category).filter(Boolean)))];
+  const filteredTests = freeTests.filter((t: any) => filter === "All" || t.category === filter);
+
   return (
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("freeTests", lang)}</h2>
+        {categories.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4">
+            {categories.map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filter === f ? "bg-ev-green text-white" : "bg-gray-100 text-gray-600"}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="px-4 space-y-3">
-        {freeTests.map(test => (
-          <div key={test.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98]">
+        {filteredTests.map(test => (
+          <div key={test.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("freeTest"); setView("exam"); })} className="bg-white rounded-2xl p-4 border border-green-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center"><Zap className="w-6 h-6 text-ev-green" /></div>
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{test.title}</h4>
-                <div className="flex items-center gap-3 text-xs text-gray-500"><span>{test.duration} min</span><span>{test.questions} Q</span><span>{test.marks || 0} marks</span></div>
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  {test.category && <span className="font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{test.category}</span>}
+                  <span>{test.duration} min</span>
+                  <span>{test.questions} Q</span>
+                  <span>{test.marks || 0} marks</span>
+                </div>
               </div>
               <span className="px-3 py-1 rounded-lg bg-green-50 text-ev-green text-xs font-bold">FREE</span>
             </div>
           </div>
         ))}
+        {filteredTests.length === 0 && (
+          <div className="text-center py-12">
+            <Zap className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-400 font-medium">
+              {freeTests.length === 0 ? "No free tests available yet" : `No tests found in "${filter}"`}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -909,6 +936,7 @@ function FreeQuizzesTab() {
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
   const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [filter, setFilter] = useState("All");
 
   useEffect(() => {
     async function fetchData() {
@@ -920,24 +948,47 @@ function FreeQuizzesTab() {
     fetchData();
   }, []);
 
+  const categories = ["All", ...Array.from(new Set(quizzes.map((q: any) => q.category).filter(Boolean)))];
+  const filteredQuizzes = quizzes.filter((q: any) => filter === "All" || q.category === filter);
+
   return (
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("freeQuizzes", lang)}</h2>
+        {categories.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4">
+            {categories.map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filter === f ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="px-4 space-y-3">
-        {quizzes.map(q => (
+        {filteredQuizzes.map(q => (
           <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("exam"); })} className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg cursor-pointer active:scale-95">
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
                 <h4 className="font-bold text-white">{q.title}</h4>
-                <div className="flex items-center gap-2 mt-1 text-xs text-white/70"><span>{q.questions} Q</span><span>•</span><span>{q.duration} min</span></div>
+                <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+                  {q.category && <span className="px-2 py-0.5 rounded-md bg-white/20">{q.category}</span>}
+                  <span>{q.questions} Q</span><span>•</span><span>{q.duration} min</span>
+                </div>
               </div>
               <div className="text-right text-white/60 text-xs">{q.participants || 0} joined</div>
             </div>
           </div>
         ))}
+        {filteredQuizzes.length === 0 && (
+          <div className="text-center py-12">
+            <Brain className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-400 font-medium">
+              {quizzes.length === 0 ? "No quizzes available yet" : `No quizzes found in "${filter}"`}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
