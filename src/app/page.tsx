@@ -2388,12 +2388,18 @@ export default function ExamVaultApp() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
   const [showSplash, setShowSplash] = useState(true);
   // Check localStorage — if onboarding already completed, skip it
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('ev_onboarding_done') !== 'true';
+  // Using useEffect instead of useState initializer to avoid hydration mismatch
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingCheckedRef = useRef(false);
+
+  useEffect(() => {
+    if (onboardingCheckedRef.current) return;
+    onboardingCheckedRef.current = true;
+    const onboardingDone = typeof window !== 'undefined' && localStorage.getItem('ev_onboarding_done') === 'true';
+    if (!onboardingDone && !showSplash) {
+      setShowOnboarding(true);
     }
-    return false;
-  });
+  }, [showSplash]);
   // Track if view change came from popstate (back button) to avoid double pushState
   const isBackNavigation = useRef(false);
   // Track if the initial sentinel has been set up
@@ -2599,10 +2605,12 @@ export default function ExamVaultApp() {
     );
   }
 
-  // If currentView is still splash after onboarding, go home
-  if (currentView === "splash") {
-    useAppStore.getState().setView("home");
-  }
+  // If currentView is still splash after onboarding, go home (use useEffect to avoid render-time state update)
+  useEffect(() => {
+    if (currentView === "splash" && !showSplash && !showOnboarding) {
+      useAppStore.getState().setView("home");
+    }
+  }, [currentView, showSplash, showOnboarding]);
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
