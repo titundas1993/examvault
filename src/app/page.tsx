@@ -1769,29 +1769,32 @@ function LeaderboardTab() {
 
 // ==================== TEST INFO SCREEN ====================
 function TestInfoScreen() {
-  const { goBack, selectedTest, selectedTestType, setView } = useAppStore();
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
   const lang = useAppStore(s => s.language);
   const [testData, setTestData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchTest() {
-      if (!selectedTest) return;
+      const testId = useAppStore.getState().selectedTest;
+      const testType = useAppStore.getState().selectedTestType;
+      if (!testId) { setLoading(false); return; }
       try {
         let data: any = null;
-        switch (selectedTestType) {
-          case "freeTest": data = await getFreeTestById(selectedTest); break;
-          case "dailyQuiz": data = await getDailyQuizById(selectedTest); break;
-          case "testSeries": data = await getTestSeriesById(selectedTest); break;
-          case "popularTest": data = await getMockTestById(selectedTest); break;
-          case "mockTest": default: data = await getMockTestById(selectedTest); break;
+        switch (testType) {
+          case "freeTest": data = await getFreeTestById(testId); break;
+          case "dailyQuiz": data = await getDailyQuizById(testId); break;
+          case "testSeries": data = await getTestSeriesById(testId); break;
+          case "popularTest": data = await getPopularTestById(testId); break;
+          case "mockTest": default: data = await getMockTestById(testId); break;
         }
         if (data) setTestData(data);
       } catch (e) { console.error("Test info fetch error:", e); }
       finally { setLoading(false); }
     }
     fetchTest();
-  }, [selectedTest, selectedTestType]);
+  }, []);
 
   if (loading) {
     return (
