@@ -1827,14 +1827,33 @@ function TestInfoScreen() {
           </button>
           <h2 className="text-white font-bold text-lg flex-1 truncate">{testData.title || "Test"}</h2>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {testData.category && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.category}</span>}
-          {testData.subject && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.subject}</span>}
-          {testData.isFree ? (
-            <span className="px-3 py-1 rounded-lg bg-green-500/30 text-green-200 text-xs font-bold">FREE</span>
+        {/* Thumbnail + Info */}
+        <div className="flex items-center gap-4">
+          {testData.imageUrl ? (
+            <img src={testData.imageUrl} alt={testData.title} className="w-24 h-24 rounded-2xl object-cover shadow-lg border-2 border-white/20" />
           ) : (
-            <span className="px-3 py-1 rounded-lg bg-ev-gold/30 text-ev-gold text-xs font-bold">PREMIUM</span>
+            <div className="w-24 h-24 rounded-2xl bg-white/10 flex items-center justify-center border-2 border-white/20">
+              {testData.isFree ? <Zap className="w-10 h-10 text-green-300" /> : <Crown className="w-10 h-10 text-ev-gold" />}
+            </div>
           )}
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {testData.category && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.category}</span>}
+              {testData.subject && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.subject}</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              {testData.isFree ? (
+                <span className="px-3 py-1 rounded-lg bg-green-500/30 text-green-200 text-xs font-bold">FREE</span>
+              ) : (
+                <span className="px-3 py-1 rounded-lg bg-ev-gold/30 text-ev-gold text-xs font-bold">PREMIUM</span>
+              )}
+              {testData.difficulty && (
+                <span className={"px-3 py-1 rounded-lg text-xs font-bold " + (testData.difficulty === "easy" ? "bg-green-500/30 text-green-200" : testData.difficulty === "hard" ? "bg-red-500/30 text-red-200" : "bg-amber-500/30 text-amber-200")}>
+                  {testData.difficulty === "easy" ? "Easy" : testData.difficulty === "hard" ? "Hard" : "Medium"}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1876,18 +1895,6 @@ function TestInfoScreen() {
               <AlertTriangle className="w-4 h-4 text-amber-500" /> {lang === "bn" ? "নির্দেশনা" : "Instructions"}
             </h3>
             <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{testData.instructions}</p>
-          </div>
-        )}
-
-        {/* Difficulty */}
-        {testData.difficulty && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-            <span className="font-bold text-ev-navy flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-ev-orange" /> {lang === "bn" ? "কঠিনতা" : "Difficulty"}
-            </span>
-            <span className={"text-xs font-bold px-3 py-1 rounded-lg " + (testData.difficulty === "easy" ? "bg-green-50 text-green-600" : testData.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
-              {testData.difficulty === "easy" ? (lang === "bn" ? "সহজ" : "Easy") : testData.difficulty === "hard" ? (lang === "bn" ? "কঠিন" : "Hard") : (lang === "bn" ? "মাঝারি" : "Medium")}
-            </span>
           </div>
         )}
       </div>
