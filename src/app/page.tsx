@@ -2584,11 +2584,14 @@ function ExitConfirmDialog() {
 function BackButtonHandler() {
   const currentView = useAppStore(s => s.currentView);
 
-  // Register popstate handler — NEVER remove it
+  // Register popstate handler EXACTLY ONCE — guard with window flag
   useEffect(() => {
+    if ((window as any).__evBackReady) return;
+    (window as any).__evBackReady = true;
+
     // Push ONE sentinel entry — this is the only browser history entry.
     // All in-app navigation is handled via Zustand state (not browser history).
-    // When user presses back, the popstate fires, we push the sentinel back
+    // When user presses back, popstate fires, we push the sentinel back
     // so browser never actually navigates away, and we handle navigation internally.
     window.history.pushState({ appState: true }, "");
 
@@ -2598,16 +2601,12 @@ function BackButtonHandler() {
       // Immediately re-push the sentinel so browser can't navigate away
       window.history.pushState({ appState: true }, "");
 
-      const cur = store.currentView;
-      if (cur === "home") {
-        // Already on home → show exit warning
+      if (store.currentView === "home") {
+        // On home + back = exit warning
         store.setExitConfirmVisible(true);
-      } else if (store.viewHistory.length > 0) {
-        // Has history → go back to previous in-app view
-        store.goBack();
       } else {
-        // No history → go to home
-        store.setView("home");
+        // goBack handles everything: goes to previous view or falls back to home
+        store.goBack();
       }
     };
 
@@ -2617,9 +2616,7 @@ function BackButtonHandler() {
 
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("pageshow", handlePageShow);
-    // NOTE: We intentionally do NOT clean up these listeners.
-    // Removing them causes a race condition where back button events are missed
-    // during React re-renders (early returns for exam/result/test-info).
+    // Never remove — guard flag prevents duplicates
   }, []);
 
   // Scroll saver

@@ -134,20 +134,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   goBack: () => {
     const { viewHistory, currentView, scrollPositions } = get();
+    // Save current scroll position before going back
+    const currentScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const updatedPositions = { ...scrollPositions, [currentView]: currentScrollY };
     if (viewHistory.length > 0) {
       const prevView = viewHistory[viewHistory.length - 1];
-      // Save current scroll position before going back
-      const currentScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
-      const updatedPositions = { ...scrollPositions, [currentView]: currentScrollY };
       set({
         currentView: prevView,
         viewHistory: viewHistory.slice(0, -1),
         scrollPositions: updatedPositions,
       });
-      // Note: scroll restoration is handled in page.tsx useEffect via scrollPositions
       return prevView;
     }
-    // If on a root view, return current (caller should handle exit)
+    // No history — go to home as fallback (shouldn't normally happen)
+    if (currentView !== "home") {
+      set({
+        currentView: "home",
+        viewHistory: [],
+        scrollPositions: updatedPositions,
+      });
+      return "home";
+    }
     return currentView;
   },
   canGoBack: () => {
