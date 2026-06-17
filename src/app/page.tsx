@@ -263,6 +263,11 @@ function SideMenu() {
                   <LogOut className="w-5 h-5" /> Logout
                 </button>
               )}
+              {user?.role === "guest" && (
+                <button onClick={() => { setUser(null); setView("login"); setSidebarOpen(false); }} className="w-full flex items-center gap-3 px-6 py-3 text-red-600 font-semibold hover:bg-red-50 transition-colors">
+                  <LogOut className="w-5 h-5" /> Exit Guest Mode
+                </button>
+              )}
             </div>
           </motion.div>
         </>
@@ -2417,6 +2422,8 @@ function ExitConfirmDialog() {
 function ExamVaultAppInner() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
   const isDark = useAppStore(s => s.isDark);
+  const authLoading = useAppStore(s => s.authLoading);
+  const user = useAppStore(s => s.user);
 
   // Track if view change came from popstate (back button) to avoid double pushState
   const isBackNavigation = useRef(false);
@@ -2447,19 +2454,21 @@ function ExamVaultAppInner() {
 
   // Auth listener
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      useAppStore.getState().setFirebaseUser(user);
-      useAppStore.getState().setAuthLoading(false);
-      if (user) {
-        useAppStore.getState().setUser({
-          name: user.displayName || "User",
-          email: user.email || "",
+    const unsubscribe = onAuthChange((firebaseUser) => {
+      const store = useAppStore.getState();
+      store.setFirebaseUser(firebaseUser);
+      store.setAuthLoading(false);
+      if (firebaseUser) {
+        // User is signed in via Firebase
+        store.setUser({
+          name: firebaseUser.displayName || "User",
+          email: firebaseUser.email || "",
           role: "user",
-          uid: user.uid,
+          uid: firebaseUser.uid,
         });
-        checkSubscriptionStatus(user.uid).then((status) => {
+        checkSubscriptionStatus(firebaseUser.uid).then((status) => {
           if (status.isPremium) {
-            useAppStore.getState().setSubscription({
+            store.setSubscription({
               isPremium: true,
               premiumExpiry: status.premiumExpiry,
               planName: status.planName,
@@ -2467,6 +2476,15 @@ function ExamVaultAppInner() {
             });
           }
         }).catch(console.error);
+      } else {
+        // No Firebase user — check if there's a guest user in store
+        // Only redirect to login if the current user is NOT a guest
+        const currentUser = store.user;
+        if (currentUser && currentUser.role !== "guest") {
+          // User was logged in via Firebase but now signed out — go to login
+          store.setUser(null);
+          store.setView("login");
+        }
       }
     });
     return () => unsubscribe();
@@ -2555,6 +2573,23 @@ function ExamVaultAppInner() {
       window.scrollTo(0, 0);
     }
   }, [currentView]);
+
+  // Show loading spinner while auth state is being determined
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-lg mb-4 animate-pulse">
+          <BookOpen className="w-8 h-8 text-white" />
+        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-ev-orange" />
+      </div>
+    );
+  }
+
+  // If no user and not on login/register, redirect to login
+  if (!user && currentView !== "login" && currentView !== "register") {
+    useAppStore.getState().setView("login");
+  }
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
