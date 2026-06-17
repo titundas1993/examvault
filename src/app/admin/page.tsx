@@ -1532,6 +1532,13 @@ function QuestionsAdmin() {
   const [customSubject, setCustomSubject] = useState("");
   const [bulkCustomCategory, setBulkCustomCategory] = useState("");
   const [bulkCustomSubject, setBulkCustomSubject] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
+  const [bulkEditField, setBulkEditField] = useState<string>("");
+  const [bulkEditValue, setBulkEditValue] = useState<any>("");
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
@@ -1740,6 +1747,63 @@ function QuestionsAdmin() {
     setBulkImporting(false);
   };
 
+  // Filtered questions by search
+  const filteredQuestions = questions.filter(q =>
+    Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredQuestions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkActionLoading(true);
+    try {
+      for (const id of selectedIds) {
+        await adminDeleteDoc("questions", id);
+      }
+      showToast(`${selectedIds.size} questions deleted!`, "success");
+      setSelectedIds(new Set());
+      setBulkDeleteDialogOpen(false);
+      loadQuestions();
+    } catch (e: any) {
+      showToast(`Bulk delete failed: ${e.message}`, "error");
+    }
+    setBulkActionLoading(false);
+  };
+
+  const handleBulkEdit = async () => {
+    if (selectedIds.size === 0 || !bulkEditField) return;
+    setBulkActionLoading(true);
+    try {
+      for (const id of selectedIds) {
+        await adminUpdateDoc("questions", id, { [bulkEditField]: bulkEditValue });
+      }
+      showToast(`${selectedIds.size} questions updated!`, "success");
+      setSelectedIds(new Set());
+      setBulkEditDialogOpen(false);
+      setBulkEditField("");
+      setBulkEditValue("");
+      loadQuestions();
+    } catch (e: any) {
+      showToast(`Bulk edit failed: ${e.message}`, "error");
+    }
+    setBulkActionLoading(false);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -1759,7 +1823,34 @@ function QuestionsAdmin() {
         <button onClick={() => { loadCategoriesIntoGlobals(); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
       </div>
 
-      {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div> : questions.length === 0 ? (
+      {/* Search + Bulk Actions Bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
+            placeholder="Search questions..."
+          />
+        </div>
+        {selectedIds.size > 0 && (
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2">
+            <span className="text-sm font-bold text-ev-navy bg-blue-50 px-3 py-2 rounded-xl">{selectedIds.size} selected</span>
+            <button onClick={() => setBulkEditDialogOpen(true)} className="px-3 py-2 rounded-xl bg-blue-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-blue-600 transition-colors">
+              <Edit className="w-3.5 h-3.5" /> Bulk Edit
+            </button>
+            <button onClick={() => setBulkDeleteDialogOpen(true)} className="px-3 py-2 rounded-xl bg-red-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedIds.size})
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition-colors">
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          </motion.div>
+        )}
+      </div>
+
+      {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div> : filteredQuestions.length === 0 ? (
         <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-lg"><FileQuestion className="w-10 h-10 text-white" /></div>
           <h3 className="text-lg font-bold text-ev-navy mb-2">No Questions</h3>
@@ -1768,10 +1859,19 @@ function QuestionsAdmin() {
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <Table>
-            <TableHeader><TableRow><TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow>
+              <TableHead className="w-10">
+                <input type="checkbox" checked={filteredQuestions.length > 0 && selectedIds.size === filteredQuestions.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
+              </TableHead>
+              <TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
-              {questions.map(q => (
-                <TableRow key={q.id}>
+              {filteredQuestions.map(q => {
+                const isSelected = selectedIds.has(q.id);
+                return (
+                <TableRow key={q.id} className={isSelected ? "bg-blue-50/50" : ""}>
+                  <TableCell>
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(q.id)} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
+                  </TableCell>
                   <TableCell className="max-w-[300px] truncate font-medium">{q.question}</TableCell>
                   <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
                   <TableCell>{q.subject}</TableCell>
@@ -1783,7 +1883,8 @@ function QuestionsAdmin() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -1831,6 +1932,84 @@ function QuestionsAdmin() {
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Question?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit Questions</DialogTitle>
+            <DialogDescription>Update a field for {selectedIds.size} selected question(s).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="font-medium">Field to Update</Label>
+              <Select value={bulkEditField} onValueChange={setBulkEditField}>
+                <SelectTrigger><SelectValue placeholder="Select field..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="subject">Subject</SelectItem>
+                  <SelectItem value="difficulty">Difficulty</SelectItem>
+                  <SelectItem value="marks">Marks</SelectItem>
+                  <SelectItem value="testId">Assign to Test</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {bulkEditField && (
+              <div>
+                <Label className="font-medium">New Value</Label>
+                {bulkEditField === "category" ? (
+                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                    <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
+                    <SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : bulkEditField === "subject" ? (
+                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                    <SelectTrigger><SelectValue placeholder="Select subject..." /></SelectTrigger>
+                    <SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : bulkEditField === "difficulty" ? (
+                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                    <SelectTrigger><SelectValue placeholder="Select difficulty..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Easy</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : bulkEditField === "marks" ? (
+                  <Input type="number" value={bulkEditValue} onChange={e => setBulkEditValue(Number(e.target.value))} placeholder="Enter marks" />
+                ) : (
+                  <Input value={bulkEditValue || ""} onChange={e => setBulkEditValue(e.target.value)} placeholder="Enter value..." />
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBulkEdit} disabled={!bulkEditField || bulkActionLoading} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
+              Update {selectedIds.size} Items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Questions?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone. {selectedIds.size} question(s) will be permanently deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkActionLoading} className="bg-red-600 text-white hover:bg-red-700">
+              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete All ({selectedIds.size})
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk Import Dialog */}
