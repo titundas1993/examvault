@@ -7,6 +7,9 @@ on:
         description: 'Deployed PWA URL (e.g. https://examvault.vercel.app)'
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,19 +29,22 @@ jobs:
       - name: Accept licenses & install build tools
         run: |
           yes | sdkmanager --licenses 2>/dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Bubblewrap CLI
         run: |
+          # Bubblewrap needs chokidar v2 polyfill
           npm i -g @nicolo-ribaudo/chokidar-2 2>/dev/null || true
           npm i -g @nicolo-ribaudo/chokidar-cli 2>/dev/null || true
           npm i -g @nicolo-ribaudo/chokidar-2 2>/dev/null || true
-          npm i -g bubblewrap-cli
+          # Install bubblewrap
+          npm i -g bubblewrap
+          bubblewrap --version
 
       - name: Generate signing keystore
         run: |
@@ -49,18 +55,22 @@ jobs:
             -keystore examvault.keystore \
             -storepass examvault -keypass examvault
 
-      - name: Create TWA manifest config
+      - name: Build TWA APK
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
           HOST=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
-          cat > twa-manifest.json << EOF
+          echo "Building TWA for: $APP_URL (host: $HOST)"
+
+          # Create bubblewrap config
+          cat > twa-manifest.json << MANIFEST_EOF
           {
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
             "shortName": "ExamVault",
-            "name": "EXAMVAULT",
+            "name": "EXAMVAULT - Mock Tests & Exam Prep",
             "launcherName": "ExamVault",
             "display": "standalone",
+            "orientation": "portrait",
             "themeColor": "#001A4B",
             "navigationColor": "#001A4B",
             "backgroundColor": "#001A4B",
@@ -74,45 +84,42 @@ jobs:
               {"src": "${APP_URL}/icons/icon-512x512.png", "sizes": "512x512"}
             ],
             "splashScreenFadeOutDuration": 300,
-            "signingKey": {"alias": "examvault", "path": "../examvault.keystore"},
+            "signingKey": {
+              "alias": "examvault",
+              "path": "../examvault.keystore"
+            },
             "packageId": "com.examvault.app",
             "host": "${HOST}"
           }
-          EOF
-          echo "Generated twa-manifest.json for host: $HOST"
+          MANIFEST_EOF
 
-      - name: Initialize TWA Android project
-        run: |
+          echo "=== twa-manifest.json ==="
+          cat twa-manifest.json
+
+          # Init TWA project
           echo "y" | bubblewrap init \
             --manifest=twa-manifest.json \
             --directory=android-twa \
             --skip-pwa-validation
-        env:
-          CI: 1
 
-      - name: Build Release APK
-        working-directory: android-twa
-        run: |
+          # Build debug APK (more reliable than release in CI)
+          cd android-twa
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon 2>&1 || ./gradlew assembleDebug --no-daemon 2>&1
-        env:
-          KEYSTORE_PASSWORD: examvault
-          KEY_ALIAS: examvault
-          KEY_PASSWORD: examvault
+          echo "Building APK..."
+          ./gradlew assembleDebug --no-daemon 2>&1
 
-      - name: Locate APK file
+      - name: Find and prepare APK
         run: |
           echo "Searching for APK..."
           find android-twa -name "*.apk" -type f
           APK=$(find android-twa -name "*.apk" -type f | head -1)
-          echo "APK_PATH=$APK" >> $GITHUB_ENV
-          if [ -n "$APK" ]; then
-            cp "$APK" examvault.apk
-            echo "APK found: $APK"
-          else
+          if [ -z "$APK" ]; then
             echo "ERROR: No APK found!"
             exit 1
           fi
+          echo "APK found: $APK"
+          cp "$APK" examvault.apk
+          ls -lh examvault.apk
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -120,21 +127,28 @@ jobs:
           name: examvault-apk
           path: examvault.apk
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: ExamVault APK v1.0.${{ github.run_number }}
           body: |
-            ExamVault Android APK
+            ## ExamVault Android APK
 
-            Install this APK on your Android phone to use ExamVault as a native app.
+            Download and install on your Android phone.
 
-            Features:
-            - Mock Tests, Free Tests, Previous Papers
-            - Notes & Daily Tips
+            ### Features:
+            - Mock Tests, Free Tests, Daily Quizzes
+            - Previous Year Papers & Notes
             - Leaderboard & Profile
             - Offline support via PWA
+            - Hardware back button support
+
+            ### Install:
+            1. Download `examvault.apk` below
+            2. Open on your Android phone
+            3. Allow "Install from unknown sources" if prompted
+            4. Install and enjoy!
           files: examvault.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
