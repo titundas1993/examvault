@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,12 +37,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap in project directory
+      - name: Install Bubblewrap
         run: |
-          mkdir -p bw-workspace && cd bw-workspace
+          mkdir -p bw && cd bw
           npm init -y 2>&1 | tail -1
           npm install @nicolo-ribaudo/chokidar-2 2>&1 | tail -1
-          npm install @bubblewrap/cli 2>&1 | tail -3
+          npm install @bubblewrap/cli 2>&1 | tail -1
           npx bubblewrap --version
 
       - name: Generate signing keystore
@@ -58,8 +58,6 @@ jobs:
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
           HOST=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
-          echo "Building TWA for: $APP_URL (host: $HOST)"
-
           cat > twa-manifest.json << EOF
           {
             "appVersionName": "1.0.0",
@@ -82,33 +80,55 @@ jobs:
               {"src": "${APP_URL}/icons/icon-512x512.png", "sizes": "512x512"}
             ],
             "splashScreenFadeOutDuration": 300,
-            "signingKey": {
-              "alias": "examvault",
-              "path": "../examvault.keystore"
-            },
+            "signingKey": {"alias": "examvault", "path": "../examvault.keystore"},
             "packageId": "com.examvault.app",
             "host": "${HOST}"
           }
           EOF
-
           cat twa-manifest.json
 
-      - name: Initialize TWA project
+      - name: Init and Build TWA with expect
         run: |
-          cd bw-workspace
-          # Set timeout for each command and try multiple approaches
-          timeout 120 npx bubblewrap init \
-            --manifest=../twa-manifest.json \
-            --directory=../android-twa \
-            --skip-pwa-validation <<< "y" 2>&1 || \
-          timeout 120 npx bubblewrap init \
-            --manifest=../twa-manifest.json \
-            --directory=../android-twa <<< "y" 2>&1 || \
-          echo "y" | timeout 120 npx bubblewrap init \
-            --manifest=../twa-manifest.json \
-            --directory=../android-twa --skip-pwa-validation 2>&1
-        env:
-          CI: 1
+          # Install expect to handle interactive prompts
+          sudo apt-get install -y expect 2>/dev/null || true
+          cd bw
+
+          # Create expect script for bubblewrap init
+          cat > init.exp << 'EXPECT_EOF'
+          #!/usr/bin/expect -f
+          set timeout 300
+          spawn npx bubblewrap init --manifest=../twa-manifest.json --directory=../android-twa
+          expect {
+            "Is it OK to create a new project?" { send "y\r"; exp_continue }
+            "Do you agree" { send "y\r"; exp_continue }
+            "Yes" { send "y\r"; exp_continue }
+            "No" { send "y\r"; exp_continue }
+            "checksum" { send "y\r"; exp_continue }
+            "agree" { send "y\r"; exp_continue }
+            "Continue" { send "y\r"; exp_continue }
+            eof
+          }
+          EXPECT_EOF
+
+          chmod +x init.exp
+          ./init.exp 2>&1 || true
+
+          # Check if android-twa was created
+          if [ -d "../android-twa" ]; then
+            echo "TWA project created successfully!"
+            ls ../android-twa/
+          else
+            echo "TWA init failed, trying with skip-pwa-validation..."
+            echo "y" | npx bubblewrap init \
+              --manifest=../twa-manifest.json \
+              --directory=../android-twa \
+              --skip-pwa-validation 2>&1 || true
+          fi
+
+          if [ ! -d "../android-twa" ]; then
+            echo "FATAL: Could not create TWA project"
+            exit 1
+          fi
 
       - name: Build Debug APK
         working-directory: android-twa
@@ -136,14 +156,6 @@ jobs:
           name: ExamVault APK v1.0.${{ github.run_number }}
           body: |
             ## ExamVault Android APK
-
-            Download and install on your Android phone.
-
-            ### Features:
-            - Mock Tests, Free Tests, Daily Quizzes
-            - Previous Year Papers & Notes
-            - Leaderboard & Profile
-            - Hardware back button support
 
             ### How to Install:
             1. Download examvault.apk below
