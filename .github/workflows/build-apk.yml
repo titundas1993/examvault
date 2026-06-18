@@ -37,11 +37,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap CLI globally
+      - name: Install Bubblewrap
         run: |
-          npm install -g @nicolo-ribaudo/chokidar-2 2>&1 || true
-          npm install -g @bubblewrap/cli 2>&1
-          bubblewrap --version
+          # Pre-install chokidar polyfill (required by bubblewrap)
+          npm install -g @nicolo-ribaudo/chokidar-2 --force 2>&1 | tail -3
+          # Install bubblewrap CLI
+          npm install -g @bubblewrap/cli --force 2>&1 | tail -5
+          # Verify
+          bubblewrap --version || which bubblewrap || echo "bubblewrap not found in PATH"
+          ls $(npm root -g)/@bubblewrap/cli/bin/ 2>/dev/null || true
 
       - name: Generate signing keystore
         run: |
@@ -94,10 +98,11 @@ jobs:
 
       - name: Initialize TWA project
         run: |
-          echo "y" | bubblewrap init \
+          bubblewrap init \
             --manifest=twa-manifest.json \
             --directory=android-twa \
-            --skip-pwa-validation
+            --skip-pwa-validation \
+            --yes
         env:
           CI: 1
 
@@ -115,7 +120,6 @@ jobs:
           APK=$(find android-twa -name "*.apk" -type f | head -1)
           if [ -z "$APK" ]; then
             echo "ERROR: No APK found!"
-            ls -la android-twa/app/build/outputs/apk/debug/ 2>/dev/null || true
             exit 1
           fi
           echo "APK found: $APK"
