@@ -622,6 +622,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
       else if (f.type === "number") initial[f.key] = 0;
       else if (f.key === "targetUsers") initial[f.key] = "all";
       else if (f.key === "linkType") initial[f.key] = "internal";
+      else if (f.key === "accessType") initial[f.key] = "free";
       else initial[f.key] = "";
     });
     setFormData(initial);
@@ -645,7 +646,21 @@ function CrudAdminPanel<T extends Record<string, any>>({
           initial[f.key] = val || (f.type === "switch" ? true : f.type === "number" ? 0 : "");
         }
       } else {
-        initial[f.key] = item[f.key] ?? (f.type === "switch" ? true : f.type === "number" ? 0 : "");
+        // For accessType, fallback from isFree or price
+        if (f.key === "accessType") {
+          const existingAccess = item[f.key];
+          if (existingAccess === "free" || existingAccess === "premium") {
+            initial[f.key] = existingAccess;
+          } else if (item.isFree) {
+            initial[f.key] = "free";
+          } else if (item.price && Number(item.price) > 0) {
+            initial[f.key] = "premium";
+          } else {
+            initial[f.key] = "free";
+          }
+        } else {
+          initial[f.key] = item[f.key] ?? (f.type === "switch" ? true : f.type === "number" ? 0 : "");
+        }
       }
     });
     setFormData(initial);
@@ -835,7 +850,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
     Object.values(item).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const displayFields = fields.filter(f => f.type !== "image" && f.type !== "switch" && f.type !== "file" && f.type !== "textarea").slice(0, 4);
+  const displayFields = fields.filter(f => f.type !== "image" && f.type !== "switch" && f.type !== "file" && f.type !== "textarea" && f.key !== "accessType").slice(0, 4);
 
   return (
     <div>
@@ -926,6 +941,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
                 </TableHead>
                 {displayFields.map(f => <TableHead key={f.key} className="font-semibold text-ev-navy">{f.label}</TableHead>)}
                 <TableHead className="font-semibold text-ev-navy">Status</TableHead>
+                <TableHead className="font-semibold text-ev-navy">Free/Premium</TableHead>
                 <TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -960,6 +976,18 @@ function CrudAdminPanel<T extends Record<string, any>>({
                     <span className={`px-2 py-1 rounded-lg text-xs font-bold ${item.isActive !== false && item.status !== "closed" ? "bg-green-50 text-ev-green" : "bg-red-50 text-ev-red"}`}>
                       {item.isActive !== false && item.status !== "closed" ? "Active" : "Inactive"}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const accessVal = item.accessType || (item.isFree ? "free" : item.price && item.price > 0 ? "premium" : null);
+                      if (accessVal === "free") {
+                        return <span className="px-2 py-1 rounded-lg text-xs font-bold bg-green-100 text-green-700">🆓 Free</span>;
+                      } else if (accessVal === "premium") {
+                        return <span className="px-2 py-1 rounded-lg text-xs font-bold bg-ev-orange/10 text-ev-orange">👑 Premium</span>;
+                      } else {
+                        return <span className="px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-500">—</span>;
+                      }
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -1539,7 +1567,9 @@ function MockTestsAdmin() {
           { label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" },
         ] },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
-        { key: "isFree", label: "Free Test", type: "switch" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "description", label: "Description", type: "textarea", placeholder: "Test description..." },
         { key: "instructions", label: "Instructions", type: "textarea", placeholder: "Test instructions..." },
@@ -2287,7 +2317,9 @@ function TestSeriesAdmin() {
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "totalTests", label: "Total Tests", type: "number", placeholder: "25" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "499" },
-        { key: "isFree", label: "Free", type: "switch" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "description", label: "Description", type: "textarea", placeholder: "Series description..." },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
@@ -2317,12 +2349,15 @@ function FreeTestsAdmin() {
         { key: "questions", label: "Questions", type: "number" },
         { key: "marks", label: "Total Marks", type: "number" },
         { key: "difficulty", label: "Difficulty", type: "select", options: [{ label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" }] },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "description", label: "Description", type: "textarea" },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("freeTests")}
-      onAdd={async (data) => adminAddDoc("freeTests", { ...data, isFree: true })}
+      onAdd={async (data) => adminAddDoc("freeTests", { ...data, accessType: data.accessType || "free" })}
       onUpdate={(id, data) => adminUpdateDoc("freeTests", id, data)}
       onDelete={(id) => adminDeleteDoc("freeTests", id)}
     />
@@ -2345,6 +2380,9 @@ function DailyQuizAdmin() {
         { key: "questions", label: "Questions", type: "number" },
         { key: "duration", label: "Duration (min)", type: "number" },
         { key: "participants", label: "Participants", type: "number" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "description", label: "Description", type: "textarea" },
         { key: "isActive", label: "Active", type: "switch" },
       ]}
@@ -2375,7 +2413,9 @@ function PopularTestsAdmin() {
         { key: "attempts", label: "Attempts", type: "number" },
         { key: "rating", label: "Rating", type: "number" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
-        { key: "isFree", label: "Free", type: "switch" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "description", label: "Description", type: "textarea" },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
@@ -2761,8 +2801,10 @@ function PreviousPapersAdmin() {
         { key: "downloadUrl", label: "Download URL / File", type: "file" },
         { key: "solutionUrl", label: "Solution URL", type: "url", placeholder: "Solution PDF link" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
-        { key: "isFree", label: "Free Access", type: "switch" },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("previousPapers")}
@@ -2796,7 +2838,9 @@ function NotesAdmin() {
         { key: "topics", label: "Topics Covered", type: "textarea", placeholder: "Ancient India, Medieval India, etc." },
         { key: "downloadUrl", label: "Download URL / File", type: "file" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
-        { key: "isFree", label: "Free", type: "switch" },
+        { key: "accessType", label: "Free/Premium", type: "select", options: [
+          { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
+        ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
