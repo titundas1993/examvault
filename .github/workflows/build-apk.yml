@@ -26,7 +26,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept licenses & install build tools
+      - name: Install Android components
         run: |
           yes | sdkmanager --licenses 2>/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
@@ -36,15 +36,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap
+      - name: Install Bubblewrap with retry
         run: |
           mkdir -p twa-builder && cd twa-builder
           npm init -y
-          # chokidar-2 polyfill is required by bubblewrap
-          npm install @nicolo-ribaudo/chokidar-2
-          # Install bubblewrap
-          npm install bubblewrap
-          echo "Bubblewrap installed"
+          npm install @nicolo-ribaudo/chokidar-2 2>&1 || npm install @nicolo-ribaudo/chokidar-2 2>&1
+          npm install bubblewrap 2>&1 || npm install bubblewrap 2>&1
           npx bubblewrap --version
 
       - name: Generate signing keystore
