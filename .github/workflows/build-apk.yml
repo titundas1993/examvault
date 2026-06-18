@@ -171,11 +171,14 @@ jobs:
           package com.examvault.app;
 
           import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.DialogInterface;
           import android.os.Bundle;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import android.webkit.WebSettings;
           import android.webkit.WebChromeClient;
+          import android.webkit.ValueCallback;
           import android.view.KeyEvent;
           import android.view.Window;
           import android.view.WindowManager;
@@ -183,6 +186,7 @@ jobs:
 
           public class MainActivity extends Activity {
               private WebView webView;
+              private boolean canGoBackPWA = false;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -209,7 +213,6 @@ jobs:
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                          // Keep navigation inside the WebView
                           if (Uri.parse(url).getHost() != null &&
                               (Uri.parse(url).getHost().contains("examvault") ||
                                Uri.parse(url).getHost().contains("vercel.app") ||
@@ -218,7 +221,6 @@ jobs:
                                Uri.parse(url).getHost().contains("firebaseapp.com"))) {
                               return false;
                           }
-                          // Open external links in browser
                           view.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)));
                           return true;
                       }
@@ -231,13 +233,42 @@ jobs:
               }
 
               @Override
-              public boolean onKeyDown(int keyCode, KeyEvent event) {
-                  // Handle hardware back button
-                  if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-                      webView.goBack();
-                      return true;
-                  }
-                  return super.onKeyDown(keyCode, event);
+              public void onBackPressed() {
+                  // Ask the PWA if it can go back via JavaScript
+                  // The PWA's Zustand store has canGoBack() function
+                  webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__ || (typeof useAppStore !== 'undefined' ? useAppStore : null); if(s && s.getState) { var state = s.getState(); if(state.canGoBack && state.canGoBack()) { state.goBack(); return 'went_back'; } else if(state.currentView === 'home') { return 'at_home'; } else { state.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error:' + e.message; } })()", new ValueCallback<String>() {
+                      @Override
+                      public void onReceiveValue(String result) {
+                          result = result != null ? result.replace("\"", "") : "";
+                          if ("went_back".equals(result)) {
+                              // PWA handled the back navigation internally — do nothing else
+                          } else if ("at_home".equals(result)) {
+                              // At home page — show exit confirmation
+                              showExitDialog();
+                          } else {
+                              // Fallback: use WebView history
+                              if (webView.canGoBack()) {
+                                  webView.goBack();
+                              } else {
+                                  showExitDialog();
+                              }
+                          }
+                      }
+                  });
+              }
+
+              private void showExitDialog() {
+                  new AlertDialog.Builder(this)
+                      .setTitle("Exit ExamVault?")
+                      .setMessage("Are you sure you want to close the app?")
+                      .setPositiveButton("Exit", new DialogInterface.OnClickListener() {
+                          @Override
+                          public void onClick(DialogInterface dialog, int which) {
+                              finish();
+                          }
+                      })
+                      .setNegativeButton("Cancel", null)
+                      .show();
               }
 
               @Override

@@ -56,6 +56,9 @@ import GuestLockModal from "@/components/shared/GuestLockModal";
 if (typeof window !== 'undefined' && !(window as any).__evBackInit) {
   (window as any).__evBackInit = true;
 
+  // Expose Zustand store globally so Android WebView can call goBack() via JS
+  (window as any).__ZUSTAND_STORE__ = useAppStore;
+
   // Push TWO sentinel entries for buffer.
   // On Android PWA, when the user presses back and there are zero history entries
   // ahead of the current position, the system closes the app WITHOUT firing popstate.
