@@ -36,15 +36,16 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap locally
+      - name: Install Bubblewrap
         run: |
           mkdir -p twa-builder && cd twa-builder
           npm init -y
-          npm install @nicolo-ribaudo/chokidar-2 @nicolo-ribaudo/chokidar-cli
+          # chokidar-2 polyfill is required by bubblewrap
+          npm install @nicolo-ribaudo/chokidar-2
+          # Install bubblewrap
           npm install bubblewrap
-          echo "Verifying bubblewrap..."
+          echo "Bubblewrap installed"
           npx bubblewrap --version
-          echo "Bubblewrap installed successfully"
 
       - name: Generate signing keystore
         run: |
@@ -61,7 +62,7 @@ jobs:
           HOST=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
           echo "Building TWA for: $APP_URL (host: $HOST)"
 
-          cat > twa-manifest.json << 'MANIFEST_EOF'
+          cat > twa-manifest.json << EOF
           {
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
@@ -75,22 +76,22 @@ jobs:
             "backgroundColor": "#001A4B",
             "enableNotifications": true,
             "startUrl": "/",
+            "webManifestUrl": "${APP_URL}/manifest.json",
             "scope": "/",
             "additionalTrustedOrigins": [],
+            "icons": [
+              {"src": "${APP_URL}/icons/icon-192x192.png", "sizes": "192x192"},
+              {"src": "${APP_URL}/icons/icon-512x512.png", "sizes": "512x512"}
+            ],
             "splashScreenFadeOutDuration": 300,
             "signingKey": {
               "alias": "examvault",
               "path": "../examvault.keystore"
             },
             "packageId": "com.examvault.app",
-            "host": "PLACEHOLDER_HOST"
+            "host": "${HOST}"
           }
-          MANIFEST_EOF
-
-          # Replace placeholder with actual host
-          sed -i "s|PLACEHOLDER_HOST|${HOST}|g" twa-manifest.json
-          sed -i "s|\"startUrl\": \"/\"|\"startUrl\": \"/\", \"webManifestUrl\": \"${APP_URL}/manifest.json\"|g" twa-manifest.json
-          sed -i "s|\"additionalTrustedOrigins\": \[\]|\"additionalTrustedOrigins\": [], \"icons\": [{\"src\": \"${APP_URL}/icons/icon-192x192.png\", \"sizes\": \"192x192\"}, {\"src\": \"${APP_URL}/icons/icon-512x512.png\", \"sizes\": \"512x512\"}]|g" twa-manifest.json
+          EOF
 
           echo "=== twa-manifest.json ==="
           cat twa-manifest.json
@@ -149,7 +150,7 @@ jobs:
             - Hardware back button support
 
             ### How to Install:
-            1. Download `examvault.apk` below
+            1. Download examvault.apk below
             2. Open on your Android phone
             3. Allow "Install from unknown sources" if prompted
             4. Install and enjoy!
