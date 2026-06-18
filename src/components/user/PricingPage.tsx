@@ -291,6 +291,14 @@ export default function PricingPage() {
                       {plan.name}
                     </h4>
                     <p className="text-gray-500 text-sm">{plan.description}</p>
+                    <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                      {(plan as any).subject && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{(plan as any).subject}</span>
+                      )}
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${plan.price === 0 ? "bg-green-100 text-green-700" : "bg-ev-orange/10 text-ev-orange"}`}>
+                        {plan.price === 0 ? (lang === "bn" ? "বিনামূল্যে" : "FREE") : (lang === "bn" ? "প্রিমিয়াম" : "PREMIUM")}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 text-ev-gold">
                     <Clock className="w-4 h-4" />
