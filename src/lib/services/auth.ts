@@ -226,9 +226,16 @@ export async function checkGoogleRedirectResult(): Promise<{
 }
 
 /**
+ * Check if running inside a WebView (Android APK)
+ */
+export function isWebViewEnv(): boolean {
+  return isWebView();
+}
+
+/**
  * Sign in with Google.
- * Uses signInWithRedirect in WebView (popup doesn't work in WebView),
- * and signInWithPopup in regular browsers.
+ * In WebView: NOT supported — throws error telling user to use phone/email login
+ * In browser: uses signInWithPopup
  */
 export async function googleLogin(): Promise<{
   user: User;
@@ -236,18 +243,17 @@ export async function googleLogin(): Promise<{
   isNewUser: boolean;
 } | null> {
   try {
-    const provider = new GoogleAuthProvider();
-    provider.addScope("profile");
-    provider.addScope("email");
-
+    // Google Sign-In does NOT work in Android WebView due to
+    // storage partitioning and "missing initial state" errors.
+    // Block it early and tell user to use phone/email login.
     if (isWebView()) {
-      // WebView: popup is blocked, use redirect instead
-      await signInWithRedirect(auth, provider);
-      // This will navigate away and come back — result handled by checkGoogleRedirectResult
-      return null;
+      throw new Error("Google sign-in is not available in the app. Please use Email or Phone number to login.");
     }
 
     // Regular browser: use popup
+    const provider = new GoogleAuthProvider();
+    provider.addScope("profile");
+    provider.addScope("email");
     const credential = await signInWithPopup(auth, provider);
     const isNewUser = credential._tokenResponse?.isNewUser ?? false;
 

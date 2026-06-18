@@ -173,22 +173,30 @@ jobs:
           import android.app.Activity;
           import android.app.AlertDialog;
           import android.content.DialogInterface;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
           import android.os.Bundle;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import android.webkit.WebSettings;
           import android.webkit.WebChromeClient;
           import android.webkit.ValueCallback;
+          import android.webkit.WebResourceError;
+          import android.webkit.WebResourceRequest;
           import android.view.View;
           import android.view.Window;
           import android.view.WindowManager;
           import android.widget.FrameLayout;
           import android.net.Uri;
           import android.graphics.Color;
+          import android.os.Build;
 
           public class MainActivity extends Activity {
               private WebView webView;
               private View splashScreen;
+              private static final String PREFS_NAME = "examvault_prefs";
+              private static final String KEY_URL = "last_url";
+              private String appUrl = "${APP_URL}";
               private boolean webViewReady = false;
 
               @Override
@@ -230,31 +238,42 @@ jobs:
                   webView = new WebView(this);
                   container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
                   webView.setVisibility(View.GONE);
+                  webView.setBackgroundColor(Color.parseColor("#001A4B"));
 
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
-                  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                  // Use CACHE_ELSE_NETWORK so cached content shows immediately,
+                  // preventing white screen when returning from background
+                  settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
                   settings.setAllowFileAccess(true);
                   settings.setMediaPlaybackRequiresUserGesture(false);
                   settings.setSupportZoom(false);
                   settings.setUseWideViewPort(true);
                   settings.setLoadWithOverviewMode(true);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                  settings.setDatabasePath(getFilesDir().getPath() + "/databases");
+                  // Keep session cookies across app restarts
+                  android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                  cookieManager.setAcceptCookie(true);
+                  cookieManager.setAcceptThirdPartyCookies(webView, true);
 
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                          if (Uri.parse(url).getHost() != null &&
-                              (Uri.parse(url).getHost().contains("examvault") ||
-                               Uri.parse(url).getHost().contains("vercel.app") ||
-                               Uri.parse(url).getHost().contains("firebaseio.com") ||
-                               Uri.parse(url).getHost().contains("googleapis.com") ||
-                               Uri.parse(url).getHost().contains("firebaseapp.com"))) {
+                          String host = Uri.parse(url).getHost();
+                          if (host != null &&
+                              (host.contains("examvault") ||
+                               host.contains("vercel.app") ||
+                               host.contains("firebaseio.com") ||
+                               host.contains("googleapis.com") ||
+                               host.contains("firebaseapp.com"))) {
                               return false;
                           }
+                          // Open external links in system browser
                           try {
-                              view.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)));
+                              view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                           } catch (Exception e) {}
                           return true;
                       }
@@ -263,37 +282,54 @@ jobs:
                       public void onPageFinished(WebView view, String url) {
                           super.onPageFinished(view, url);
                           webViewReady = true;
+                          // Hide splash, show WebView
                           splashScreen.setVisibility(View.GONE);
                           webView.setVisibility(View.VISIBLE);
+                          // Set WebView flag for JS detection
+                          view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
+                          // Save current URL for recovery
+                          SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                          prefs.edit().putString(KEY_URL, url).apply();
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                          super.onReceivedError(view, request, error);
                       }
                   });
 
                   webView.setWebChromeClient(new WebChromeClient());
 
-                  // Restore state or load fresh
+                  // ALWAYS load URL fresh — restoreState is unreliable and causes white screen
+                  String urlToLoad = appUrl;
                   if (savedInstanceState != null) {
-                      webView.restoreState(savedInstanceState);
+                      // After process kill, restore the last saved URL
+                      String savedUrl = savedInstanceState.getString(KEY_URL);
+                      if (savedUrl != null && !savedUrl.isEmpty()) {
+                          urlToLoad = savedUrl;
+                      }
                   } else {
-                      webView.loadUrl("${APP_URL}");
+                      // Fresh launch — check for deep link
+                      Uri data = getIntent().getData();
+                      if (data != null) {
+                          urlToLoad = data.toString();
+                      }
                   }
-                  // Set WebView flag for JS detection
-                  webView.evaluateJavascript("window.__EV_WEBVIEW=true;", null);
+                  webView.loadUrl(urlToLoad);
               }
 
               @Override
               protected void onSaveInstanceState(Bundle outState) {
                   super.onSaveInstanceState(outState);
-                  if (webView != null) webView.saveState(outState);
-              }
-
-              @Override
-              protected void onRestoreInstanceState(Bundle savedInstanceState) {
-                  super.onRestoreInstanceState(savedInstanceState);
-                  if (webView != null) webView.restoreState(savedInstanceState);
+                  // Save the current URL instead of WebView state (which is unreliable)
+                  if (webView != null && webView.getUrl() != null) {
+                      outState.putString(KEY_URL, webView.getUrl());
+                  }
               }
 
               @Override
               public void onBackPressed() {
+                  if (webView == null) { super.onBackPressed(); return; }
                   webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.canGoBack && st.canGoBack()) { st.goBack(); return 'went_back'; } else if(st.currentView === 'home') { return 'at_home'; } else { st.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
                       @Override
                       public void onReceiveValue(String result) {
@@ -326,20 +362,35 @@ jobs:
                   super.onResume();
                   if (webView != null) {
                       webView.onResume();
-                      // If WebView blank after resume, reload
-                      webView.postDelayed(new Runnable() {
-                          @Override public void run() {
-                              if (webView != null && webView.getContentHeight() == 0) {
-                                  webView.loadUrl("${APP_URL}");
-                              }
-                          }
-                      }, 500);
+                      // Schedule multiple checks to recover from white screen
+                      scheduleRecoveryCheck(500);
+                      scheduleRecoveryCheck(1500);
+                      scheduleRecoveryCheck(3000);
                   }
+              }
+
+              private void scheduleRecoveryCheck(final long delayMs) {
+                  if (webView == null || splashScreen == null) return;
+                  webView.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          if (webView == null) return;
+                          // If WebView has no content, reload
+                          if (webView.getContentHeight() == 0 || !webViewReady) {
+                              SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                              String lastUrl = prefs.getString(KEY_URL, appUrl);
+                              webView.loadUrl(lastUrl);
+                          }
+                          // Always ensure splash is hidden and WebView visible
+                          splashScreen.setVisibility(View.GONE);
+                          webView.setVisibility(View.VISIBLE);
+                      }
+                  }, delayMs);
               }
 
               @Override
               protected void onPause() {
                   if (webView != null) webView.onPause();
+                  webViewReady = false;
                   super.onPause();
               }
 
@@ -351,6 +402,17 @@ jobs:
                       webView = null;
                   }
                   super.onDestroy();
+              }
+
+              @Override
+              protected void onNewIntent(Intent intent) {
+                  super.onNewIntent(intent);
+                  if (intent != null && intent.getData() != null) {
+                      String url = intent.getData().toString();
+                      if (webView != null) {
+                          webView.loadUrl(url);
+                      }
+                  }
               }
           }
           JAVAEOF

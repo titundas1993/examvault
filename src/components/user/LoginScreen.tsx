@@ -25,6 +25,7 @@ import {
   googleLogin,
   phoneOTPLogin,
   sendPasswordReset,
+  isWebViewEnv,
 } from "@/lib/services/auth";
 import { RecaptchaVerifier, ConfirmationResult } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -48,6 +49,7 @@ export default function LoginScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const recaptchaVerifierRef = useRef<any>(null);
 
   // Resend OTP countdown timer
   useEffect(() => {
@@ -64,6 +66,11 @@ export default function LoginScreen() {
   // Clean up recaptcha on unmount
   useEffect(() => {
     return () => {
+      try {
+        if (recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current.clear();
+        }
+      } catch (e) { /* ignore */ }
       const container = recaptchaContainerRef.current;
       if (container) container.innerHTML = "";
     };
@@ -165,14 +172,30 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      // Clear previous recaptcha
-      if (recaptchaContainerRef.current) {
-        recaptchaContainerRef.current.innerHTML = "";
+      // Clear previous reCAPTCHA completely before creating a new one
+      try {
+        if (recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current.clear();
+          recaptchaVerifierRef.current = null;
+        }
+      } catch (e) { /* ignore */ }
+      // Completely wipe the container DOM to remove any leftover iframes
+      const container = recaptchaContainerRef.current;
+      if (container) {
+        container.innerHTML = "";
       }
-      const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, {
+      // Small delay to let Firebase internals clean up before re-rendering
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Always use the same container ID — since we cleared it, no "already rendered" error
+      const containerId = "recaptcha-container";
+      if (container) {
+        container.id = containerId;
+      }
+      const verifier = new RecaptchaVerifier(auth, containerId, {
         size: "invisible",
         callback: () => {},
       });
+      recaptchaVerifierRef.current = verifier;
       const result = await phoneOTPLogin(formattedPhone, verifier);
       setConfirmationResult(result);
       setOtpSent(true);
@@ -452,7 +475,7 @@ export default function LoginScreen() {
                   </>
                 )}
 
-                <div ref={recaptchaContainerRef} id="recaptcha-container" />
+                <div ref={recaptchaContainerRef} id="recaptcha-container" key="recaptcha-container" />
               </motion.div>
             )}
 
@@ -524,6 +547,8 @@ export default function LoginScreen() {
 
               {/* Social Login Buttons */}
               <div className="space-y-3">
+                {/* Google login button — hidden in WebView (not supported) */}
+                {!isWebViewEnv() && (
                 <button
                   onClick={handleGoogleLogin}
                   disabled={loading}
@@ -539,6 +564,7 @@ export default function LoginScreen() {
                     {t("continueWithGoogle", language)}
                   </span>
                 </button>
+                )}
 
                 <button
                   onClick={() => { setMode("phone"); clearMessages(); setOtpSent(false); setOtp(""); }}
