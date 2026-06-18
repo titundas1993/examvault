@@ -36,13 +36,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap with retry
+      - name: Install Bubblewrap CLI
         run: |
           mkdir -p twa-builder && cd twa-builder
           npm init -y
-          npm install @nicolo-ribaudo/chokidar-2 2>&1 || npm install @nicolo-ribaudo/chokidar-2 2>&1
-          npm install bubblewrap 2>&1 || npm install bubblewrap 2>&1
+          npm install @nicolo-ribaudo/chokidar-2
+          npm install @bubblewrap/cli
           npx bubblewrap --version
+          echo "Bubblewrap installed successfully!"
 
       - name: Generate signing keystore
         run: |
