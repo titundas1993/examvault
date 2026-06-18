@@ -467,7 +467,7 @@ function AutoRotatingBanners() {
         {banners.map((b, i) => (
           <motion.div
             key={b.id || i}
-            className="min-w-full flex-shrink-0 rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"
+            className={"min-w-full flex-shrink-0 rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"}
             onClick={() => handleBannerClick(b, setView)}
           >
             <div>
