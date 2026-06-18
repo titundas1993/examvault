@@ -2829,7 +2829,7 @@ function ExamVaultAppInner() {
       <Header />
       <SideMenu />
       <AnimatePresence mode="wait">
-        <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+        <motion.div key={currentView} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="pb-20">
           {currentView === "home" && <HomeTab />}
           {currentView === "mocktests" && <MockTestsTab />}
           {currentView === "test-series" && <TestSeriesTab />}

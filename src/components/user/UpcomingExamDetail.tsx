@@ -21,6 +21,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Globe,
+  Link2,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,9 +146,10 @@ export default function UpcomingExamDetail() {
 
   const catMeta = getCategoryMeta(exam.category);
   const daysLeft = getDaysLeft(exam.examDate);
+  const hasBottomBar = !!(exam.applyLink || exam.officialLink);
 
   return (
-    <div className="min-h-screen bg-ev-light dark:bg-gray-950 pb-24">
+    <div className="min-h-screen bg-ev-light dark:bg-gray-950 pb-28">
       {/* Hero Section */}
       <div className="relative">
         {exam.imageUrl ? (
@@ -235,13 +239,15 @@ export default function UpcomingExamDetail() {
         </div>
 
         {/* Application Fee */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-ev-green" />
-            <span className="text-xs font-medium text-muted-foreground">Application Fee</span>
+        {(exam.applicationFee) && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-ev-green" />
+              <span className="text-xs font-medium text-muted-foreground">Application Fee</span>
+            </div>
+            <p className="text-sm font-semibold text-ev-navy dark:text-white">{exam.applicationFee}</p>
           </div>
-          <p className="text-sm font-semibold text-ev-navy dark:text-white">{exam.applicationFee || "—"}</p>
-        </div>
+        )}
 
         {/* Syllabus / Exam Pattern */}
         {exam.syllabus && (
@@ -276,40 +282,110 @@ export default function UpcomingExamDetail() {
           </div>
         )}
 
+        {/* Apply Link — INLINE display so it's always visible */}
+        {exam.applyLink && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <ExternalLink className="w-4 h-4 text-ev-orange" />
+              <span className="text-xs font-medium text-muted-foreground">Apply Link</span>
+            </div>
+            <a
+              href={exam.applyLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-ev-orange hover:underline break-all font-medium"
+            >
+              {exam.applyLink}
+            </a>
+            <Button
+              onClick={handleApply}
+              className="w-full mt-3 bg-gradient-to-r from-ev-orange to-ev-gold hover:from-ev-orange/90 hover:to-ev-gold/90 text-white font-semibold shadow-lg shadow-ev-orange/20 rounded-xl h-10"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Apply Now
+            </Button>
+          </div>
+        )}
+
+        {/* Official Link — INLINE display so it's always visible */}
+        {exam.officialLink && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="w-4 h-4 text-ev-navy dark:text-white" />
+              <span className="text-xs font-medium text-muted-foreground">Official Website</span>
+            </div>
+            <a
+              href={exam.officialLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-ev-orange hover:underline break-all font-medium"
+            >
+              {exam.officialLink}
+            </a>
+            <Button
+              onClick={() => window.open(exam.officialLink, "_blank", "noopener")}
+              variant="outline"
+              className="w-full mt-3 border-ev-navy dark:border-white/30 text-ev-navy dark:text-white hover:bg-ev-navy hover:text-white rounded-xl h-10"
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              Visit Official Site
+            </Button>
+          </div>
+        )}
+
         {/* Category Badge */}
         {exam.category && (
           <div className="flex items-center gap-2">
+            <Tag className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Category:</span>
             <span className="px-3 py-1 rounded-full text-xs font-medium bg-ev-blue-light dark:bg-white/10 text-ev-navy dark:text-white/70 border border-ev-blue-light dark:border-white/20">
               {exam.category}
             </span>
           </div>
         )}
+
+        {/* Status Badge */}
+        {exam.status && (
+          <div className="flex items-center gap-2">
+            <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Status:</span>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+              exam.status === "upcoming" ? "bg-ev-green/15 text-ev-green border-ev-green/30" :
+              exam.status === "ongoing" ? "bg-ev-orange/15 text-ev-orange border-ev-orange/30" :
+              "bg-ev-red/15 text-ev-red border-ev-red/30"
+            }`}>
+              {exam.status.charAt(0).toUpperCase() + exam.status.slice(1)}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Sticky Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-gray-950/90 backdrop-blur-lg border-t border-border z-20">
-        <div className="flex gap-3 max-w-lg mx-auto">
-          {exam.applyLink && (
-            <Button
-              onClick={handleApply}
-              className="flex-1 bg-gradient-to-r from-ev-orange to-ev-gold hover:from-ev-orange/90 hover:to-ev-gold/90 text-white font-semibold shadow-lg shadow-ev-orange/20 rounded-xl h-11"
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Apply Now
-            </Button>
-          )}
-          {exam.officialLink && (
-            <Button
-              onClick={() => window.open(exam.officialLink, "_blank", "noopener")}
-              variant="outline"
-              className="flex-1 border-ev-navy dark:border-white/30 text-ev-navy dark:text-white hover:bg-ev-navy hover:text-white rounded-xl h-11"
-            >
-              Visit Official Site
-            </Button>
-          )}
+      {/* Sticky Bottom CTA - only show if there are links */}
+      {hasBottomBar && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-gray-950/90 backdrop-blur-lg border-t border-border z-20">
+          <div className="flex gap-3 max-w-lg mx-auto">
+            {exam.applyLink && (
+              <Button
+                onClick={handleApply}
+                className="flex-1 bg-gradient-to-r from-ev-orange to-ev-gold hover:from-ev-orange/90 hover:to-ev-gold/90 text-white font-semibold shadow-lg shadow-ev-orange/20 rounded-xl h-11"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Apply Now
+              </Button>
+            )}
+            {exam.officialLink && (
+              <Button
+                onClick={() => window.open(exam.officialLink, "_blank", "noopener")}
+                variant="outline"
+                className="flex-1 border-ev-navy dark:border-white/30 text-ev-navy dark:text-white hover:bg-ev-navy hover:text-white rounded-xl h-11"
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                Official Site
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
