@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       app_url:
-        description: 'Deployed PWA URL (e.g. https://examvault.vercel.app)'
+        description: 'Deployed PWA URL (e.g. https://examvault-theta.vercel.app)'
         required: true
 
 permissions:
@@ -32,19 +32,6 @@ jobs:
           yes | sdkmanager --licenses 2>/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install Bubblewrap
-        run: |
-          mkdir -p bw && cd bw
-          npm init -y 2>&1 | tail -1
-          npm install @nicolo-ribaudo/chokidar-2 2>&1 | tail -1
-          npm install @bubblewrap/cli 2>&1 | tail -1
-          npx bubblewrap --version
-
       - name: Generate signing keystore
         run: |
           keytool -genkeypair \
@@ -54,92 +41,308 @@ jobs:
             -keystore examvault.keystore \
             -storepass examvault -keypass examvault
 
-      - name: Create TWA manifest
+      - name: Create Android WebView project
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
           HOST=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
-          cat > twa-manifest.json << EOF
-          {
-            "appVersionName": "1.0.0",
-            "appVersionCode": 1,
-            "shortName": "ExamVault",
-            "name": "EXAMVAULT",
-            "launcherName": "ExamVault",
-            "display": "standalone",
-            "orientation": "portrait",
-            "themeColor": "#001A4B",
-            "navigationColor": "#001A4B",
-            "backgroundColor": "#001A4B",
-            "enableNotifications": true,
-            "startUrl": "/",
-            "webManifestUrl": "${APP_URL}/manifest.json",
-            "scope": "/",
-            "additionalTrustedOrigins": [],
-            "icons": [
-              {"src": "${APP_URL}/icons/icon-192x192.png", "sizes": "192x192"},
-              {"src": "${APP_URL}/icons/icon-512x512.png", "sizes": "512x512"}
-            ],
-            "splashScreenFadeOutDuration": 300,
-            "signingKey": {"alias": "examvault", "path": "../examvault.keystore"},
-            "packageId": "com.examvault.app",
-            "host": "${HOST}"
+          echo "Building for: $APP_URL"
+
+          # Create project directory structure
+          mkdir -p android-project/app/src/main/java/com/examvault/app
+          mkdir -p android-project/app/src/main/res/values
+          mkdir -p android-project/app/src/main/res/mipmap-hdpi
+          mkdir -p android-project/app/src/main/res/mipmap-mdpi
+          mkdir -p android-project/app/src/main/res/mipmap-xhdpi
+          mkdir -p android-project/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android-project/app/src/main/res/mipmap-xxxhdpi
+          mkdir -p android-project/gradle/wrapper
+
+          # Copy icons from public/icons
+          cp public/icons/icon-72x72.png android-project/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          cp public/icons/icon-96x96.png android-project/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp public/icons/icon-144x144.png android-project/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cp public/icons/icon-192x192.png android-project/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp public/icons/icon-512x512.png android-project/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          # settings.gradle
+          cat > android-project/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "ExamVault"
+          include ':app'
+          EOF
+
+          # build.gradle (project)
+          cat > android-project/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
           }
           EOF
-          cat twa-manifest.json
 
-      - name: Init and Build TWA with expect
-        run: |
-          # Install expect to handle interactive prompts
-          sudo apt-get install -y expect 2>/dev/null || true
-          cd bw
-
-          # Create expect script for bubblewrap init
-          cat > init.exp << 'EXPECT_EOF'
-          #!/usr/bin/expect -f
-          set timeout 300
-          spawn npx bubblewrap init --manifest=../twa-manifest.json --directory=../android-twa
-          expect {
-            "Is it OK to create a new project?" { send "y\r"; exp_continue }
-            "Do you agree" { send "y\r"; exp_continue }
-            "Yes" { send "y\r"; exp_continue }
-            "No" { send "y\r"; exp_continue }
-            "checksum" { send "y\r"; exp_continue }
-            "agree" { send "y\r"; exp_continue }
-            "Continue" { send "y\r"; exp_continue }
-            eof
+          # build.gradle (app)
+          cat > android-project/app/build.gradle << EOF
+          plugins {
+              id 'com.android.application'
           }
-          EXPECT_EOF
+          android {
+              namespace 'com.examvault.app'
+              compileSdk 35
+              defaultConfig {
+                  applicationId "com.examvault.app"
+                  minSdk 21
+                  targetSdk 35
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled true
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                      signingConfig signingConfigs.debug
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.core:core:1.15.0'
+              implementation 'androidx.webkit:webkit:1.12.1'
+          }
+          EOF
 
-          chmod +x init.exp
-          ./init.exp 2>&1 || true
+          # AndroidManifest.xml
+          cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="ExamVault"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.ExamVault"
+                  android:usesCleartextTraffic="false"
+                  android:networkSecurityConfig="@xml/network_security_config">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+                      android:launchMode="singleTop">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          XMLEOF
 
-          # Check if android-twa was created
-          if [ -d "../android-twa" ]; then
-            echo "TWA project created successfully!"
-            ls ../android-twa/
-          else
-            echo "TWA init failed, trying with skip-pwa-validation..."
-            echo "y" | npx bubblewrap init \
-              --manifest=../twa-manifest.json \
-              --directory=../android-twa \
-              --skip-pwa-validation 2>&1 || true
-          fi
+          # Network security config
+          mkdir -p android-project/app/src/main/res/xml
+          cat > android-project/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <domain-config cleartextTrafficPermitted="false">
+                  <domain includeSubdomains="true">examvault-theta.vercel.app</domain>
+                  <domain includeSubdomains="true">firebaseio.com</domain>
+                  <domain includeSubdomains="true">googleapis.com</domain>
+              </domain-config>
+          </network-security-config>
+          XMLEOF
 
-          if [ ! -d "../android-twa" ]; then
-            echo "FATAL: Could not create TWA project"
-            exit 1
-          fi
+          # MainActivity.java
+          cat > android-project/app/src/main/java/com/examvault/app/MainActivity.java << JAVAEOF
+          package com.examvault.app;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebChromeClient;
+          import android.view.KeyEvent;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.net.Uri;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+                  getWindow().setFlags(
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                  settings.setAllowFileAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setSupportZoom(false);
+                  settings.setUseWideViewPort(true);
+                  settings.setLoadWithOverviewMode(true);
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                          // Keep navigation inside the WebView
+                          if (Uri.parse(url).getHost() != null &&
+                              (Uri.parse(url).getHost().contains("examvault") ||
+                               Uri.parse(url).getHost().contains("vercel.app") ||
+                               Uri.parse(url).getHost().contains("firebaseio.com") ||
+                               Uri.parse(url).getHost().contains("googleapis.com") ||
+                               Uri.parse(url).getHost().contains("firebaseapp.com"))) {
+                              return false;
+                          }
+                          // Open external links in browser
+                          view.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)));
+                          return true;
+                      }
+                  });
+
+                  webView.setWebChromeClient(new WebChromeClient());
+
+                  // Load the PWA URL
+                  webView.loadUrl("${APP_URL}");
+              }
+
+              @Override
+              public boolean onKeyDown(int keyCode, KeyEvent event) {
+                  // Handle hardware back button
+                  if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+                      webView.goBack();
+                      return true;
+                  }
+                  return super.onKeyDown(keyCode, event);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+              }
+
+              @Override
+              protected void onPause() {
+                  webView.onPause();
+                  super.onPause();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  webView.destroy();
+                  super.onDestroy();
+              }
+          }
+          JAVAEOF
+
+          # strings.xml
+          cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">ExamVault</string>
+          </resources>
+          EOF
+
+          # colors.xml
+          cat > android-project/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#001A4B</color>
+              <color name="colorPrimaryDark">#001A4B</color>
+              <color name="colorAccent">#EB6301</color>
+          </resources>
+          EOF
+
+          # styles.xml
+          cat > android-project/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.ExamVault" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:colorPrimary">@color/colorPrimary</item>
+                  <item name="android:colorPrimaryDark">@color/colorPrimaryDark</item>
+                  <item name="android:colorAccent">@color/colorAccent</item>
+                  <item name="android:statusBarColor">@color/colorPrimary</item>
+                  <item name="android:navigationBarColor">@color/colorPrimary</item>
+              </style>
+          </resources>
+          EOF
+
+          # proguard rules
+          cat > android-project/app/proguard-rules.pro << 'EOF'
+          -keepclassmembers class * {
+              @android.webkit.JavascriptInterface <methods>;
+          }
+          EOF
+
+          # gradle wrapper properties
+          cat > android-project/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+          # gradlew script (minimal)
+          cat > android-project/gradlew << 'GRADLEWEOF'
+          #!/bin/sh
+          exec gradle "$@"
+          GRADLEWEOF
+          chmod +x android-project/gradlew
+
+          # gradle.properties
+          cat > android-project/gradle.properties << 'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2048m
+          EOF
+
+          echo "Android project created!"
+          find android-project -type f | head -20
 
       - name: Build Debug APK
-        working-directory: android-twa
+        working-directory: android-project
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon 2>&1
+          # Use gradle directly since we don't have the full wrapper
+          gradle assembleDebug --no-daemon 2>&1 || {
+            echo "Gradle failed, trying with wrapper setup..."
+            # Create proper wrapper
+            gradle wrapper --gradle-version 8.9 2>&1 || true
+            ./gradlew assembleDebug --no-daemon 2>&1
+          }
 
       - name: Find and prepare APK
         run: |
-          APK=$(find android-twa -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then echo "No APK!"; exit 1; fi
+          APK=$(find android-project -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "No APK found!"
+            find android-project -name "*.apk" -type f 2>/dev/null
+            ls -la android-project/app/build/outputs/apk/debug/ 2>/dev/null || true
+            exit 1
+          fi
           cp "$APK" examvault.apk
           ls -lh examvault.apk
 
@@ -162,6 +365,12 @@ jobs:
             2. Open on your Android phone
             3. Allow "Install from unknown sources" if prompted
             4. Install and enjoy!
+
+            ### Features:
+            - Mock Tests, Free Tests, Daily Quizzes
+            - Previous Year Papers & Notes
+            - Leaderboard & Profile
+            - Hardware back button support
           files: examvault.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
