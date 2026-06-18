@@ -46,6 +46,22 @@ import PaymentModal from "@/components/user/PaymentModal";
 // Shared Components
 import GuestLockModal from "@/components/shared/GuestLockModal";
 
+// ==================== ACCESS TYPE HELPER ====================
+// Resolves whether an item is free or premium based on:
+// 1. accessType field (new, explicitly set by admin)
+// 2. isFree field (legacy fallback)
+// 3. price field (if price > 0, it's premium)
+function isItemFree(item: any): boolean {
+  if (item.accessType === "free") return true;
+  if (item.accessType === "premium") return false;
+  // Fallback for old data without accessType
+  if (item.isFree === true) return true;
+  if (item.isFree === false) return false;
+  // Last resort: check price
+  if (item.price && Number(item.price) > 0) return false;
+  return true;
+}
+
 // ==================== BACK BUTTON HANDLER (Module-level) ====================
 // MUST run ONCE at module load time, NOT inside useEffect.
 // Running inside useEffect caused timing issues on mobile PWA — the popstate
@@ -768,22 +784,22 @@ function HomeTab() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
+              onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
               className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
                 {test.imageUrl ? (
                   <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
                 ) : (
-                  <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
-                    {test.isFree ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
+                  <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (isItemFree(test) ? "bg-green-50" : "bg-ev-gold-light")}>
+                    {isItemFree(test) ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
                   </div>
                 )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
-                    {test.isFree && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{t("free", lang)}</span>}
-                    {!test.isFree && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-gold-light text-ev-gold">{t("premium", lang)}</span>}
+                    {isItemFree(test) && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{t("free", lang)}</span>}
+                    {!isItemFree(test) && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-gold-light text-ev-gold">{t("premium", lang)}</span>}
                   </div>
                   <h4 className="font-bold text-ev-navy">{test.title}</h4>
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
@@ -863,13 +879,13 @@ function MockTestsTab() {
       </div>
       <div className="px-4 space-y-3">
         {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
-          <div key={test.id} onClick={() => requirePremium(test.id, test.isFree, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
+          <div key={test.id} onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
                 <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
               ) : (
-                <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (test.isFree ? "bg-green-50" : "bg-ev-gold-light")}>
-                  {test.isFree ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
+                <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (isItemFree(test) ? "bg-green-50" : "bg-ev-gold-light")}>
+                  {isItemFree(test) ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
                 </div>
               )}
               <div className="flex-1">
@@ -884,7 +900,7 @@ function MockTestsTab() {
                 </div>
               </div>
             </div>
-            {!test.isFree && test.price > 0 && (
+            {!isItemFree(test) && test.price > 0 && (
               <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: test.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{test.price}
               </button>
@@ -922,7 +938,7 @@ function TestSeriesTab() {
       <div className="px-4 space-y-3">
         {series.map(s => (
           <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, !!s.isFree, () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
+            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
               {s.imageUrl ? (
                 <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
               ) : (
@@ -933,10 +949,10 @@ function TestSeriesTab() {
                 <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
               </div>
               <div className="text-right flex-shrink-0">
-                {s.isFree ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
+                {isItemFree(s) ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
               </div>
             </div>
-            {!s.isFree && (
+            {!isItemFree(s) && (
               <button
                 onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: s.price || 0 }); }}
                 className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
@@ -966,7 +982,7 @@ function FreeTestsTab() {
         else {
           // Fallback: use mock tests that are free
           const mockData = await getMockTests();
-          if (mockData && mockData.length > 0) setFreeTests(mockData.filter((t: any) => t.isFree));
+          if (mockData && mockData.length > 0) setFreeTests(mockData.filter((t: any) => isItemFree(t)));
         }
       } catch (e) { console.error("Firestore fetch error:", e); }
     }
@@ -1116,18 +1132,18 @@ function PreviousPapersTab() {
       <div className="px-4 space-y-3">
         {papers.map(p => (
           <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, !!p.isFree, () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
+            <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
               <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
                 <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                {p.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{p.price || 0}</span>}
+                {isItemFree(p) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{p.price || 0}</span>}
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
             </div>
-            {!p.isFree && p.price > 0 && (
+            {!isItemFree(p) && p.price > 0 && (
               <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: p.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{p.price}
               </button>
@@ -1348,18 +1364,18 @@ function NotesTab() {
       <div className="px-4 space-y-3">
         {notesData.map(n => (
           <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, !!n.isFree, () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
+            <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
               <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold text-ev-navy">{n.title}</h4>
                 <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                {n.isFree ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{n.price || 0}</span>}
+                {isItemFree(n) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{n.price || 0}</span>}
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
             </div>
-            {!n.isFree && n.price > 0 && (
+            {!isItemFree(n) && n.price > 0 && (
               <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: n.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{n.price}
               </button>
@@ -1476,13 +1492,13 @@ function NoteDetail() {
       ) : null}
 
       {/* Extra Info */}
-      {((note as any).author || (note as any).language || (note as any).isFree !== undefined) ? (
+      {((note as any).author || (note as any).language || (note as any).accessType || (note as any).isFree !== undefined) ? (
         <div className="px-4 mb-3">
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="grid grid-cols-2 gap-3 text-sm">
               {(note as any).author && <div><span className="text-gray-500">Author:</span> <span className="font-semibold text-ev-navy">{(note as any).author}</span></div>}
               {(note as any).language && <div><span className="text-gray-500">Language:</span> <span className="font-semibold text-ev-navy">{(note as any).language}</span></div>}
-              <div><span className="text-gray-500">Access:</span> <span className={"font-semibold " + ((note as any).isFree ? "text-ev-green" : "text-ev-orange")}>{(note as any).isFree ? "Free" : "Premium"}</span></div>
+              <div><span className="text-gray-500">Access:</span> <span className={"font-semibold " + (isItemFree(note) ? "text-ev-green" : "text-ev-orange")}>{isItemFree(note) ? "Free" : "Premium"}</span></div>
             </div>
             {(note as any).topics && <div className="mt-2 text-sm"><span className="text-gray-500">Topics:</span> <span className="text-ev-navy">{(note as any).topics}</span></div>}
           </div>
@@ -1892,7 +1908,7 @@ function TestInfoScreen() {
             <img src={testData.imageUrl} alt={testData.title} className="w-24 h-24 rounded-2xl object-cover shadow-lg border-2 border-white/20" />
           ) : (
             <div className="w-24 h-24 rounded-2xl bg-white/10 flex items-center justify-center border-2 border-white/20">
-              {testData.isFree ? <Zap className="w-10 h-10 text-green-300" /> : <Crown className="w-10 h-10 text-ev-gold" />}
+              {isItemFree(testData) ? <Zap className="w-10 h-10 text-green-300" /> : <Crown className="w-10 h-10 text-ev-gold" />}
             </div>
           )}
           <div className="flex-1 space-y-2">
@@ -1901,7 +1917,7 @@ function TestInfoScreen() {
               {testData.subject && <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-bold">{testData.subject}</span>}
             </div>
             <div className="flex items-center gap-2">
-              {testData.isFree ? (
+              {isItemFree(testData) ? (
                 <span className="px-3 py-1 rounded-lg bg-green-500/30 text-green-200 text-xs font-bold">FREE</span>
               ) : (
                 <span className="px-3 py-1 rounded-lg bg-ev-gold/30 text-ev-gold text-xs font-bold">PREMIUM</span>
