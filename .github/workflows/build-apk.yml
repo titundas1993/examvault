@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,11 +37,17 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Bubblewrap
+      - name: Install chokidar polyfill
         run: |
-          npm install -g @nicolo-ribaudo/chokidar-2 --force 2>&1 | tail -2
-          npm install -g @bubblewrap/cli --force 2>&1 | tail -2
+          npm cache clean --force 2>/dev/null || true
+          npm install -g @nicolo-ribaudo/chokidar-2 2>&1
+          echo "chokidar done"
+
+      - name: Install Bubblewrap CLI
+        run: |
+          npm install -g @bubblewrap/cli 2>&1
           bubblewrap --version
+          echo "bubblewrap installed"
 
       - name: Generate signing keystore
         run: |
@@ -93,11 +99,9 @@ jobs:
 
       - name: Initialize TWA project
         run: |
-          # Use bubblewrap init with --yes to auto-accept all prompts
           yes | bubblewrap init \
             --manifest=twa-manifest.json \
             --directory=android-twa 2>&1 || \
-          # Fallback: try with skip-pwa-validation
           yes | bubblewrap init \
             --manifest=twa-manifest.json \
             --directory=android-twa \
@@ -114,10 +118,7 @@ jobs:
       - name: Find and prepare APK
         run: |
           APK=$(find android-twa -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            echo "No APK found!"
-            exit 1
-          fi
+          if [ -z "$APK" ]; then echo "No APK!"; exit 1; fi
           cp "$APK" examvault.apk
           ls -lh examvault.apk
 
