@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,13 +39,9 @@ jobs:
 
       - name: Install Bubblewrap
         run: |
-          # Pre-install chokidar polyfill (required by bubblewrap)
-          npm install -g @nicolo-ribaudo/chokidar-2 --force 2>&1 | tail -3
-          # Install bubblewrap CLI
-          npm install -g @bubblewrap/cli --force 2>&1 | tail -5
-          # Verify
-          bubblewrap --version || which bubblewrap || echo "bubblewrap not found in PATH"
-          ls $(npm root -g)/@bubblewrap/cli/bin/ 2>/dev/null || true
+          npm install -g @nicolo-ribaudo/chokidar-2 --force 2>&1 | tail -2
+          npm install -g @bubblewrap/cli --force 2>&1 | tail -2
+          bubblewrap --version
 
       - name: Generate signing keystore
         run: |
@@ -93,16 +89,19 @@ jobs:
           }
           EOF
 
-          echo "=== twa-manifest.json ==="
           cat twa-manifest.json
 
       - name: Initialize TWA project
         run: |
-          bubblewrap init \
+          # Use bubblewrap init with --yes to auto-accept all prompts
+          yes | bubblewrap init \
+            --manifest=twa-manifest.json \
+            --directory=android-twa 2>&1 || \
+          # Fallback: try with skip-pwa-validation
+          yes | bubblewrap init \
             --manifest=twa-manifest.json \
             --directory=android-twa \
-            --skip-pwa-validation \
-            --yes
+            --skip-pwa-validation 2>&1
         env:
           CI: 1
 
@@ -110,19 +109,15 @@ jobs:
         working-directory: android-twa
         run: |
           chmod +x gradlew
-          echo "Building APK..."
           ./gradlew assembleDebug --no-daemon 2>&1
 
-      - name: Find APK
+      - name: Find and prepare APK
         run: |
-          echo "Searching for APK files..."
-          find android-twa -name "*.apk" -type f
           APK=$(find android-twa -name "*.apk" -type f | head -1)
           if [ -z "$APK" ]; then
-            echo "ERROR: No APK found!"
+            echo "No APK found!"
             exit 1
           fi
-          echo "APK found: $APK"
           cp "$APK" examvault.apk
           ls -lh examvault.apk
 
