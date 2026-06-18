@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { onAuthChange, logout as authLogout } from "@/lib/services/auth";
+import { onAuthChange, logout as authLogout, checkGoogleRedirectResult } from "@/lib/services/auth";
 import {
   getNotifications,
   getMockTests, getPopularTests, getFreeTests, getDailyQuiz,
@@ -2708,6 +2708,21 @@ function ExamVaultAppInner() {
       } catch (e) { /* ignore */ }
     };
     fetchSettings();
+
+    // Check for Google redirect result (WebView login)
+    checkGoogleRedirectResult().then((result) => {
+      if (result) {
+        const store = useAppStore.getState();
+        store.setFirebaseUser(result.user);
+        store.setUser({
+          name: result.profile?.name || result.user.displayName || "User",
+          email: result.user.email || "",
+          role: result.profile?.role || "user",
+          uid: result.user.uid,
+        });
+        store.setView("home");
+      }
+    }).catch(console.error);
   }, []);
 
   // Auth listener

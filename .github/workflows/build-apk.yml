@@ -276,6 +276,8 @@ jobs:
                   } else {
                       webView.loadUrl("${APP_URL}");
                   }
+                  // Set WebView flag for JS detection
+                  webView.evaluateJavascript("window.__EV_WEBVIEW=true;", null);
               }
 
               @Override

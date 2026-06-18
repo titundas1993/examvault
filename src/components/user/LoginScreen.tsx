@@ -46,7 +46,20 @@ export default function LoginScreen() {
   const [success, setSuccess] = useState("");
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [otpSent, setOtpSent] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
+  // Resend OTP countdown timer
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   // Clean up recaptcha on unmount
   useEffect(() => {
@@ -163,6 +176,7 @@ export default function LoginScreen() {
       const result = await phoneOTPLogin(formattedPhone, verifier);
       setConfirmationResult(result);
       setOtpSent(true);
+      setResendTimer(60); // 60 second cooldown before resend
       setSuccess("OTP sent successfully!");
     } catch (err: any) {
       setError(err.message || "Failed to send OTP");
@@ -413,8 +427,24 @@ export default function LoginScreen() {
                       loading={loading}
                       text="Verify OTP"
                     />
+                    {/* Resend OTP */}
+                    <div className="text-center">
+                      {resendTimer > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Resend OTP in <span className="font-semibold text-ev-navy dark:text-white">{resendTimer}s</span>
+                        </p>
+                      ) : (
+                        <button
+                          onClick={handleSendOTP}
+                          disabled={loading}
+                          className="text-xs text-ev-orange hover:underline font-semibold disabled:opacity-50"
+                        >
+                          Resend OTP
+                        </button>
+                      )}
+                    </div>
                     <button
-                      onClick={() => { setOtpSent(false); setOtp(""); clearMessages(); }}
+                      onClick={() => { setOtpSent(false); setOtp(""); setResendTimer(0); clearMessages(); }}
                       className="w-full text-center text-xs text-ev-orange hover:underline"
                     >
                       Change phone number

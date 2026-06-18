@@ -5,6 +5,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signInWithPhoneNumber,
   sendPasswordResetEmail,
@@ -188,7 +190,45 @@ export async function emailPasswordRegister(
 }
 
 /**
- * Sign in with Google using a popup.
+ * Detect if running inside an Android WebView
+ */
+function isWebView(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /wv/.test(ua) || /Android.*Version\/\d/.test(ua) || (window as any).__EV_WEBVIEW === true;
+}
+
+/**
+ * Check for redirect result on page load (for WebView Google login)
+ * Must be called once on app mount.
+ */
+export async function checkGoogleRedirectResult(): Promise<{
+  user: User;
+  profile: UserProfile | null;
+  isNewUser: boolean;
+} | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) return null;
+    const isNewUser = result._tokenResponse?.isNewUser ?? false;
+    let profile: UserProfile | null = null;
+    if (isNewUser) {
+      const displayName = result.user.displayName ?? "User";
+      profile = await createUserProfileInFirestore(result.user, displayName);
+    } else {
+      profile = await fetchUserProfile(result.user.uid);
+    }
+    return { user: result.user, profile, isNewUser };
+  } catch (error) {
+    console.error("Google redirect result error:", error);
+    return null;
+  }
+}
+
+/**
+ * Sign in with Google.
+ * Uses signInWithRedirect in WebView (popup doesn't work in WebView),
+ * and signInWithPopup in regular browsers.
  */
 export async function googleLogin(): Promise<{
   user: User;
@@ -197,17 +237,23 @@ export async function googleLogin(): Promise<{
 } | null> {
   try {
     const provider = new GoogleAuthProvider();
-    // Request additional scopes if needed
     provider.addScope("profile");
     provider.addScope("email");
 
+    if (isWebView()) {
+      // WebView: popup is blocked, use redirect instead
+      await signInWithRedirect(auth, provider);
+      // This will navigate away and come back — result handled by checkGoogleRedirectResult
+      return null;
+    }
+
+    // Regular browser: use popup
     const credential = await signInWithPopup(auth, provider);
     const isNewUser = credential._tokenResponse?.isNewUser ?? false;
 
     let profile: UserProfile | null = null;
 
     if (isNewUser) {
-      // Create a new profile for first-time Google sign-in
       const displayName = credential.user.displayName ?? "User";
       profile = await createUserProfileInFirestore(credential.user, displayName);
     } else {
