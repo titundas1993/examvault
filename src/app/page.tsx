@@ -2578,90 +2578,76 @@ function ExitConfirmDialog() {
 // ==================== MAIN APP (INNER) ====================
 // Split into inner/outer so the ErrorBoundary wraps ALL hooks + rendering
 
-// ── BackButtonHandler: always rendered, never unmounted ──
-// This component MUST be rendered BEFORE any early returns so it stays mounted
-// regardless of which view (exam, result, test-info, etc.) is shown.
-function BackButtonHandler() {
-  const currentView = useAppStore(s => s.currentView);
-
-  // Register popstate handler EXACTLY ONCE — guard with window flag
-  useEffect(() => {
-    if ((window as any).__evBackReady) return;
-    (window as any).__evBackReady = true;
-
-    // Push ONE sentinel entry — this is the only browser history entry.
-    // All in-app navigation is handled via Zustand state (not browser history).
-    // When user presses back, popstate fires, we push the sentinel back
-    // so browser never actually navigates away, and we handle navigation internally.
-    window.history.pushState({ appState: true }, "");
-
-    const handlePopState = () => {
-      const store = useAppStore.getState();
-      if (store.isExitingApp) return;
-      // Immediately re-push the sentinel so browser can't navigate away
-      window.history.pushState({ appState: true }, "");
-
-      if (store.currentView === "home") {
-        // On home + back = exit warning
-        store.setExitConfirmVisible(true);
-      } else {
-        // goBack handles everything: goes to previous view or falls back to home
-        store.goBack();
-      }
-    };
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) window.history.pushState({ appState: true }, "");
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    window.addEventListener("pageshow", handlePageShow);
-    // Never remove — guard flag prevents duplicates
-  }, []);
-
-  // Scroll saver
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const handleScroll = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const store = useAppStore.getState();
-        const y = window.scrollY;
-        if (y > 0) {
-          store.scrollPositions[store.currentView] = y;
-        }
-      }, 100);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
-  // Scroll restorer
-  useEffect(() => {
-    const { scrollPositions } = useAppStore.getState();
-    const savedY = scrollPositions[currentView];
-    if (savedY !== undefined && savedY > 0) {
-      const scrollToSaved = () => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
-      requestAnimationFrame(scrollToSaved);
-      setTimeout(scrollToSaved, 50);
-      setTimeout(scrollToSaved, 150);
-      setTimeout(scrollToSaved, 300);
-    } else {
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    }
-  }, [currentView]);
-
-  return null; // Invisible component — only handles back button & scroll
-}
-
 function ExamVaultAppInner() {
   const { currentView, goBack, canGoBack, setExitConfirmVisible, isExitingApp, setIsExitingApp, appSettings } = useAppStore();
   const isDark = useAppStore(s => s.isDark);
   const authLoading = useAppStore(s => s.authLoading);
   const user = useAppStore(s => s.user);
+
+  // ══════════════════════════════════════════════════════════
+  // BACK BUTTON HANDLER — must be BEFORE any early returns!
+  // React hooks before early returns are ALWAYS active, never unmount.
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    // Guard: register ONLY ONCE even if component remounts
+    if ((window as any).__evPopstateDone) return;
+    (window as any).__evPopstateDone = true;
+
+    // Push one sentinel — browser history has this one entry
+    window.history.pushState({ appState: true }, "");
+
+    window.addEventListener("popstate", () => {
+      const store = useAppStore.getState();
+      if (store.isExitingApp) return;
+      // Re-push sentinel IMMEDIATELY so browser can't leave the page
+      window.history.pushState({ appState: true }, "");
+
+      if (store.currentView === "home") {
+        store.setExitConfirmVisible(true);
+      } else {
+        store.goBack();
+      }
+    });
+
+    window.addEventListener("pageshow", (e: PageTransitionEvent) => {
+      if (e.persisted) window.history.pushState({ appState: true }, "");
+    });
+    // NEVER remove these listeners — guard flag prevents duplicates
+  }, []);
+
+  // ══════════════════════════════════════════════════════════
+  // SCROLL HANDLER — also before early returns
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const s = useAppStore.getState();
+        if (window.scrollY > 0) s.scrollPositions[s.currentView] = window.scrollY;
+      }, 100);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { clearTimeout(t); window.removeEventListener("scroll", onScroll); };
+  }, []);
+
+  // Restore scroll on view change
+  useEffect(() => {
+    const savedY = useAppStore.getState().scrollPositions[currentView];
+    if (savedY > 0) {
+      const go = () => window.scrollTo({ top: savedY, behavior: "instant" as ScrollBehavior });
+      requestAnimationFrame(go);
+      setTimeout(go, 50);
+      setTimeout(go, 150);
+      setTimeout(go, 300);
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [currentView]);
+
+  // ══════════════════════════════════════════════════════════
+  // OTHER HOOKS
+  // ══════════════════════════════════════════════════════════
 
   // Load user profile from localStorage on mount
   useEffect(() => {
@@ -2757,7 +2743,6 @@ function ExamVaultAppInner() {
   if (authLoading) {
     return (
       <>
-        <BackButtonHandler />
         <div className="min-h-screen flex flex-col items-center justify-center bg-white">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center shadow-lg mb-4 animate-pulse">
             <BookOpen className="w-8 h-8 text-white" />
@@ -2773,27 +2758,26 @@ function ExamVaultAppInner() {
 
   // Auth screens
   if (currentView === "login" || currentView === "register") {
-    return <><BackButtonHandler /><LoginScreen /><GuestLockModal /><ExitConfirmDialog /></>;
+    return <><LoginScreen /><GuestLockModal /><ExitConfirmDialog /></>;
   }
 
   // Test Info screen
   if (currentView === "test-info") {
-    return <><BackButtonHandler /><TestInfoScreen /><ExitConfirmDialog /></>;
+    return <><TestInfoScreen /><ExitConfirmDialog /></>;
   }
 
   // Exam/Result screens (full screen)
   if (currentView === "exam") {
-    return <><BackButtonHandler /><ExamPage /><ExitConfirmDialog /></>;
+    return <><ExamPage /><ExitConfirmDialog /></>;
   }
 
   if (currentView === "result") {
-    return <><BackButtonHandler /><ResultPage /><ExitConfirmDialog /></>;
+    return <><ResultPage /><ExitConfirmDialog /></>;
   }
 
   // Main App
   return (
     <>
-      <BackButtonHandler />
       <div className={"min-h-screen " + (isDark ? "dark bg-gray-900" : "bg-gray-50") + " pb-16"}>
       {appSettings.maintenanceMode && (
         <div className="fixed inset-0 z-[100] bg-ev-navy/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
