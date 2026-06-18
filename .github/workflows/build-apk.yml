@@ -179,14 +179,22 @@ jobs:
           import android.webkit.WebSettings;
           import android.webkit.WebChromeClient;
           import android.webkit.ValueCallback;
+          import android.webkit.WebResourceRequest;
           import android.view.KeyEvent;
+          import android.view.View;
           import android.view.Window;
           import android.view.WindowManager;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.ProgressBar;
+          import android.widget.TextView;
           import android.net.Uri;
+          import android.graphics.Color;
 
           public class MainActivity extends Activity {
               private WebView webView;
-              private boolean canGoBackPWA = false;
+              private View splashScreen;
+              private boolean webViewReady = false;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -196,8 +204,53 @@ jobs:
                       WindowManager.LayoutParams.FLAG_FULLSCREEN,
                       WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+                  // Create a container layout
+                  FrameLayout container = new FrameLayout(this);
+                  setContentView(container);
+
+                  // === SPLASH SCREEN (shown while WebView loads) ===
+                  splashScreen = new View(this) {
+                      @Override
+                      protected void onDraw(android.graphics.Canvas canvas) {
+                          super.onDraw(canvas);
+                          // Dark navy background
+                          canvas.drawColor(Color.parseColor("#001A4B"));
+                          // App name
+                          android.graphics.Paint paint = new android.graphics.Paint();
+                          paint.setColor(Color.WHITE);
+                          paint.setTextSize(80);
+                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+                          paint.setTextAlign(android.graphics.Paint.Align.CENTER);
+                          int cx = getWidth() / 2;
+                          int cy = getHeight() / 2 - 40;
+                          canvas.drawText("EXAM", cx, cy, paint);
+                          paint.setColor(Color.parseColor("#EB6301"));
+                          canvas.drawText("VAULT", cx, cy + 90, paint);
+                          // Subtitle
+                          paint.setColor(Color.parseColor("#FEA216"));
+                          paint.setTextSize(28);
+                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL));
+                          canvas.drawText("Mock Tests, PYQs & Exam Updates", cx, cy + 150, paint);
+                          // Loading indicator
+                          paint.setColor(Color.parseColor("#FEA216"));
+                          paint.setTextSize(24);
+                          canvas.drawText("Loading...", cx, cy + 230, paint);
+                      }
+                  };
+                  FrameLayout.LayoutParams splashParams = new FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT);
+                  container.addView(splashScreen, splashParams);
+
+                  // === WEBVIEW ===
                   webView = new WebView(this);
-                  setContentView(webView);
+                  FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT);
+                  container.addView(webView, webParams);
+
+                  // Initially hide WebView until page loads
+                  webView.setVisibility(View.GONE);
 
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
@@ -209,44 +262,95 @@ jobs:
                   settings.setSupportZoom(false);
                   settings.setUseWideViewPort(true);
                   settings.setLoadWithOverviewMode(true);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
-                      public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                          if (Uri.parse(url).getHost() != null &&
-                              (Uri.parse(url).getHost().contains("examvault") ||
-                               Uri.parse(url).getHost().contains("vercel.app") ||
-                               Uri.parse(url).getHost().contains("firebaseio.com") ||
-                               Uri.parse(url).getHost().contains("googleapis.com") ||
-                               Uri.parse(url).getHost().contains("firebaseapp.com"))) {
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          String url = request.getUrl().toString();
+                          String host = request.getUrl().getHost();
+                          if (host != null &&
+                              (host.contains("examvault") ||
+                               host.contains("vercel.app") ||
+                               host.contains("firebaseio.com") ||
+                               host.contains("googleapis.com") ||
+                               host.contains("firebaseapp.com"))) {
                               return false;
                           }
                           view.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)));
                           return true;
                       }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          super.onPageFinished(view, url);
+                          if (!webViewReady) {
+                              webViewReady = true;
+                              // Hide splash, show WebView
+                              splashScreen.setVisibility(View.GONE);
+                              webView.setVisibility(View.VISIBLE);
+                          }
+                          // Keep splash hidden on subsequent page loads
+                          splashScreen.post(new Runnable() {
+                              @Override
+                              public void run() {
+                                  splashScreen.setVisibility(View.GONE);
+                                  webView.setVisibility(View.VISIBLE);
+                              }
+                          });
+                      }
+
+                      @Override
+                      public void onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                          // WebView crashed — reload
+                          if (!detail.didCrash()) {
+                              // Renderer was killed by OS (low memory) — reload
+                              view.loadUrl("${APP_URL}");
+                          }
+                      }
                   });
 
                   webView.setWebChromeClient(new WebChromeClient());
 
-                  // Load the PWA URL
-                  webView.loadUrl("${APP_URL}");
+                  // RESTORE WebView state if available (prevents white screen after minimize)
+                  if (savedInstanceState != null) {
+                      webView.restoreState(savedInstanceState);
+                  } else {
+                      // Fresh launch — load the PWA URL
+                      webView.loadUrl("${APP_URL}");
+                  }
+              }
+
+              // === SAVE WebView state when activity is destroyed by OS ===
+              @Override
+              protected void onSaveInstanceState(Bundle outState) {
+                  super.onSaveInstanceState(outState);
+                  if (webView != null) {
+                      webView.saveState(outState);
+                  }
+              }
+
+              // === HANDLE RESTORE ===
+              @Override
+              protected void onRestoreInstanceState(Bundle savedInstanceState) {
+                  super.onRestoreInstanceState(savedInstanceState);
+                  if (webView != null) {
+                      webView.restoreState(savedInstanceState);
+                  }
               }
 
               @Override
               public void onBackPressed() {
                   // Ask the PWA if it can go back via JavaScript
-                  // The PWA's Zustand store has canGoBack() function
                   webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__ || (typeof useAppStore !== 'undefined' ? useAppStore : null); if(s && s.getState) { var state = s.getState(); if(state.canGoBack && state.canGoBack()) { state.goBack(); return 'went_back'; } else if(state.currentView === 'home') { return 'at_home'; } else { state.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error:' + e.message; } })()", new ValueCallback<String>() {
                       @Override
                       public void onReceiveValue(String result) {
                           result = result != null ? result.replace("\"", "") : "";
                           if ("went_back".equals(result)) {
-                              // PWA handled the back navigation internally — do nothing else
+                              // PWA handled back — do nothing
                           } else if ("at_home".equals(result)) {
-                              // At home page — show exit confirmation
                               showExitDialog();
                           } else {
-                              // Fallback: use WebView history
                               if (webView.canGoBack()) {
                                   webView.goBack();
                               } else {
@@ -274,17 +378,35 @@ jobs:
               @Override
               protected void onResume() {
                   super.onResume();
+                  if (webView != null) {
+                      webView.onResume();
+                      // If WebView is blank after resume, reload
+                      webView.postDelayed(new Runnable() {
+                          @Override
+                          public void run() {
+                              if (webView != null && webView.getContentHeight() == 0) {
+                                  webView.loadUrl("${APP_URL}");
+                              }
+                          }
+                      }, 500);
+                  }
               }
 
               @Override
               protected void onPause() {
-                  webView.onPause();
+                  if (webView != null) webView.onPause();
                   super.onPause();
               }
 
               @Override
               protected void onDestroy() {
-                  webView.destroy();
+                  if (webView != null) {
+                      webView.stopLoading();
+                      webView.setWebViewClient(null);
+                      webView.setWebChromeClient(null);
+                      webView.destroy();
+                      webView = null;
+                  }
                   super.onDestroy();
               }
           }
