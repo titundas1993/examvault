@@ -375,6 +375,8 @@ export default function PricingPage() {
                             useAppStore.getState().setShowGuestModal(true);
                             return;
                           }
+                          // Free plan — no payment needed, navigate to home
+                          setView("home");
                         }}
                         className="w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-green-500 text-white shadow-green-500/20 flex items-center justify-center gap-2"
                       >

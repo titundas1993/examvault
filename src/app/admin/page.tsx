@@ -3935,11 +3935,17 @@ function PlansAdmin() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanData | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [formData, setFormData] = useState({
     name: "", description: "", price: 0, originalPrice: 0,
     durationDays: 30, type: "subscription" as "subscription" | "one_time", planType: "premium" as "free" | "premium", subject: "",
     features: "", isActive: true, isPopular: false, order: 0,
   });
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadPlans = useCallback(async () => {
     try {
@@ -4073,6 +4079,12 @@ function PlansAdmin() {
 
   return (
     <div className="space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-bold ${toast.type === "success" ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
+          {toast.message}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-ev-navy">Plans & Pricing</h2>
         <div className="flex gap-2">
