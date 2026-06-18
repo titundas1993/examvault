@@ -48,7 +48,7 @@ export default function LoginScreen() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const [recaptchaKey, setRecaptchaKey] = useState(0); // forces new DOM element on change
   const recaptchaVerifierRef = useRef<any>(null);
 
   // Resend OTP countdown timer
@@ -69,10 +69,9 @@ export default function LoginScreen() {
       try {
         if (recaptchaVerifierRef.current) {
           recaptchaVerifierRef.current.clear();
+          recaptchaVerifierRef.current = null;
         }
       } catch (e) { /* ignore */ }
-      const container = recaptchaContainerRef.current;
-      if (container) container.innerHTML = "";
     };
   }, []);
 
@@ -172,25 +171,21 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      // Clear previous reCAPTCHA completely before creating a new one
+      // Clear previous reCAPTCHA completely
       try {
         if (recaptchaVerifierRef.current) {
           recaptchaVerifierRef.current.clear();
           recaptchaVerifierRef.current = null;
         }
       } catch (e) { /* ignore */ }
-      // Completely wipe the container DOM to remove any leftover iframes
-      const container = recaptchaContainerRef.current;
-      if (container) {
-        container.innerHTML = "";
-      }
-      // Small delay to let Firebase internals clean up before re-rendering
-      await new Promise(resolve => setTimeout(resolve, 300));
-      // Always use the same container ID — since we cleared it, no "already rendered" error
-      const containerId = "recaptcha-container";
-      if (container) {
-        container.id = containerId;
-      }
+      // Increment key to force React to create a brand new DOM element
+      // This is crucial — Firebase SDK internally tracks container IDs,
+      // so we must use a UNIQUE ID each time to avoid "already rendered" error
+      const newKey = recaptchaKey + 1;
+      setRecaptchaKey(newKey);
+      const containerId = `recaptcha-container-${newKey}`;
+      // Wait for React to render the new DOM element
+      await new Promise(resolve => setTimeout(resolve, 100));
       const verifier = new RecaptchaVerifier(auth, containerId, {
         size: "invisible",
         callback: () => {},
@@ -475,7 +470,7 @@ export default function LoginScreen() {
                   </>
                 )}
 
-                <div ref={recaptchaContainerRef} id="recaptcha-container" key="recaptcha-container" />
+                <div id={`recaptcha-container-${recaptchaKey}`} key={`recaptcha-${recaptchaKey}`} />
               </motion.div>
             )}
 

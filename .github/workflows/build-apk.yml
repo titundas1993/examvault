@@ -357,15 +357,22 @@ jobs:
                       .show();
               }
 
+              private int recoveryAttemptCount = 0;
+
               @Override
               protected void onResume() {
                   super.onResume();
                   if (webView != null) {
                       webView.onResume();
-                      // Schedule multiple checks to recover from white screen
-                      scheduleRecoveryCheck(500);
-                      scheduleRecoveryCheck(1500);
-                      scheduleRecoveryCheck(3000);
+                      // Only schedule recovery if WebView was NOT ready before pause
+                      // This prevents unnecessary reload on normal resume
+                      if (!webViewReady) {
+                          recoveryAttemptCount = 0;
+                          scheduleRecoveryCheck(1500);
+                      }
+                      // Always ensure splash is hidden and WebView visible
+                      splashScreen.setVisibility(View.GONE);
+                      webView.setVisibility(View.VISIBLE);
                   }
               }
 
@@ -374,11 +381,17 @@ jobs:
                   webView.postDelayed(new Runnable() {
                       @Override public void run() {
                           if (webView == null) return;
-                          // If WebView has no content, reload
-                          if (webView.getContentHeight() == 0 || !webViewReady) {
+                          // Only reload if WebView truly has NO content (contentHeight == 0)
+                          // Do NOT check webViewReady here — it causes false positives
+                          if (webView.getContentHeight() == 0) {
+                              recoveryAttemptCount++;
                               SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                               String lastUrl = prefs.getString(KEY_URL, appUrl);
                               webView.loadUrl(lastUrl);
+                              // Schedule one more check if first attempt didn't work
+                              if (recoveryAttemptCount < 3) {
+                                  scheduleRecoveryCheck(3000);
+                              }
                           }
                           // Always ensure splash is hidden and WebView visible
                           splashScreen.setVisibility(View.GONE);
@@ -390,7 +403,8 @@ jobs:
               @Override
               protected void onPause() {
                   if (webView != null) webView.onPause();
-                  webViewReady = false;
+                  // Only reset webViewReady if we're actually going to background
+                  // Don't reset on configuration changes
                   super.onPause();
               }
 

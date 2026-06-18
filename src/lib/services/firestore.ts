@@ -399,17 +399,69 @@ export async function getNotifications(userId?: string) {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return notifications.slice(0, 50) as NotificationData[];
+
+    // Apply per-user read status from localStorage
+    const readIds = getLocallyReadIds();
+    const result = notifications.slice(0, 50).map((n) => {
+      if (readIds.has(n.id as string)) {
+        return { ...n, isRead: true };
+      }
+      return n;
+    }) as NotificationData[];
+
+    return result;
   } catch (error) {
     console.error("Error getting notifications:", error);
     throw error;
   }
 }
 
+// ============================================================
+// Per-User Notification Read Status (localStorage)
+// ============================================================
+
+const LOCAL_READ_KEY = "ev_notif_read_ids";
+
+function getLocallyReadIds(): Set<string> {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(LOCAL_READ_KEY) : null;
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLocallyReadIds(ids: Set<string>) {
+  try {
+    if (typeof window === "undefined") return;
+    // Keep only last 200 IDs to avoid localStorage overflow
+    const arr = Array.from(ids).slice(-200);
+    localStorage.setItem(LOCAL_READ_KEY, JSON.stringify(arr));
+  } catch {
+    // localStorage might be full
+  }
+}
+
+export function markNotificationReadLocal(id: string) {
+  const ids = getLocallyReadIds();
+  ids.add(id);
+  saveLocallyReadIds(ids);
+}
+
+export function markAllNotificationsReadLocal(ids: string[]) {
+  const readIds = getLocallyReadIds();
+  ids.forEach((id) => readIds.add(id));
+  saveLocallyReadIds(readIds);
+}
+
 export async function markAsRead(id: string) {
   try {
+    // Store read status locally (per-user)
+    markNotificationReadLocal(id);
+    // Also update Firestore for admin analytics
     const docRef = doc(db, NOTIFICATIONS_COLLECTION, id);
-    await updateDoc(docRef, { isRead: true });
+    await updateDoc(docRef, { isRead: true }).catch(() => {});
     return true;
   } catch (error) {
     console.error("Error marking notification as read:", error);
@@ -419,21 +471,22 @@ export async function markAsRead(id: string) {
 
 export async function markAllAsRead(userId?: string) {
   try {
-    // Use only one where to avoid composite index requirement
-    // Filter isRead client-side instead
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
       where("targetUsers", "==", "all")
     );
     const snapshot = await getDocs(q);
 
-    // Filter unread notifications client-side
+    // Mark all as read locally (per-user, guaranteed to work)
+    const allIds = snapshot.docs.map((d) => d.id);
+    markAllNotificationsReadLocal(allIds);
+
+    // Also update Firestore for admin analytics (best effort)
     const unreadDocs = snapshot.docs.filter(d => !(d.data() as Record<string, unknown>).isRead);
     const updatePromises = unreadDocs.map((d) =>
-      updateDoc(doc(db, NOTIFICATIONS_COLLECTION, d.id), { isRead: true })
+      updateDoc(doc(db, NOTIFICATIONS_COLLECTION, d.id), { isRead: true }).catch(() => {})
     );
-
-    await Promise.all(updatePromises);
+    await Promise.all(updatePromises).catch(() => {});
     return true;
   } catch (error) {
     console.error("Error marking all notifications as read:", error);
