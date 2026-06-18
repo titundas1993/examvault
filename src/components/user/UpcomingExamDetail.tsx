@@ -146,10 +146,8 @@ export default function UpcomingExamDetail() {
 
   const catMeta = getCategoryMeta(exam.category);
   const daysLeft = getDaysLeft(exam.examDate);
-  const hasBottomBar = !!(exam.applyLink || exam.officialLink);
-
   return (
-    <div className="min-h-screen bg-ev-light dark:bg-gray-950 pb-28">
+    <div className="min-h-screen bg-ev-light dark:bg-gray-950 pb-20">
       {/* Hero Section */}
       <div className="relative">
         {exam.imageUrl ? (
@@ -214,7 +212,7 @@ export default function UpcomingExamDetail() {
       )}
 
       <div className="p-4 space-y-4">
-        {/* Info Cards */}
+        {/* Info Cards — Date & Fee in grid */}
         <div className="grid grid-cols-2 gap-3">
           <InfoCard
             icon={<Calendar className="w-4 h-4 text-ev-orange" />}
@@ -226,16 +224,24 @@ export default function UpcomingExamDetail() {
             label="Last Apply Date"
             value={formatDate(exam.lastApplyDate)}
           />
-          <InfoCard
-            icon={<Users className="w-4 h-4 text-ev-green" />}
-            label="Eligibility"
-            value={exam.eligibility || "—"}
-          />
-          <InfoCard
-            icon={<BookOpen className="w-4 h-4 text-ev-purple" />}
-            label="Age Limit"
-            value={exam.ageLimit || "—"}
-          />
+        </div>
+
+        {/* Eligibility — full width so long text is readable */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-ev-green" />
+            <span className="text-xs font-medium text-muted-foreground">Eligibility</span>
+          </div>
+          <p className="text-sm font-semibold text-ev-navy dark:text-white whitespace-pre-line leading-relaxed">{exam.eligibility || "—"}</p>
+        </div>
+
+        {/* Age Limit — full width so long text is readable */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <BookOpen className="w-4 h-4 text-ev-purple" />
+            <span className="text-xs font-medium text-muted-foreground">Age Limit</span>
+          </div>
+          <p className="text-sm font-semibold text-ev-navy dark:text-white whitespace-pre-line leading-relaxed">{exam.ageLimit || "—"}</p>
         </div>
 
         {/* Application Fee */}
@@ -360,32 +366,7 @@ export default function UpcomingExamDetail() {
         )}
       </div>
 
-      {/* Sticky Bottom CTA - only show if there are links */}
-      {hasBottomBar && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-gray-950/90 backdrop-blur-lg border-t border-border z-20">
-          <div className="flex gap-3 max-w-lg mx-auto">
-            {exam.applyLink && (
-              <Button
-                onClick={handleApply}
-                className="flex-1 bg-gradient-to-r from-ev-orange to-ev-gold hover:from-ev-orange/90 hover:to-ev-gold/90 text-white font-semibold shadow-lg shadow-ev-orange/20 rounded-xl h-11"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Apply Now
-              </Button>
-            )}
-            {exam.officialLink && (
-              <Button
-                onClick={() => window.open(exam.officialLink, "_blank", "noopener")}
-                variant="outline"
-                className="flex-1 border-ev-navy dark:border-white/30 text-ev-navy dark:text-white hover:bg-ev-navy hover:text-white rounded-xl h-11"
-              >
-                <Globe className="w-4 h-4 mr-2" />
-                Official Site
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
