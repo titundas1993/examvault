@@ -3893,7 +3893,7 @@ function PlansAdmin() {
   const [editingPlan, setEditingPlan] = useState<PlanData | null>(null);
   const [formData, setFormData] = useState({
     name: "", description: "", price: 0, originalPrice: 0,
-    durationDays: 30, type: "subscription" as "subscription" | "one_time", subject: "",
+    durationDays: 30, type: "subscription" as "subscription" | "one_time", planType: "premium" as "free" | "premium", subject: "",
     features: "", isActive: true, isPopular: false, order: 0,
   });
 
@@ -3906,6 +3906,7 @@ function PlansAdmin() {
         features: Array.isArray(p.features) ? p.features : typeof p.features === "string" ? p.features.split(",") : [],
         durationDays: p.durationDays ?? p.duration ?? 0,
         type: p.type === "subscription" || p.type === "one_time" ? p.type : "subscription",
+        planType: p.planType === "free" || p.planType === "premium" ? p.planType : (p.price === 0 ? "free" : "premium"),
         isPopular: p.isPopular ?? false,
         order: p.order ?? 0,
       }));
@@ -3917,17 +3918,18 @@ function PlansAdmin() {
   useEffect(() => { loadPlans(); }, [loadPlans]);
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", price: 0, originalPrice: 0, durationDays: 30, type: "subscription", subject: "", features: "", isActive: true, isPopular: false, order: 0 });
+    setFormData({ name: "", description: "", price: 0, originalPrice: 0, durationDays: 30, type: "subscription", planType: "premium", subject: "", features: "", isActive: true, isPopular: false, order: 0 });
     setEditingPlan(null);
     setShowForm(false);
   };
 
   const handleEdit = (plan: PlanData) => {
     setEditingPlan(plan);
+    const resolvedPlanType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
     setFormData({
       name: plan.name, description: plan.description, price: plan.price,
       originalPrice: plan.originalPrice || 0, durationDays: plan.durationDays ?? plan.duration ?? 0,
-      type: plan.type, subject: plan.subject || "", features: Array.isArray(plan.features) ? plan.features.join("\n") : String(plan.features || ""),
+      type: plan.type, planType: resolvedPlanType as "free" | "premium", subject: plan.subject || "", features: Array.isArray(plan.features) ? plan.features.join("\n") : String(plan.features || ""),
       isActive: plan.isActive, isPopular: plan.isPopular ?? false, order: plan.order ?? 0,
     });
     setShowForm(true);
@@ -3938,13 +3940,14 @@ function PlansAdmin() {
       const planData: any = {
         name: formData.name,
         description: formData.description,
-        price: Number(formData.price),
+        price: formData.planType === "free" ? 0 : Number(formData.price),
         durationDays: Number(formData.durationDays),
         type: formData.type,
+        planType: formData.planType,
         subject: formData.subject || "",
         features: formData.features.split("\n").filter(f => f.trim()),
         isActive: formData.isActive,
-        isPopular: formData.isPopular,
+        isPopular: formData.planType === "premium" ? formData.isPopular : false,
         order: Number(formData.order),
       };
       // Only include originalPrice if it has a value (avoid undefined in Firestore)
@@ -3983,6 +3986,7 @@ function PlansAdmin() {
           originalPrice: 99,
           durationDays: 7,
           type: "subscription" as const,
+          planType: "premium" as const,
           features: ["All premium mock tests", "Detailed explanations", "Performance analytics", "Ad-free experience"],
           isActive: true,
           isPopular: false,
@@ -3995,6 +3999,7 @@ function PlansAdmin() {
           originalPrice: 299,
           durationDays: 30,
           type: "subscription" as const,
+          planType: "premium" as const,
           features: ["All premium mock tests", "Detailed explanations", "Performance analytics", "Ad-free experience", "Priority support", "Download test reports"],
           isActive: true,
           isPopular: true,
@@ -4007,6 +4012,7 @@ function PlansAdmin() {
           originalPrice: 3588,
           durationDays: 365,
           type: "subscription" as const,
+          planType: "premium" as const,
           features: ["All premium mock tests", "Detailed explanations", "Performance analytics", "Ad-free experience", "Priority support", "Download test reports", "Early access to new tests", "Personalized study plan"],
           isActive: true,
           isPopular: false,
@@ -4058,10 +4064,16 @@ function PlansAdmin() {
                 <div>
                   <h3 className="font-bold text-ev-navy">{plan.name}</h3>
                   <div className="flex gap-1 mt-1 flex-wrap">
+                    {(() => {
+                      const pType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+                      const isFree = pType === "free";
+                      return (
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isFree ? "bg-green-100 text-green-700" : "bg-gradient-to-r from-ev-orange to-ev-gold text-white"}`}>
+                          {isFree ? "🆓 FREE" : "👑 PREMIUM"}
+                        </span>
+                      );
+                    })()}
                     {plan.isPopular && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-ev-orange text-white">POPULAR</span>}
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${plan.price === 0 ? "bg-green-100 text-green-700" : "bg-ev-orange/10 text-ev-orange"}`}>
-                      {plan.price === 0 ? "FREE" : "PREMIUM"}
-                    </span>
                   </div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded ${plan.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -4070,8 +4082,16 @@ function PlansAdmin() {
               </div>
               <p className="text-sm text-gray-500 mb-2">{plan.description}</p>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-black text-ev-navy">{plan.price === 0 ? "Free" : `₹${plan.price}`}</span>
-                {plan.originalPrice && plan.price > 0 && <span className="text-sm text-gray-400 line-through">₹{plan.originalPrice}</span>}
+                {(() => {
+                  const pType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+                  const isFree = pType === "free";
+                  return (
+                    <>
+                      <span className="text-2xl font-black text-ev-navy">{isFree ? "Free" : `₹${plan.price}`}</span>
+                      {!isFree && plan.originalPrice && <span className="text-sm text-gray-400 line-through">₹{plan.originalPrice}</span>}
+                    </>
+                  );
+                })()}
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-3">
                 <span className="font-semibold px-2 py-0.5 rounded bg-gray-100">{plan.durationDays} days</span>
@@ -4105,10 +4125,48 @@ function PlansAdmin() {
           <div className="space-y-3">
             <div><Label>Plan Name *</Label><Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Monthly Plan" /></div>
             <div><Label>Description</Label><Textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Best value for regular users" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Price (₹) * (0 = Free)</Label><Input type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: Number(e.target.value) })} /></div>
-              <div><Label>Original Price (₹)</Label><Input type="number" value={formData.originalPrice} onChange={e => setFormData({ ...formData, originalPrice: Number(e.target.value) })} /></div>
+            {/* Plan Type Selector - Free or Premium */}
+            <div>
+              <Label className="font-semibold text-sm">Plan Type *</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, planType: "free", price: 0, originalPrice: 0, isPopular: false })}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                    formData.planType === "free"
+                      ? "border-green-500 bg-green-50 text-green-700 shadow-md"
+                      : "border-gray-200 bg-white text-gray-500 hover:border-green-300"
+                  }`}
+                >
+                  <Zap className="w-4 h-4" />
+                  FREE Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, planType: "premium" })}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                    formData.planType === "premium"
+                      ? "border-ev-orange bg-ev-orange/5 text-ev-orange shadow-md"
+                      : "border-gray-200 bg-white text-gray-500 hover:border-ev-orange/30"
+                  }`}
+                >
+                  <Crown className="w-4 h-4" />
+                  PREMIUM Plan
+                </button>
+              </div>
             </div>
+            {/* Price fields - shown for Premium, auto 0 for Free */}
+            {formData.planType === "premium" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Price (₹) *</Label><Input type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: Number(e.target.value) })} placeholder="e.g. 149" /></div>
+                <div><Label>Original Price (₹)</Label><Input type="number" value={formData.originalPrice} onChange={e => setFormData({ ...formData, originalPrice: Number(e.target.value) })} placeholder="e.g. 299" /></div>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-green-600" />
+                <span className="text-green-700 font-semibold text-sm">This is a FREE plan — users can access without payment.</span>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Duration (Days) *</Label><Input type="number" value={formData.durationDays} onChange={e => setFormData({ ...formData, durationDays: Number(e.target.value) })} /></div>
               <div><Label>Type</Label>
@@ -4125,7 +4183,7 @@ function PlansAdmin() {
             <div><Label>Features (one per line)</Label><Textarea value={formData.features} onChange={e => setFormData({ ...formData, features: e.target.value })} placeholder={"All premium mock tests\nDetailed explanations\nPerformance analytics"} rows={4} /></div>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex items-center gap-2"><Switch checked={formData.isActive} onCheckedChange={v => setFormData({ ...formData, isActive: v })} /><Label>Active</Label></div>
-              <div className="flex items-center gap-2"><Switch checked={formData.isPopular} onCheckedChange={v => setFormData({ ...formData, isPopular: v })} /><Label>Popular</Label></div>
+              <div className="flex items-center gap-2"><Switch checked={formData.isPopular} onCheckedChange={v => setFormData({ ...formData, isPopular: v })} disabled={formData.planType === "free"} /><Label className={formData.planType === "free" ? "text-gray-400" : ""}>Popular</Label></div>
               <div><Label>Order</Label><Input type="number" value={formData.order} onChange={e => setFormData({ ...formData, order: Number(e.target.value) })} /></div>
             </div>
           </div>

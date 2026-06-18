@@ -295,9 +295,15 @@ export default function PricingPage() {
                       {(plan as any).subject && (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{(plan as any).subject}</span>
                       )}
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${plan.price === 0 ? "bg-green-100 text-green-700" : "bg-ev-orange/10 text-ev-orange"}`}>
-                        {plan.price === 0 ? (lang === "bn" ? "বিনামূল্যে" : "FREE") : (lang === "bn" ? "প্রিমিয়াম" : "PREMIUM")}
-                      </span>
+                      {(() => {
+                        const pType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+                        const isFree = pType === "free";
+                        return (
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isFree ? "bg-green-100 text-green-700" : "bg-gradient-to-r from-ev-orange to-ev-gold text-white"}`}>
+                            {isFree ? (lang === "bn" ? "বিনামূল্যে" : "🆓 FREE") : (lang === "bn" ? "প্রিমিয়াম" : "👑 PREMIUM")}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-ev-gold">
@@ -310,19 +316,27 @@ export default function PricingPage() {
 
                 {/* Price */}
                 <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-4xl font-black text-ev-navy">
-                    ₹{plan.price}
-                  </span>
-                  {plan.originalPrice && plan.originalPrice > plan.price && (
-                    <>
-                      <span className="text-lg text-gray-400 line-through">
-                        ₹{plan.originalPrice}
-                      </span>
-                      <span className="text-sm font-bold text-ev-green bg-green-50 px-2 py-0.5 rounded-lg">
-                        {discount}% OFF
-                      </span>
-                    </>
-                  )}
+                  {(() => {
+                    const pType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+                    const isFree = pType === "free";
+                    return (
+                      <>
+                        <span className="text-4xl font-black text-ev-navy">
+                          {isFree ? (lang === "bn" ? "বিনামূল্যে" : "Free") : `₹${plan.price}`}
+                        </span>
+                        {!isFree && plan.originalPrice && plan.originalPrice > plan.price && (
+                          <>
+                            <span className="text-lg text-gray-400 line-through">
+                              ₹{plan.originalPrice}
+                            </span>
+                            <span className="text-sm font-bold text-ev-green bg-green-50 px-2 py-0.5 rounded-lg">
+                              {discount}% OFF
+                            </span>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Features */}
@@ -339,39 +353,65 @@ export default function PricingPage() {
                 </div>
 
                 {/* CTA Button */}
-                {isCurrentPlan ? (
-                  <button
-                    disabled
-                    className="w-full py-3 rounded-xl bg-ev-green/10 text-ev-green font-bold text-sm cursor-default flex items-center justify-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    {lang === "bn" ? "বর্তমান প্ল্যান" : "Current Plan"}
-                  </button>
-                ) : subscription.isPremium && plan.type === "subscription" ? (
-                  <button
-                    onClick={() => handleSubscribe(plan)}
-                    className="w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-ev-navy text-white shadow-ev-navy/20"
-                  >
-                    {lang === "bn" ? "আপগ্রেড করুন" : "Upgrade Plan"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleSubscribe(plan)}
-                    className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] ${
-                      isPopular
-                        ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/20"
-                        : "bg-ev-navy text-white shadow-ev-navy/20"
-                    }`}
-                  >
-                    {plan.type === "subscription"
-                      ? lang === "bn"
-                        ? "সাবস্ক্রাইব করুন"
-                        : "Subscribe Now"
-                      : lang === "bn"
-                      ? "কিনুন"
-                      : "Buy Now"}
-                  </button>
-                )}
+                {(() => {
+                  const pType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+                  const isFree = pType === "free";
+                  if (isCurrentPlan) {
+                    return (
+                      <button
+                        disabled
+                        className="w-full py-3 rounded-xl bg-ev-green/10 text-ev-green font-bold text-sm cursor-default flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" />
+                        {lang === "bn" ? "বর্তমান প্ল্যান" : "Current Plan"}
+                      </button>
+                    );
+                  }
+                  if (isFree) {
+                    return (
+                      <button
+                        onClick={() => {
+                          if (!user || !firebaseUser) {
+                            useAppStore.getState().setShowGuestModal(true);
+                            return;
+                          }
+                        }}
+                        className="w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-green-500 text-white shadow-green-500/20 flex items-center justify-center gap-2"
+                      >
+                        <Zap className="w-4 h-4" />
+                        {lang === "bn" ? "বিনামূল্যে শুরু করুন" : "Get Started Free"}
+                      </button>
+                    );
+                  }
+                  if (subscription.isPremium && plan.type === "subscription") {
+                    return (
+                      <button
+                        onClick={() => handleSubscribe(plan)}
+                        className="w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-ev-navy text-white shadow-ev-navy/20"
+                      >
+                        {lang === "bn" ? "আপগ্রেড করুন" : "Upgrade Plan"}
+                      </button>
+                    );
+                  }
+                  return (
+                    <button
+                      onClick={() => handleSubscribe(plan)}
+                      className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all active:scale-[0.98] ${
+                        isPopular
+                          ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/20"
+                          : "bg-ev-navy text-white shadow-ev-navy/20"
+                      }`}
+                    >
+                      {plan.type === "subscription"
+                        ? lang === "bn"
+                          ? "সাবস্ক্রাইব করুন"
+                          : "Subscribe Now"
+                        : lang === "bn"
+                        ? "কিনুন"
+                        : "Buy Now"}
+                    </button>
+                  );
+                })()}
               </motion.div>
             );
           })}

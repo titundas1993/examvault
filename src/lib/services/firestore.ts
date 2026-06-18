@@ -1822,6 +1822,7 @@ export interface PlanData {
   originalPrice?: number;
   durationDays: number;
   type: "subscription" | "one_time";
+  planType?: "free" | "premium";
   subject?: string;
   features: string[];
   isActive: boolean;
