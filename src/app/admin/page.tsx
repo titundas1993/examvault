@@ -51,7 +51,7 @@ import {
   getFreeTests, addFreeTest, updateFreeTest, deleteFreeTest,
   getDailyQuiz, addDailyQuiz, updateDailyQuiz, deleteDailyQuiz,
   getPopularTests, addPopularTest, updatePopularTest, deletePopularTest,
-  getAllPlans, addPlan, updatePlan, deletePlan, PlanData,
+  getAllPlans, PlanData,
   getAllPayments, getAllSubscriptions, PaymentData, SubscriptionData,
 } from "@/lib/services/firestore";
 import {
@@ -4005,10 +4005,10 @@ function PlansAdmin() {
         planData.originalPrice = Number(formData.originalPrice);
       }
       if (editingPlan?.id) {
-        await updatePlan(editingPlan.id, planData);
+        await adminUpdateDoc("plans", editingPlan.id, planData);
         showToast("Plan updated successfully!", "success");
       } else {
-        await addPlan(planData);
+        await adminAddDoc("plans", planData);
         showToast("Plan created successfully!", "success");
       }
       resetForm();
@@ -4021,7 +4021,7 @@ function PlansAdmin() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this plan?")) return;
-    try { await deletePlan(id); loadPlans(); }
+    try { await adminDeleteDoc("plans", id); loadPlans(); }
     catch (e) { console.error("Delete plan error:", e); showToast("Error deleting plan", "error"); }
   };
 
@@ -4070,7 +4070,7 @@ function PlansAdmin() {
         },
       ];
       for (const plan of defaultPlans) {
-        await addPlan(plan as any);
+        await adminAddDoc("plans", plan as any);
       }
       loadPlans();
       showToast("3 default plans added successfully!", "success");
