@@ -251,10 +251,10 @@ export default function UpcomingExamsTab() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-ev-navy dark:text-white truncate">
+                      <h3 className="font-semibold text-sm text-ev-navy dark:text-white">
                         {exam.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Building2 className="w-3 h-3 flex-shrink-0" />
                         {exam.organizingBody}
                       </p>

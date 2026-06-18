@@ -1124,7 +1124,7 @@ function PreviousPapersTab() {
             <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, !!p.isFree, () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
               <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-ev-navy truncate">{p.name || p.title}</h4>
+                <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
                 <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -1356,7 +1356,7 @@ function NotesTab() {
             <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, !!n.isFree, () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
               <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-ev-navy truncate">{n.title}</h4>
+                <h4 className="font-bold text-ev-navy">{n.title}</h4>
                 <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">

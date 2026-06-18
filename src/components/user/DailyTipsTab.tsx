@@ -238,10 +238,10 @@ export default function DailyTipsTab() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-ev-navy dark:text-white line-clamp-1">
+                      <h3 className="font-semibold text-sm text-ev-navy dark:text-white">
                         {tip.title}
                       </h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                         {tip.description}
                       </p>
 

@@ -220,7 +220,7 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <h4
-                            className={`text-sm font-semibold text-ev-navy dark:text-white line-clamp-1 ${
+                            className={`text-sm font-semibold text-ev-navy dark:text-white ${
                               notification.isRead ? "font-medium opacity-70" : ""
                             }`}
                           >
@@ -230,7 +230,7 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
                             <div className="w-2 h-2 rounded-full bg-ev-orange flex-shrink-0 mt-1.5" />
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                           {notification.message}
                         </p>
                         <div className="flex items-center gap-2 mt-1.5">

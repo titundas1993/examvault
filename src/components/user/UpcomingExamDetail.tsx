@@ -376,7 +376,7 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-border p-3">
       <div className="flex items-center gap-1.5 mb-1.5">{icon}</div>
       <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>
-      <p className="text-xs font-semibold text-ev-navy dark:text-white line-clamp-2">{value}</p>
+      <p className="text-xs font-semibold text-ev-navy dark:text-white">{value}</p>
     </div>
   );
 }
