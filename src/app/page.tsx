@@ -448,15 +448,13 @@ function AutoRotatingBanners() {
     return () => clearInterval(interval);
   }, [banners.length]);
 
-  // Scroll to current index
+  // Scroll to current index using CSS transform (works with overflow-hidden)
   useEffect(() => {
     if (scrollRef.current) {
       const child = scrollRef.current.children[currentIndex] as HTMLElement;
       if (child) {
-        scrollRef.current.scrollTo({
-          left: child.offsetLeft - 16,
-          behavior: "smooth",
-        });
+        scrollRef.current.style.transform = `translateX(-${currentIndex * 100}%)`;
+        scrollRef.current.style.transition = 'transform 0.4s ease';
       }
     }
   }, [currentIndex]);
@@ -464,15 +462,12 @@ function AutoRotatingBanners() {
   const gradients = ["from-ev-navy to-blue-800", "from-ev-orange to-orange-700", "from-ev-gold to-yellow-600", "from-green-500 to-emerald-600", "from-purple-500 to-purple-600"];
 
   return (
-    <div className="relative">
-      <div ref={scrollRef} className="flex gap-3 overflow-hidden scroll-smooth">
+    <div className="relative overflow-hidden">
+      <div ref={scrollRef} className="flex" style={{ transform: `translateX(-${currentIndex * 100}%)`, transition: 'transform 0.4s ease' }}>
         {banners.map((b, i) => (
           <motion.div
-            key={i}
-            initial={{ opacity: 0.5, scale: 0.95 }}
-            animate={{ opacity: i === currentIndex ? 1 : 0.5, scale: i === currentIndex ? 1 : 0.95 }}
-            transition={{ duration: 0.4 }}
-            className={"min-w-full rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"}
+            key={b.id || i}
+            className="min-w-full flex-shrink-0 rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"
             onClick={() => handleBannerClick(b, setView)}
           >
             <div>

@@ -3935,11 +3935,10 @@ function PlansAdmin() {
 
   const handleSave = async () => {
     try {
-      const planData = {
+      const planData: any = {
         name: formData.name,
         description: formData.description,
         price: Number(formData.price),
-        originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
         durationDays: Number(formData.durationDays),
         type: formData.type,
         features: formData.features.split("\n").filter(f => f.trim()),
@@ -3947,14 +3946,23 @@ function PlansAdmin() {
         isPopular: formData.isPopular,
         order: Number(formData.order),
       };
+      // Only include originalPrice if it has a value (avoid undefined in Firestore)
+      if (formData.originalPrice && Number(formData.originalPrice) > 0) {
+        planData.originalPrice = Number(formData.originalPrice);
+      }
       if (editingPlan?.id) {
         await updatePlan(editingPlan.id, planData);
+        showToast("Plan updated successfully!", "success");
       } else {
-        await addPlan(planData as any);
+        await addPlan(planData);
+        showToast("Plan created successfully!", "success");
       }
       resetForm();
       loadPlans();
-    } catch (e) { console.error("Save plan error:", e); showToast("Error saving plan", "error"); }
+    } catch (e) {
+      console.error("Save plan error:", e);
+      showToast("Error saving plan: " + (e instanceof Error ? e.message : "Unknown error"), "error");
+    }
   };
 
   const handleDelete = async (id: string) => {
