@@ -62,6 +62,41 @@ function isItemFree(item: any): boolean {
   return true;
 }
 
+// ==================== PROGRESS TRACKING ====================
+// Track which items a user has viewed/completed
+function getViewedItems(category: string): Set<string> {
+  try {
+    const uid = useAppStore.getState().firebaseUser?.uid || "guest";
+    const key = `ev_progress_${uid}_${category}`;
+    const data = localStorage.getItem(key);
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch { return new Set(); }
+}
+
+function markItemViewed(category: string, itemId: string) {
+  try {
+    const uid = useAppStore.getState().firebaseUser?.uid || "guest";
+    const key = `ev_progress_${uid}_${category}`;
+    const existing = getViewedItems(category);
+    existing.add(itemId);
+    localStorage.setItem(key, JSON.stringify([...existing]));
+  } catch {}
+}
+
+function getProgressText(category: string, total: number, lang: string): string | null {
+  if (total <= 1) return null; // No progress needed for single items
+  const viewed = getViewedItems(category).size;
+  if (viewed === 0) return null; // Don't show if nothing viewed yet
+  if (lang === "bn") return `${viewed}/${total} সম্পন্ন`;
+  return `${viewed}/${total} completed`;
+}
+
+function getProgressPercent(category: string, total: number): number {
+  if (total <= 0) return 0;
+  const viewed = getViewedItems(category).size;
+  return Math.round((viewed / total) * 100);
+}
+
 // ==================== BACK BUTTON HANDLER (Module-level) ====================
 // MUST run ONCE at module load time, NOT inside useEffect.
 // Running inside useEffect caused timing issues on mobile PWA — the popstate
@@ -934,34 +969,51 @@ function TestSeriesTab() {
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("testSeries", lang)}</h2>
+        {series.length > 1 && getProgressText("testSeries", series.length, lang) && (
+          <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
+              <span className="text-xs font-bold text-ev-orange">{getProgressText("testSeries", series.length, lang)}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("testSeries", series.length) + "%" }} />
+            </div>
+          </div>
+        )}
       </div>
       <div className="px-4 space-y-3">
-        {series.map(s => (
-          <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
-              {s.imageUrl ? (
-                <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
-              ) : (
-                <div className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-9 h-9 text-ev-gold" /></div>
+        {series.map(s => {
+          const isViewed = getViewedItems("testSeries").has(s.id || "");
+          return (
+            <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { markItemViewed("testSeries", s.id || ""); useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
+                {s.imageUrl ? (
+                  <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
+                ) : (
+                  <div className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl bg-ev-gold-light flex items-center justify-center flex-shrink-0"><Trophy className="w-9 h-9 text-ev-gold" /></div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
+                    {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
+                  </div>
+                  <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  {isItemFree(s) ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
+                </div>
+              </div>
+              {!isItemFree(s) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: s.price || 0 }); }}
+                  className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
+                >
+                  <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{s.price || 0}
+                </button>
               )}
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
-                <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                {isItemFree(s) ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
-              </div>
             </div>
-            {!isItemFree(s) && (
-              <button
-                onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: s.price || 0 }); }}
-                className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
-              >
-                <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{s.price || 0}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1128,28 +1180,45 @@ function PreviousPapersTab() {
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("previousPapers", lang)}</h2>
+        {papers.length > 1 && getProgressText("papers", papers.length, lang) && (
+          <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
+              <span className="text-xs font-bold text-ev-orange">{getProgressText("papers", papers.length, lang)}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("papers", papers.length) + "%" }} />
+            </div>
+          </div>
+        )}
       </div>
       <div className="px-4 space-y-3">
-        {papers.map(p => (
-          <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
-              <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
-                <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
+        {papers.map(p => {
+          const isViewed = getViewedItems("papers").has(p.id || "");
+          return (
+            <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { markItemViewed("papers", p.id || ""); useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
+                <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-ev-navy">{p.name || p.title}</h4>
+                    {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500"><span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{p.category}</span><span>Year: {p.year}</span></div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  {isItemFree(p) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{p.price || 0}</span>}
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
               </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                {isItemFree(p) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{p.price || 0}</span>}
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              {!isItemFree(p) && p.price > 0 && (
+                <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: p.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                  <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{p.price}
+                </button>
+              )}
             </div>
-            {!isItemFree(p) && p.price > 0 && (
-              <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: p.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{p.price}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1360,28 +1429,45 @@ function NotesTab() {
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("notes", lang)}</h2>
+        {notesData.length > 1 && getProgressText("notes", notesData.length, lang) && (
+          <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
+              <span className="text-xs font-bold text-ev-orange">{getProgressText("notes", notesData.length, lang)}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("notes", notesData.length) + "%" }} />
+            </div>
+          </div>
+        )}
       </div>
       <div className="px-4 space-y-3">
-        {notesData.map(n => (
-          <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
-              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-ev-navy">{n.title}</h4>
-                <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
+        {notesData.map(n => {
+          const isViewed = getViewedItems("notes").has(n.id || "");
+          return (
+            <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { markItemViewed("notes", n.id || ""); useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
+                <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-ev-navy">{n.title}</h4>
+                    {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
+                  </div>
+                  <p className="text-xs text-gray-500">{n.category} • {n.pages || 0} pages</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  {isItemFree(n) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{n.price || 0}</span>}
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
               </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                {isItemFree(n) ? <span className="text-ev-green text-xs font-bold">FREE</span> : <span className="text-ev-orange text-sm font-bold">₹{n.price || 0}</span>}
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              {!isItemFree(n) && n.price > 0 && (
+                <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: n.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                  <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{n.price}
+                </button>
+              )}
             </div>
-            {!isItemFree(n) && n.price > 0 && (
-              <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: n.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{n.price}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1998,6 +2084,7 @@ function ExamPage() {
   const [testTitle, setTestTitle] = useState("Test");
   const lang = useAppStore(s => s.language);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
   const [showQuestionNav, setShowQuestionNav] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false); // view-only after submit
@@ -2320,7 +2407,7 @@ function ExamPage() {
       {/* Header */}
       <div className="bg-ev-navy px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => { if (isReviewMode) { setIsReviewMode(false); setSubmitted(true); } else { setShowSubmitConfirm(true); } }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <button onClick={() => { if (isReviewMode) { setIsReviewMode(false); setSubmitted(true); } else { setShowExitWarning(true); } }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
           <h2 className="text-white font-bold text-sm truncate max-w-[180px]">{isReviewMode ? "Review Answers" : testTitle}</h2>
           {isReviewMode ? <span className="text-xs font-bold text-ev-gold bg-ev-gold/20 px-2 py-1 rounded-lg">VIEW ONLY</span> : <div className="flex items-center gap-1 text-ev-gold text-sm font-bold"><Timer className="w-4 h-4" /> {formatTime(timeLeft)}</div>}
         </div>
@@ -2482,6 +2569,30 @@ function ExamPage() {
 
       {/* Submit Confirmation Dialog */}
       <AnimatePresence>
+        {/* Exit Warning Dialog */}
+        {showExitWarning && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-red-500" /></div>
+                <h3 className="text-xl font-black text-ev-navy">{lang === "bn" ? "টেস্ট ছেড়ে যাবেন?" : "Leave Test?"}</h3>
+                <p className="text-gray-500 text-sm mt-1">{lang === "bn" ? "আপনার প্রগ্রেস হারিয়ে যাবে!" : "Your progress will be lost!"}</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-3 mb-4">
+                <p className="text-xs text-amber-700 font-medium text-center">
+                  {lang === "bn"
+                    ? `আপনি ${Object.keys(answers).length}/${questions.length} টি প্রশ্নের উত্তর দিয়েছেন`
+                    : `You answered ${Object.keys(answers).length}/${questions.length} questions`}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowExitWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
+                <button onClick={() => { setShowExitWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {showSubmitConfirm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
