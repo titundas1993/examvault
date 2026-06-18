@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,17 +37,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install chokidar polyfill
+      - name: Install Bubblewrap in project directory
         run: |
-          npm cache clean --force 2>/dev/null || true
-          npm install -g @nicolo-ribaudo/chokidar-2 2>&1
-          echo "chokidar done"
-
-      - name: Install Bubblewrap CLI
-        run: |
-          npm install -g @bubblewrap/cli 2>&1
-          bubblewrap --version
-          echo "bubblewrap installed"
+          mkdir -p bw-workspace && cd bw-workspace
+          npm init -y 2>&1 | tail -1
+          npm install @nicolo-ribaudo/chokidar-2 2>&1 | tail -1
+          npm install @bubblewrap/cli 2>&1 | tail -3
+          echo "Verifying..."
+          npx bubblewrap --version 2>&1 || echo "npx failed, trying direct..."
+          node node_modules/@bubblewrap/cli/bin/bubblewrap.js --version 2>&1 || echo "direct failed too"
 
       - name: Generate signing keystore
         run: |
@@ -99,12 +97,16 @@ jobs:
 
       - name: Initialize TWA project
         run: |
-          yes | bubblewrap init \
-            --manifest=twa-manifest.json \
-            --directory=android-twa 2>&1 || \
-          yes | bubblewrap init \
-            --manifest=twa-manifest.json \
-            --directory=android-twa \
+          cd bw-workspace
+          yes | npx bubblewrap init \
+            --manifest=../twa-manifest.json \
+            --directory=../android-twa 2>&1 || \
+          yes | node node_modules/@bubblewrap/cli/bin/bubblewrap.js init \
+            --manifest=../twa-manifest.json \
+            --directory=../android-twa 2>&1 || \
+          yes | npx bubblewrap init \
+            --manifest=../twa-manifest.json \
+            --directory=../android-twa \
             --skip-pwa-validation 2>&1
         env:
           CI: 1
