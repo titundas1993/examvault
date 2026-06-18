@@ -118,6 +118,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   scrollPositions: {},
   setView: (view) => {
     const { currentView, viewHistory, scrollPositions } = get();
+    // If navigating to a root view (home), clear the history stack
+    // so back button exits the app instead of going through old pages
+    if (ROOT_VIEWS.includes(view)) {
+      const currentScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+      const newPositions = { ...scrollPositions, [currentView]: currentScrollY };
+      delete newPositions[view];
+      set({ currentView: view, viewHistory: [], scrollPositions: newPositions });
+      return;
+    }
     // Don't push if same view
     if (currentView === view) return;
     // Save current scroll position before navigating away
