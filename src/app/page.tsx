@@ -46,6 +46,67 @@ import PaymentModal from "@/components/user/PaymentModal";
 // Shared Components
 import GuestLockModal from "@/components/shared/GuestLockModal";
 
+// ==================== BACK BUTTON HANDLER (Module-level) ====================
+// MUST run ONCE at module load time, NOT inside useEffect.
+// Running inside useEffect caused timing issues on mobile PWA — the popstate
+// listener wasn't registered before the user could press back, and the
+// __evPopstateDone guard could block re-registration after HMR.
+// Module-level code runs synchronously when the JS bundle loads, so the
+// sentinel entries and listener are always in place before any user interaction.
+if (typeof window !== 'undefined' && !(window as any).__evBackInit) {
+  (window as any).__evBackInit = true;
+
+  // Push TWO sentinel entries for buffer.
+  // On Android PWA, when the user presses back and there are zero history entries
+  // ahead of the current position, the system closes the app WITHOUT firing popstate.
+  // Two sentinels guarantee the browser always has at least one pushState entry to
+  // navigate back through, giving our handler a chance to re-push and intercept.
+  window.history.pushState({ appState: true }, '');
+  window.history.pushState({ appState: true }, '');
+
+  // Debounce flag — some mobile browsers fire popstate twice for a single back press.
+  let _popstateDebounce = false;
+
+  const handlePopstate = () => {
+    // Skip if this is a rapid double-fire
+    if (_popstateDebounce) return;
+    _popstateDebounce = true;
+    setTimeout(() => { _popstateDebounce = false; }, 250);
+
+    const store = useAppStore.getState();
+
+    // If the app is in the process of exiting, don't interfere
+    if (store.isExitingApp) return;
+
+    // Re-push sentinel IMMEDIATELY so the browser can't run out of history entries.
+    // The browser just consumed one entry by navigating back; we replace it.
+    window.history.pushState({ appState: true }, '');
+
+    // Decide what to do based on app navigation state
+    if (store.canGoBack()) {
+      // There's a previous view in the app's history — go back
+      store.goBack();
+    } else if (store.currentView === 'home') {
+      // At home with no history — show exit confirmation dialog
+      store.setExitConfirmVisible(true);
+    } else {
+      // On a non-home root view (edge case) — go to home first
+      store.setView('home');
+    }
+  };
+
+  window.addEventListener('popstate', handlePopstate);
+
+  // Handle back-forward cache (bfcache) restore — when the browser restores
+  // the page from cache, the sentinel entries may be gone.
+  window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+    if (e.persisted) {
+      window.history.pushState({ appState: true }, '');
+      window.history.pushState({ appState: true }, '');
+    }
+  });
+}
+
 // ==================== IN-FILE ERROR BOUNDARY ====================
 class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: { children: React.ReactNode }) {
@@ -2585,35 +2646,9 @@ function ExamVaultAppInner() {
   const user = useAppStore(s => s.user);
 
   // ══════════════════════════════════════════════════════════
-  // BACK BUTTON HANDLER — must be BEFORE any early returns!
-  // React hooks before early returns are ALWAYS active, never unmount.
+  // BACK BUTTON HANDLER is now at MODULE LEVEL (see top of file).
+  // It was moved out of useEffect to fix timing issues on mobile PWA.
   // ══════════════════════════════════════════════════════════
-  useEffect(() => {
-    // Guard: register ONLY ONCE even if component remounts
-    if ((window as any).__evPopstateDone) return;
-    (window as any).__evPopstateDone = true;
-
-    // Push one sentinel — browser history has this one entry
-    window.history.pushState({ appState: true }, "");
-
-    window.addEventListener("popstate", () => {
-      const store = useAppStore.getState();
-      if (store.isExitingApp) return;
-      // Re-push sentinel IMMEDIATELY so browser can't leave the page
-      window.history.pushState({ appState: true }, "");
-
-      if (store.currentView === "home") {
-        store.setExitConfirmVisible(true);
-      } else {
-        store.goBack();
-      }
-    });
-
-    window.addEventListener("pageshow", (e: PageTransitionEvent) => {
-      if (e.persisted) window.history.pushState({ appState: true }, "");
-    });
-    // NEVER remove these listeners — guard flag prevents duplicates
-  }, []);
 
   // ══════════════════════════════════════════════════════════
   // SCROLL HANDLER — also before early returns
