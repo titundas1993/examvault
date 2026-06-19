@@ -954,6 +954,7 @@ function TestSeriesTab() {
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [series, setSeries] = useState<any[]>([]);
+  const [progressKey, setProgressKey] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -986,7 +987,7 @@ function TestSeriesTab() {
           const isViewed = getViewedItems("testSeries").has(s.id || "");
           return (
             <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { markItemViewed("testSeries", s.id || ""); useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
+              <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { markItemViewed("testSeries", s.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
                 {s.imageUrl ? (
                   <img src={s.imageUrl} alt={s.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md flex-shrink-0" />
                 ) : (
@@ -1165,6 +1166,7 @@ function PreviousPapersTab() {
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [papers, setPapers] = useState<any[]>([]);
+  const [progressKey, setProgressKey] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -1197,7 +1199,7 @@ function PreviousPapersTab() {
           const isViewed = getViewedItems("papers").has(p.id || "");
           return (
             <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { markItemViewed("papers", p.id || ""); useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
+              <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { markItemViewed("papers", p.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
                 <div className="w-12 h-12 rounded-xl bg-ev-orange-light flex items-center justify-center flex-shrink-0"><FileText className="w-6 h-6 text-ev-orange" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -1414,6 +1416,7 @@ function NotesTab() {
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [notesData, setNotesData] = useState<any[]>([]);
+  const [progressKey, setProgressKey] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -1446,7 +1449,7 @@ function NotesTab() {
           const isViewed = getViewedItems("notes").has(n.id || "");
           return (
             <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { markItemViewed("notes", n.id || ""); useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
+              <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { markItemViewed("notes", n.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
                 <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><Notebook className="w-6 h-6 text-purple-600" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -2567,35 +2570,34 @@ function ExamPage() {
       </div>
       )}
 
-      {/* Submit Confirmation Dialog */}
-      <AnimatePresence>
-        {/* Exit Warning Dialog */}
-        {showExitWarning && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-              <div className="text-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-red-500" /></div>
-                <h3 className="text-xl font-black text-ev-navy">{lang === "bn" ? "টেস্ট ছেড়ে যাবেন?" : "Leave Test?"}</h3>
-                <p className="text-gray-500 text-sm mt-1">{lang === "bn" ? "আপনার প্রগ্রেস হারিয়ে যাবে!" : "Your progress will be lost!"}</p>
-              </div>
-              <div className="bg-amber-50 rounded-xl p-3 mb-4">
-                <p className="text-xs text-amber-700 font-medium text-center">
-                  {lang === "bn"
-                    ? `আপনি ${Object.keys(answers).length}/${questions.length} টি প্রশ্নের উত্তর দিয়েছেন`
-                    : `You answered ${Object.keys(answers).length}/${questions.length} questions`}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowExitWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
-                <button onClick={() => { setShowExitWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+      {/* Exit Warning Dialog */}
+      {showExitWarning && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowExitWarning(false)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-red-500" /></div>
+              <h3 className="text-xl font-black text-ev-navy">{lang === "bn" ? "টেস্ট ছেড়ে যাবেন?" : "Leave Test?"}</h3>
+              <p className="text-gray-500 text-sm mt-1">{lang === "bn" ? "আপনার প্রগ্রেস হারিয়ে যাবে!" : "Your progress will be lost!"}</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3 mb-4">
+              <p className="text-xs text-amber-700 font-medium text-center">
+                {lang === "bn"
+                  ? `আপনি ${Object.keys(answers).length}/${questions.length} টি প্রশ্নের উত্তর দিয়েছেন`
+                  : `You answered ${Object.keys(answers).length}/${questions.length} questions`}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowExitWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
+              <button onClick={() => { setShowExitWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {showSubmitConfirm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+      {/* Submit Confirmation Dialog */}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowSubmitConfirm(false)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="text-center mb-4">
                 <div className="w-16 h-16 rounded-full bg-ev-orange/10 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-ev-orange" /></div>
                 <h3 className="text-xl font-black text-ev-navy">Submit Test?</h3>
@@ -2622,10 +2624,9 @@ function ExamPage() {
                 <button onClick={() => setShowSubmitConfirm(false)} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-ev-navy font-bold text-sm">Continue Test</button>
                 <button onClick={handleSubmit} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">Submit</button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   );
 }
