@@ -84,9 +84,8 @@ function markItemViewed(category: string, itemId: string) {
 }
 
 function getProgressText(category: string, total: number, lang: string): string | null {
-  if (total <= 1) return null; // No progress needed for single items
+  if (total <= 0) return null;
   const viewed = getViewedItems(category).size;
-  if (viewed === 0) return null; // Don't show if nothing viewed yet
   if (lang === "bn") return `${viewed}/${total} সম্পন্ন`;
   return `${viewed}/${total} completed`;
 }
@@ -137,6 +136,11 @@ if (typeof window !== 'undefined' && !(window as any).__evBackInit) {
     window.history.pushState({ appState: true }, '');
 
     // Decide what to do based on app navigation state
+    if (store.examBackWarning !== undefined && store.currentView === 'exam') {
+      // During exam, show warning dialog instead of going back
+      store.setExamBackWarning(true);
+      return;
+    }
     if (store.canGoBack()) {
       // There's a previous view in the app's history — go back
       store.goBack();
@@ -955,6 +959,12 @@ function TestSeriesTab() {
   const requirePremium = useRequirePremium();
   const [series, setSeries] = useState<any[]>([]);
   const [progressKey, setProgressKey] = useState(0);
+  const [viewedItems, setViewedItems] = useState<Set<string>>(new Set());
+
+  // Re-read progress when progressKey changes
+  useEffect(() => {
+    setViewedItems(getViewedItems("testSeries"));
+  }, [progressKey]);
 
   useEffect(() => {
     async function fetchData() {
@@ -966,25 +976,28 @@ function TestSeriesTab() {
     fetchData();
   }, []);
 
+  const progressText = getProgressText("testSeries", series.length, lang);
+  const progressPercent = getProgressPercent("testSeries", series.length);
+
   return (
-    <div className="pb-6">
+    <div className="pb-6" key={progressKey}>
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("testSeries", lang)}</h2>
-        {series.length > 1 && getProgressText("testSeries", series.length, lang) && (
+        {series.length > 0 && progressText && (
           <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
-              <span className="text-xs font-bold text-ev-orange">{getProgressText("testSeries", series.length, lang)}</span>
+              <span className="text-xs font-bold text-ev-orange">{progressText}</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("testSeries", series.length) + "%" }} />
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: progressPercent + "%" }} />
             </div>
           </div>
         )}
       </div>
       <div className="px-4 space-y-3">
         {series.map(s => {
-          const isViewed = getViewedItems("testSeries").has(s.id || "");
+          const isViewed = viewedItems.has(s.id || "");
           return (
             <div key={s.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3" onClick={() => requirePremium(s.id, isItemFree(s), () => { markItemViewed("testSeries", s.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedTest(s.id); useAppStore.getState().setSelectedTestType("testSeries"); setView("test-info"); }, { name: s.title, price: s.price || 0 })}>
@@ -1167,6 +1180,15 @@ function PreviousPapersTab() {
   const requirePremium = useRequirePremium();
   const [papers, setPapers] = useState<any[]>([]);
   const [progressKey, setProgressKey] = useState(0);
+  const [viewedItems, setViewedItems] = useState<Set<string>>(new Set());
+
+  // Re-read progress when progressKey changes
+  useEffect(() => {
+    setViewedItems(getViewedItems("papers"));
+  }, [progressKey]);
+
+  const progressText = getProgressText("papers", papers.length, lang);
+  const progressPercent = getProgressPercent("papers", papers.length);
 
   useEffect(() => {
     async function fetchData() {
@@ -1179,24 +1201,24 @@ function PreviousPapersTab() {
   }, []);
 
   return (
-    <div className="pb-6">
+    <div className="pb-6" key={progressKey}>
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("previousPapers", lang)}</h2>
-        {papers.length > 1 && getProgressText("papers", papers.length, lang) && (
+        {papers.length > 0 && progressText && (
           <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
-              <span className="text-xs font-bold text-ev-orange">{getProgressText("papers", papers.length, lang)}</span>
+              <span className="text-xs font-bold text-ev-orange">{progressText}</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("papers", papers.length) + "%" }} />
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: progressPercent + "%" }} />
             </div>
           </div>
         )}
       </div>
       <div className="px-4 space-y-3">
         {papers.map(p => {
-          const isViewed = getViewedItems("papers").has(p.id || "");
+          const isViewed = viewedItems.has(p.id || "");
           return (
             <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3" onClick={() => requirePremium(p.id, isItemFree(p), () => { markItemViewed("papers", p.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedPaperId(p.id); setView("previous-paper-detail"); }, { name: p.name || p.title, price: p.price || 0 })}>
@@ -1417,6 +1439,15 @@ function NotesTab() {
   const requirePremium = useRequirePremium();
   const [notesData, setNotesData] = useState<any[]>([]);
   const [progressKey, setProgressKey] = useState(0);
+  const [viewedItems, setViewedItems] = useState<Set<string>>(new Set());
+
+  // Re-read progress when progressKey changes
+  useEffect(() => {
+    setViewedItems(getViewedItems("notes"));
+  }, [progressKey]);
+
+  const progressText = getProgressText("notes", notesData.length, lang);
+  const progressPercent = getProgressPercent("notes", notesData.length);
 
   useEffect(() => {
     async function fetchData() {
@@ -1429,24 +1460,24 @@ function NotesTab() {
   }, []);
 
   return (
-    <div className="pb-6">
+    <div className="pb-6" key={progressKey}>
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("notes", lang)}</h2>
-        {notesData.length > 1 && getProgressText("notes", notesData.length, lang) && (
+        {notesData.length > 0 && progressText && (
           <div className="mb-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-ev-navy">{lang === "bn" ? "আপনার অগ্রগতি" : "Your Progress"}</span>
-              <span className="text-xs font-bold text-ev-orange">{getProgressText("notes", notesData.length, lang)}</span>
+              <span className="text-xs font-bold text-ev-orange">{progressText}</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: getProgressPercent("notes", notesData.length) + "%" }} />
+              <div className="bg-gradient-to-r from-ev-orange to-ev-gold h-2 rounded-full transition-all" style={{ width: progressPercent + "%" }} />
             </div>
           </div>
         )}
       </div>
       <div className="px-4 space-y-3">
         {notesData.map(n => {
-          const isViewed = getViewedItems("notes").has(n.id || "");
+          const isViewed = viewedItems.has(n.id || "");
           return (
             <div key={n.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3" onClick={() => requirePremium(n.id, isItemFree(n), () => { markItemViewed("notes", n.id || ""); setProgressKey(k => k + 1); useAppStore.getState().setSelectedNoteId(n.id!); setView("note-detail"); }, { name: n.title, price: n.price || 0 })}>
@@ -2087,7 +2118,8 @@ function ExamPage() {
   const [testTitle, setTestTitle] = useState("Test");
   const lang = useAppStore(s => s.language);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [showExitWarning, setShowExitWarning] = useState(false);
+  const examBackWarning = useAppStore(s => s.examBackWarning);
+  const setExamBackWarning = useAppStore(s => s.setExamBackWarning);
   const [showQuestionNav, setShowQuestionNav] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false); // view-only after submit
@@ -2410,7 +2442,7 @@ function ExamPage() {
       {/* Header */}
       <div className="bg-ev-navy px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => { if (isReviewMode) { setIsReviewMode(false); setSubmitted(true); } else { setShowExitWarning(true); } }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <button onClick={() => { if (isReviewMode) { setIsReviewMode(false); setSubmitted(true); } else { setExamBackWarning(true); } }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
           <h2 className="text-white font-bold text-sm truncate max-w-[180px]">{isReviewMode ? "Review Answers" : testTitle}</h2>
           {isReviewMode ? <span className="text-xs font-bold text-ev-gold bg-ev-gold/20 px-2 py-1 rounded-lg">VIEW ONLY</span> : <div className="flex items-center gap-1 text-ev-gold text-sm font-bold"><Timer className="w-4 h-4" /> {formatTime(timeLeft)}</div>}
         </div>
@@ -2571,8 +2603,8 @@ function ExamPage() {
       )}
 
       {/* Exit Warning Dialog */}
-      {showExitWarning && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowExitWarning(false)}>
+      {examBackWarning && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={() => setExamBackWarning(false)}>
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-4">
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-red-500" /></div>
@@ -2587,8 +2619,8 @@ function ExamPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowExitWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
-              <button onClick={() => { setShowExitWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
+              <button onClick={() => setExamBackWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
+              <button onClick={() => { setExamBackWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
             </div>
           </div>
         </div>

@@ -98,6 +98,8 @@ interface AppState {
   setExitConfirmVisible: (visible: boolean) => void;
   isExitingApp: boolean;
   setIsExitingApp: (exiting: boolean) => void;
+  examBackWarning: boolean;
+  setExamBackWarning: (show: boolean) => void;
   appSettings: AppSettings;
   setAppSettings: (settings: Partial<AppSettings>) => void;
   lastTestResult: any | null;
@@ -231,6 +233,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExitConfirmVisible: (visible) => set({ exitConfirmVisible: visible }),
   isExitingApp: false,
   setIsExitingApp: (exiting) => set({ isExitingApp: exiting }),
+  examBackWarning: false,
+  setExamBackWarning: (show) => set({ examBackWarning: show }),
   appSettings: {
     appName: "EXAMVAULT",
     appVersion: "1.0.0",
