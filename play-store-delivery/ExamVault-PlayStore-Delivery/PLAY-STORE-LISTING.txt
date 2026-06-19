@@ -1,0 +1,124 @@
+==============================================
+  EXAMVAULT - PLAY STORE LISTING INFO
+==============================================
+
+APP NAME: ExamVault
+PACKAGE: com.examvault.app
+CATEGORY: Education
+
+----------------------------------------------
+SHORT DESCRIPTION (80 chars max):
+----------------------------------------------
+Complete exam prep with mock tests, quizzes, papers & notes
+
+----------------------------------------------
+FULL DESCRIPTION (English):
+----------------------------------------------
+ExamVault is your all-in-one exam preparation platform designed to help students ace competitive exams. Whether you're preparing for government exams, banking exams, or any other competitive test, ExamVault has everything you need.
+
+🎯 KEY FEATURES:
+
+📝 MOCK TESTS & FREE TESTS
+- Practice with realistic mock tests designed by experts
+- Free tests available for all students
+- Timed tests with auto-submit feature
+- Detailed question review after submission
+
+📅 DAILY QUIZZES
+- Fresh quiz every day to keep your preparation on track
+- Quick 10-minute quizzes for daily practice
+- Track your daily progress
+
+📄 PREVIOUS YEAR PAPERS
+- Access previous year question papers with solutions
+- Category-wise organized for easy navigation
+- View solutions with detailed explanations
+
+📒 STUDY NOTES
+- Comprehensive study notes for all subjects
+- Category-wise organized content
+- Offline-friendly reading experience
+
+🏆 LEADERBOARD
+- Compete with other students on the leaderboard
+- Track your ranking and accuracy
+- Compare your performance over time
+
+📊 PROGRESS TRACKING
+- Track which content you've viewed
+- Visual progress bars for each category
+- Never lose track of your preparation
+
+🔔 ANNOUNCEMENTS & NOTIFICATIONS
+- Stay updated with exam notifications
+- Important announcements and updates
+
+🔒 FREE & PREMIUM CONTENT
+- Free content available for all users
+- Premium content with in-app purchases
+- Affordable pricing for students
+
+ExamVault is built with love for students. Start your exam preparation journey today!
+
+Download now and take the first step towards your dream career!
+
+----------------------------------------------
+FULL DESCRIPTION (Bengali / বাংলা):
+----------------------------------------------
+ExamVault হল আপনার অল-ইন-ওয়ান পরীক্ষার প্রস্তুতি প্ল্যাটফর্ম, যা শিক্ষার্থীদের প্রতিযোগিতামূলক পরীক্ষায় সফল হতে সাহায্য করে। সরকারি চাকরি, ব্যাংকিং বা অন্য কোনো প্রতিযোগিতামূলক পরীক্ষার প্রস্তুতি নিতে ExamVault এ সব আছে।
+
+🎯 প্রধান বৈশিষ্ট্য:
+
+📝 মক টেস্ট ও ফ্রি টেস্ট
+- বিশেষজ্ঞদের তৈরি বাস্তবসম্মত মক টেস্ট
+- সকল শিক্ষার্থীর জন্য ফ্রি টেস্ট
+- সময়বদ্ধ টেস্ট অটো-সাবমিট সুবিধা
+- জমা দেওয়ার পর বিস্তারিত প্রশ্ন পর্যালোচনা
+
+📅 দৈনিক কুইজ
+- প্রতিদিন নতুন কুইজ
+- দ্রুত ১০ মিনিটের কুইজ
+- দৈনিক অগ্রগতি ট্র্যাকিং
+
+📄 পূর্ববর্তী বছরের প্রশ্নপত্র
+- সমাধান সহ পূর্ববর্তী বছরের প্রশ্ন
+- ক্যাটাগরি অনুযায়ী সাজানো
+- বিস্তারিত ব্যাখ্যা সহ সমাধান
+
+📒 স্টাডি নোটস
+- সকল বিষয়ের ব্যাপক স্টাডি নোটস
+- ক্যাটাগরি অনুযায়ী সাজানো
+
+🏆 লিডারবোর্ড
+- অন্য শিক্ষার্থীদের সাথে প্রতিযোগিতা
+- আপনার র‍্যাংকিং ও নির্ভুলতা ট্র্যাক
+
+📊 প্রোগ্রেস ট্র্যাকিং
+- কোন কন্টেন্ট দেখেছেন তা ট্র্যাক
+- প্রতিটি ক্যাটাগরির জন্য ভিজ্যুয়াল প্রোগ্রেস বার
+
+🔒 ফ্রি ও প্রিমিয়াম কন্টেন্ট
+- সকলের জন্য ফ্রি কন্টেন্ট
+- সাশ্রয়ী মূল্যে প্রিমিয়াম কন্টেন্ট
+
+এখনই ডাউনলোড করুন এবং আপনার স্বপ্নের ক্যারিয়ারের দিকে প্রথম পদক্ষেপ নিন!
+
+----------------------------------------------
+PRIVACY POLICY URL:
+----------------------------------------------
+https://examvault-theta.vercel.app/privacy
+
+----------------------------------------------
+CONTENT RATING ANSWERS:
+----------------------------------------------
+Violence: None
+Sexual Content: None
+Language: None
+Controlled Substances: None
+User Interaction: Yes (Leaderboard shows other users)
+Sharing Location: No
+Digital Goods Purchase: Yes (Premium content via Razorpay)
+Ads: No
+Unrestricted Web Access: No (WebView restricted to app domain)
+
+==============================================
