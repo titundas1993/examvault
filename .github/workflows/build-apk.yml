@@ -6,6 +6,10 @@ on:
       app_url:
         description: 'Deployed PWA URL (e.g. https://examvault-theta.vercel.app)'
         required: true
+      build_aab:
+        description: 'Also build AAB for Play Store? (true/false)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -13,7 +17,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,20 +36,15 @@ jobs:
           yes | sdkmanager --licenses 2>/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Generate signing keystore
+      - name: Decode release keystore
         run: |
-          keytool -genkeypair \
-            -dname "CN=ExamVault, O=ExamVault, C=IN" \
-            -alias examvault \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -keystore examvault.keystore \
-            -storepass examvault -keypass examvault
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > examvault-release.keystore
 
       - name: Create Android WebView project
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
-          HOST=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
-          echo "Building for: $APP_URL"
+          BUILD_AAB="${{ github.event.inputs.build_aab }}"
+          echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
 
           # Create project directory structure
           mkdir -p android-project/app/src/main/java/com/examvault/app
@@ -91,8 +90,8 @@ jobs:
           }
           EOF
 
-          # build.gradle (app)
-          cat > android-project/app/build.gradle << EOF
+          # build.gradle (app) — with release signing config
+          cat > android-project/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
@@ -106,11 +105,39 @@ jobs:
                   versionCode 1
                   versionName "1.0.0"
               }
+              signingConfigs {
+                  release {
+                      storeFile file('../../examvault-release.keystore')
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
+                  }
+                  debug {
+                      storeFile file('../../examvault-release.keystore')
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
+                  }
+              }
               buildTypes {
                   release {
                       minifyEnabled true
                       proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                      signingConfig signingConfigs.release
+                  }
+                  debug {
                       signingConfig signingConfigs.debug
+                  }
+              }
+              bundle {
+                  language {
+                      enableSplit = true
+                  }
+                  density {
+                      enableSplit = true
+                  }
+                  abi {
+                      enableSplit = true
                   }
               }
               compileOptions {
@@ -244,8 +271,6 @@ jobs:
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
-                  // Use CACHE_ELSE_NETWORK so cached content shows immediately,
-                  // preventing white screen when returning from background
                   settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
                   settings.setAllowFileAccess(true);
                   settings.setMediaPlaybackRequiresUserGesture(false);
@@ -254,7 +279,6 @@ jobs:
                   settings.setLoadWithOverviewMode(true);
                   settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
                   settings.setDatabasePath(getFilesDir().getPath() + "/databases");
-                  // Keep session cookies across app restarts
                   android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
                   cookieManager.setAcceptCookie(true);
                   cookieManager.setAcceptThirdPartyCookies(webView, true);
@@ -271,7 +295,6 @@ jobs:
                                host.contains("firebaseapp.com"))) {
                               return false;
                           }
-                          // Open external links in system browser
                           try {
                               view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                           } catch (Exception e) {}
@@ -282,12 +305,9 @@ jobs:
                       public void onPageFinished(WebView view, String url) {
                           super.onPageFinished(view, url);
                           webViewReady = true;
-                          // Hide splash, show WebView
                           splashScreen.setVisibility(View.GONE);
                           webView.setVisibility(View.VISIBLE);
-                          // Set WebView flag for JS detection
                           view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
-                          // Save current URL for recovery
                           SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                           prefs.edit().putString(KEY_URL, url).apply();
                       }
@@ -300,16 +320,13 @@ jobs:
 
                   webView.setWebChromeClient(new WebChromeClient());
 
-                  // ALWAYS load URL fresh — restoreState is unreliable and causes white screen
                   String urlToLoad = appUrl;
                   if (savedInstanceState != null) {
-                      // After process kill, restore the last saved URL
                       String savedUrl = savedInstanceState.getString(KEY_URL);
                       if (savedUrl != null && !savedUrl.isEmpty()) {
                           urlToLoad = savedUrl;
                       }
                   } else {
-                      // Fresh launch — check for deep link
                       Uri data = getIntent().getData();
                       if (data != null) {
                           urlToLoad = data.toString();
@@ -321,7 +338,6 @@ jobs:
               @Override
               protected void onSaveInstanceState(Bundle outState) {
                   super.onSaveInstanceState(outState);
-                  // Save the current URL instead of WebView state (which is unreliable)
                   if (webView != null && webView.getUrl() != null) {
                       outState.putString(KEY_URL, webView.getUrl());
                   }
@@ -335,7 +351,7 @@ jobs:
                       public void onReceiveValue(String result) {
                           result = result != null ? result.replace("\"", "") : "";
                           if ("exam_warning".equals(result)) {
-                              // Warning dialog shown in JS — do nothing
+                              // Warning dialog shown in JS
                           } else if ("went_back".equals(result)) {
                               // done
                           } else if ("at_home".equals(result)) {
@@ -366,13 +382,10 @@ jobs:
                   super.onResume();
                   if (webView != null) {
                       webView.onResume();
-                      // Only schedule recovery if WebView was NOT ready before pause
-                      // This prevents unnecessary reload on normal resume
                       if (!webViewReady) {
                           recoveryAttemptCount = 0;
                           scheduleRecoveryCheck(1500);
                       }
-                      // Always ensure splash is hidden and WebView visible
                       splashScreen.setVisibility(View.GONE);
                       webView.setVisibility(View.VISIBLE);
                   }
@@ -383,19 +396,15 @@ jobs:
                   webView.postDelayed(new Runnable() {
                       @Override public void run() {
                           if (webView == null) return;
-                          // Only reload if WebView truly has NO content (contentHeight == 0)
-                          // Do NOT check webViewReady here — it causes false positives
                           if (webView.getContentHeight() == 0) {
                               recoveryAttemptCount++;
                               SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                               String lastUrl = prefs.getString(KEY_URL, appUrl);
                               webView.loadUrl(lastUrl);
-                              // Schedule one more check if first attempt didn't work
                               if (recoveryAttemptCount < 3) {
                                   scheduleRecoveryCheck(3000);
                               }
                           }
-                          // Always ensure splash is hidden and WebView visible
                           splashScreen.setVisibility(View.GONE);
                           webView.setVisibility(View.VISIBLE);
                       }
@@ -405,8 +414,6 @@ jobs:
               @Override
               protected void onPause() {
                   if (webView != null) webView.onPause();
-                  // Only reset webViewReady if we're actually going to background
-                  // Don't reset on configuration changes
                   super.onPause();
               }
 
@@ -495,17 +502,31 @@ jobs:
           EOF
 
           echo "Android project created!"
-          find android-project -type f | head -20
 
-      - name: Build Debug APK
+      - name: Build Release APK
         working-directory: android-project
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          # Use gradle directly since we don't have the full wrapper
-          gradle assembleDebug --no-daemon 2>&1 || {
+          gradle assembleRelease --no-daemon 2>&1 || {
             echo "Gradle failed, trying with wrapper setup..."
-            # Create proper wrapper
             gradle wrapper --gradle-version 8.9 2>&1 || true
-            ./gradlew assembleDebug --no-daemon 2>&1
+            ./gradlew assembleRelease --no-daemon 2>&1
+          }
+
+      - name: Build Release AAB (for Play Store)
+        if: ${{ github.event.inputs.build_aab == 'true' }}
+        working-directory: android-project
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          gradle bundleRelease --no-daemon 2>&1 || {
+            echo "Gradle AAB failed, trying with wrapper..."
+            ./gradlew bundleRelease --no-daemon 2>&1
           }
 
       - name: Find and prepare APK
@@ -514,17 +535,37 @@ jobs:
           if [ -z "$APK" ]; then
             echo "No APK found!"
             find android-project -name "*.apk" -type f 2>/dev/null
+            ls -la android-project/app/build/outputs/apk/release/ 2>/dev/null || true
             ls -la android-project/app/build/outputs/apk/debug/ 2>/dev/null || true
             exit 1
           fi
           cp "$APK" examvault.apk
           ls -lh examvault.apk
 
+      - name: Find and prepare AAB
+        if: ${{ github.event.inputs.build_aab == 'true' }}
+        run: |
+          AAB=$(find android-project -name "*.aab" -type f | head -1)
+          if [ -z "$AAB" ]; then
+            echo "No AAB found!"
+            ls -la android-project/app/build/outputs/bundle/release/ 2>/dev/null || true
+            exit 1
+          fi
+          cp "$AAB" examvault.aab
+          ls -lh examvault.aab
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: examvault-apk
           path: examvault.apk
+
+      - name: Upload AAB artifact
+        if: ${{ github.event.inputs.build_aab == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: examvault-aab
+          path: examvault.aab
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -545,6 +586,10 @@ jobs:
             - Previous Year Papers & Notes
             - Leaderboard & Profile
             - Hardware back button support
-          files: examvault.apk
+            - Exam exit warning dialog
+            - Content progress tracking
+          files: |
+            examvault.apk
+            examvault.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
