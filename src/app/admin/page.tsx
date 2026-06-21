@@ -1779,7 +1779,7 @@ function QuestionsAdmin() {
   };
 
   // Reusable test info card component
-  const TestInfoCard = ({ testType, titleId }: { testType: string; titleId: string }) => {
+  const TestInfoCard = ({ testType, titleId, onSubTestSelect, selectedSubTestId }: { testType: string; titleId: string; onSubTestSelect?: (subTestId: string) => void; selectedSubTestId?: string }) => {
     const testData = getSelectedTestData(testType, titleId);
     if (!testData) return null;
     const uploadedCount = getQuestionCountForTest(titleId);
@@ -1788,6 +1788,7 @@ function QuestionsAdmin() {
     const isFull = totalQ > 0 && uploadedCount >= totalQ;
     const accessType = testData.accessType || (testData.isFree ? "free" : "premium");
     const duration = testData.duration || 0;
+    const hasSubTests = testData.subTests && testData.subTests.length > 0;
 
     return (
       <div className={`rounded-xl p-4 border-2 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
@@ -1828,6 +1829,38 @@ function QuestionsAdmin() {
         {isFull && (
           <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
             ⚠️ This test already has all {totalQ} questions uploaded!
+          </div>
+        )}
+        {/* Sub-Tests list */}
+        {hasSubTests && onSubTestSelect && (
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <h5 className="text-xs font-bold text-ev-navy mb-2 flex items-center gap-1.5">
+              <Grid3X3 className="w-3.5 h-3.5 text-ev-orange" />
+              Sub-Tests ({testData.subTests.length})
+            </h5>
+            <div className="space-y-1.5">
+              {testData.subTests.map((st: any, idx: number) => {
+                const isSelected = selectedSubTestId === st.id;
+                return (
+                  <button
+                    key={st.id}
+                    onClick={() => onSubTestSelect(st.id)}
+                    className={`w-full text-left rounded-lg p-2.5 border text-xs transition-all ${isSelected ? "border-ev-orange bg-ev-orange/10" : "border-gray-200 bg-white hover:border-gray-300"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${isSelected ? "bg-ev-orange text-white" : "bg-ev-navy/10 text-ev-navy"}`}>{idx + 1}</span>
+                      <span className="font-bold text-ev-navy flex-1 truncate">{st.title}</span>
+                      {isSelected && <CheckCircle className="w-3.5 h-3.5 text-ev-orange" />}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-gray-400 ml-7">
+                      {st.duration > 0 && <span>⏱️ {st.duration}min</span>}
+                      {st.totalQuestions > 0 && <span>📝 {st.totalQuestions}Q</span>}
+                      {st.subject && <span>📖 {st.subject}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -2258,7 +2291,7 @@ function QuestionsAdmin() {
               )}
             </div>
             {/* Test Info Card */}
-            {selectedTitleId && <TestInfoCard testType={selectedTestType} titleId={selectedTitleId} />}
+            {selectedTitleId && <TestInfoCard testType={selectedTestType} titleId={selectedTitleId} onSubTestSelect={(subId) => setFormData({ ...formData, testId: subId })} selectedSubTestId={formData.testId !== selectedTitleId ? formData.testId : undefined} />}
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2448,7 +2481,7 @@ function QuestionsAdmin() {
               )}
             </div>
             {/* Test Info Card for Bulk Import */}
-            {bulkTitleId && <TestInfoCard testType={bulkTestType} titleId={bulkTitleId} />}
+            {bulkTitleId && <TestInfoCard testType={bulkTestType} titleId={bulkTitleId} onSubTestSelect={(subId) => setBulkTestId(subId)} selectedSubTestId={bulkTestId !== bulkTitleId ? bulkTestId : undefined} />}
             {(bulkCategory === "Others" || bulkSubject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
                 {bulkCategory === "Others" && (
