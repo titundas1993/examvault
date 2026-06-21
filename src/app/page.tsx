@@ -474,7 +474,10 @@ function AutoRotatingBanners() {
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [banners, setBanners] = useState<BannerData[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   // Real-time listener for banners
   useEffect(() => {
@@ -494,30 +497,56 @@ function AutoRotatingBanners() {
     return () => unsubscribe();
   }, []);
 
-  // Auto-rotate every 3 seconds
+  // Auto-rotate every 3 seconds (pause on interaction)
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || isPaused) return;
     const interval = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % banners.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [banners.length, isPaused]);
 
-  // Scroll to current index using CSS transform (works with overflow-hidden)
+  // Scroll to current index using CSS transform
   useEffect(() => {
     if (scrollRef.current) {
-      const child = scrollRef.current.children[currentIndex] as HTMLElement;
-      if (child) {
-        scrollRef.current.style.transform = `translateX(-${currentIndex * 100}%)`;
-        scrollRef.current.style.transition = 'transform 0.4s ease';
-      }
+      scrollRef.current.style.transform = `translateX(-${currentIndex * 100}%)`;
+      scrollRef.current.style.transition = 'transform 0.4s ease';
     }
   }, [currentIndex]);
 
+  // Swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    setIsPaused(true);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = () => {
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0 && banners.length > 1) {
+        setCurrentIndex(prev => (prev + 1) % banners.length);
+      } else if (diff < 0 && banners.length > 1) {
+        setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length);
+      }
+    }
+    setTimeout(() => setIsPaused(false), 3000);
+  };
+
   const gradients = ["from-ev-navy to-blue-800", "from-ev-orange to-orange-700", "from-ev-gold to-yellow-600", "from-green-500 to-emerald-600", "from-purple-500 to-purple-600"];
 
+  if (banners.length === 0) return null;
+
   return (
-    <div className="relative overflow-hidden">
+    <div
+      className="relative overflow-hidden"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <div ref={scrollRef} className="flex" style={{ transform: `translateX(-${currentIndex * 100}%)`, transition: 'transform 0.4s ease' }}>
         {banners.map((b, i) => (
           <motion.div
@@ -541,13 +570,30 @@ function AutoRotatingBanners() {
           </motion.div>
         ))}
       </div>
+      {/* Left/Right Arrow Buttons */}
+      {banners.length > 1 && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % banners.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
       {/* Dot indicators */}
       {banners.length > 1 && (
         <div className="flex justify-center gap-2 mt-3">
           {banners.map((_, i) => (
             <button
               key={i}
-              onClick={() => setCurrentIndex(i)}
+              onClick={() => { setCurrentIndex(i); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
               className={"w-2 h-2 rounded-full transition-all " + (i === currentIndex ? "bg-ev-orange w-6" : "bg-gray-300")}
             />
           ))}
@@ -576,6 +622,8 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   // Auto-scroll every 3 seconds
   useEffect(() => {
@@ -585,6 +633,26 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
     }, 3000);
     return () => clearInterval(interval);
   }, [announcements.length, isPaused]);
+
+  // Swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    setIsPaused(true);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = () => {
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 50 && announcements.length > 1) {
+      if (diff > 0) {
+        setCurrentIndex(prev => (prev + 1) % announcements.length);
+      } else {
+        setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length);
+      }
+    }
+    setTimeout(() => setIsPaused(false), 2000);
+  };
 
   if (announcements.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-2">No announcements yet</p>;
@@ -596,8 +664,9 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
     <div
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <AnimatePresence mode="wait">
         <motion.div
@@ -631,15 +700,15 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
       {/* Navigation arrows for multiple announcements */}
       {announcements.length > 1 && (
         <div className="flex items-center justify-between mt-2">
-          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
+          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <div className="flex items-center gap-1.5">
             {announcements.map((_, i) => (
-              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); }} className={"rounded-full transition-all " + (i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30")} />
+              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className={"rounded-full transition-all " + (i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30")} />
             ))}
           </div>
-          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % announcements.length); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
+          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % announcements.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
