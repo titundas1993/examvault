@@ -6,9 +6,14 @@ on:
       app_url:
         description: 'Deployed PWA URL (e.g. https://examvault-theta.vercel.app)'
         required: true
+      admob_app_id:
+        description: 'AdMob App ID (ca-app-pub-XXXXX~YYYYY, tilde not slash!)'
+        required: false
+        default: 'ca-app-pub-3940256099942544~3347511713'
       admob_interstitial_id:
-        description: 'AdMob Interstitial Ad Unit ID (e.g. ca-app-pub-XXXXX/YYYYY)'
-        required: true
+        description: 'AdMob Interstitial Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
+        required: false
+        default: 'ca-app-pub-3940256099942544/1033173712'
       build_aab:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
@@ -46,10 +51,12 @@ jobs:
       - name: Create Android WebView project
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
+          ADMOB_APP_ID="${{ github.event.inputs.admob_app_id }}"
           ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
           echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
-          echo "AdMob ID: $ADMOB_INTERSTITIAL_ID"
+          echo "AdMob App ID: $ADMOB_APP_ID"
+          echo "AdMob Interstitial ID: $ADMOB_INTERSTITIAL_ID"
 
           # Extract domain from APP_URL for network security config
           APP_DOMAIN=$(echo "$APP_URL" | sed -E 's|https?://([^/]+).*|\1|')
@@ -100,7 +107,7 @@ jobs:
           EOF
 
           # build.gradle (app) — with release signing config
-          cat > android-project/app/build.gradle << 'EOF'
+          cat > android-project/app/build.gradle << EOF
           plugins {
               id 'com.android.application'
           }
@@ -113,6 +120,7 @@ jobs:
                   targetSdk 35
                   versionCode 1
                   versionName "1.0.0"
+                  manifestPlaceholders = [admobAppId: "$ADMOB_APP_ID"]
               }
               signingConfigs {
                   release {
@@ -130,7 +138,7 @@ jobs:
               }
               buildTypes {
                   release {
-                      minifyEnabled true
+                      minifyEnabled false
                       proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
                       signingConfig signingConfigs.release
                   }
@@ -162,7 +170,7 @@ jobs:
           }
           EOF
 
-          # AndroidManifest.xml
+          # AndroidManifest.xml — with proper AdMob App ID
           cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -188,28 +196,26 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
-                  <!-- AdMob App ID meta-data (required for ads) -->
                   <meta-data
                       android:name="com.google.android.gms.ads.APPLICATION_ID"
-                      android:value="${ADMOB_APP_ID}" />
+                      android:value="ADMOB_APP_ID_PLACEHOLDER" />
               </application>
           </manifest>
           XMLEOF
 
-          # Network security config — dynamic domain
+          # Replace AdMob App ID in manifest
+          sed -i "s|ADMOB_APP_ID_PLACEHOLDER|$ADMOB_APP_ID|g" android-project/app/src/main/AndroidManifest.xml
+
+          # Network security config — allow all HTTPS domains the web app needs
           mkdir -p android-project/app/src/main/res/xml
-          cat > android-project/app/src/main/res/xml/network_security_config.xml << XMLEOF
+          cat > android-project/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <network-security-config>
-              <domain-config cleartextTrafficPermitted="false">
-                  <domain includeSubdomains="true">${APP_DOMAIN}</domain>
-                  <domain includeSubdomains="true">firebaseio.com</domain>
-                  <domain includeSubdomains="true">googleapis.com</domain>
-                  <domain includeSubdomains="true">firebaseapp.com</domain>
-                  <domain includeSubdomains="true">google.com</domain>
-                  <domain includeSubdomains="true">gstatic.com</domain>
-                  <domain includeSubdomains="true">googleusercontent.com</domain>
-              </domain-config>
+              <base-config cleartextTrafficPermitted="false">
+                  <trust-anchors>
+                      <certificates src="system" />
+                  </trust-anchors>
+              </base-config>
           </network-security-config>
           XMLEOF
 
@@ -217,13 +223,6 @@ jobs:
           cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/app/MainActivity.java
           sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
           sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
-
-          # Also replace in AndroidManifest.xml
-          ADMOB_APP_ID=$(echo "$ADMOB_INTERSTITIAL_ID" | sed 's|/.*||')
-          sed -i "s|\${ADMOB_APP_ID}|$ADMOB_APP_ID|g" android-project/app/src/main/AndroidManifest.xml
-
-          # Also replace domain in network_security_config.xml
-          sed -i "s|\${APP_DOMAIN}|$APP_DOMAIN|g" android-project/app/src/main/res/xml/network_security_config.xml
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -257,15 +256,11 @@ jobs:
           </resources>
           EOF
 
-          # proguard rules — keep AdMob, SMS Retriever, and JS interface
+          # proguard rules
           cat > android-project/app/proguard-rules.pro << 'EOF'
           -keepclassmembers class * {
               @android.webkit.JavascriptInterface <methods>;
           }
-          -keep class com.google.android.gms.ads.** { *; }
-          -keep class com.google.android.gms.auth.api.phone.** { *; }
-          -keep class com.examvault.app.MainActivity$OtpWebInterface { *; }
-          -keep class com.examvault.app.MainActivity$SmsBroadcastReceiver { *; }
           EOF
 
           # gradle wrapper properties
@@ -290,6 +285,12 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
+          echo "=== Verify AdMob App ID in manifest ==="
+          grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
+          echo "=== Verify APP_URL in MainActivity ==="
+          grep "appUrl" android-project/app/src/main/java/com/examvault/app/MainActivity.java | head -2
+          echo "=== Verify ADMOB ID in MainActivity ==="
+          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/app/MainActivity.java | head -2
           echo "Android project created!"
 
       - name: Build Release APK

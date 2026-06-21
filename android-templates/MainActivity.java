@@ -22,19 +22,6 @@ import android.net.Uri;
 import android.graphics.Color;
 import android.os.Build;
 import android.util.Log;
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.initialization.InitializationStatus;
-import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.interstitial.InterstitialAd;
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
-import com.google.android.gms.ads.LoadAdError;
-import com.google.android.gms.ads.FullScreenContentCallback;
-import com.google.android.gms.auth.api.phone.SmsRetriever;
-import com.google.android.gms.auth.api.phone.SmsRetrieverClient;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 import android.content.BroadcastReceiver;
 import android.content.IntentFilter;
 import android.os.Handler;
@@ -44,17 +31,11 @@ public class MainActivity extends Activity {
     private static final String TAG = "ExamVault";
     private WebView webView;
     private View splashScreen;
-    private InterstitialAd interstitialAd;
     private static final String PREFS_NAME = "examvault_prefs";
     private static final String KEY_URL = "last_url";
     private String appUrl = "${APP_URL}";
-    private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
     private boolean webViewReady = false;
-    private int navCount = 0;
-    private static final int INTERSTITIAL_INTERVAL = 3;
-    private SmsBroadcastReceiver smsReceiver;
     private Handler handler = new Handler(Looper.getMainLooper());
-    private boolean smsReceiverRegistered = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,18 +80,23 @@ public class MainActivity extends Activity {
 
             setContentView(webContainer);
 
-            // === ADMOB INIT (interstitial only) — wrapped in try-catch ===
-            try {
-                MobileAds.initialize(this, new OnInitializationCompleteListener() {
-                    @Override
-                    public void onInitializationComplete(InitializationStatus status) {
-                        Log.d(TAG, "AdMob initialized");
+            // === ADMOB INIT — deferred to avoid crash on startup ===
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        com.google.android.gms.ads.MobileAds.initialize(MainActivity.this, new com.google.android.gms.ads.initialization.OnInitializationCompleteListener() {
+                            @Override
+                            public void onInitializationComplete(com.google.android.gms.ads.initialization.InitializationStatus status) {
+                                Log.d(TAG, "AdMob initialized");
+                                loadInterstitialAd();
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "AdMob init error: " + e.getMessage());
                     }
-                });
-                loadInterstitialAd();
-            } catch (Exception e) {
-                Log.e(TAG, "AdMob init error: " + e.getMessage());
-            }
+                }
+            }, 2000);
 
             // === WEBVIEW SETTINGS ===
             WebSettings settings = webView.getSettings();
@@ -133,20 +119,11 @@ public class MainActivity extends Activity {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
                     String host = Uri.parse(url).getHost();
-                    if (host != null &&
-                        (host.contains("examvault") ||
-                         host.contains("vercel.app") ||
-                         host.contains("firebaseio.com") ||
-                         host.contains("googleapis.com") ||
-                         host.contains("firebaseapp.com") ||
-                         host.contains("firebase.google.com") ||
-                         host.contains("google.com") ||
-                         host.contains("gstatic.com") ||
-                         host.contains("googleusercontent.com") ||
-                         host.contains("razorpay.com") ||
-                         host.contains("web.razorpay.com"))) {
+                    // Allow all HTTPS URLs inside WebView — let the web app handle navigation
+                    if (url.startsWith("https://")) {
                         return false;
                     }
+                    // Block non-https, open externally
                     try {
                         view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                     } catch (Exception e) {}
@@ -173,7 +150,7 @@ public class MainActivity extends Activity {
 
             webView.setWebChromeClient(new WebChromeClient());
 
-            // === OTP Auto-Fill: JS Interface + SMS Retriever — safe init ===
+            // === OTP Auto-Fill: JS Interface ===
             try {
                 webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
                 startSmsRetriever();
@@ -196,13 +173,11 @@ public class MainActivity extends Activity {
             webView.loadUrl(urlToLoad);
 
         } catch (Exception e) {
-            // Last resort: if anything fails in onCreate, log and don't crash
-            Log.e(TAG, "FATAL onCreate error: " + e.getMessage());
-            // Try to show error in a simple dialog instead of crashing
+            Log.e(TAG, "FATAL onCreate error: " + e.getMessage(), e);
             try {
                 new AlertDialog.Builder(this)
                     .setTitle("Error")
-                    .setMessage("App failed to start. Please try again.")
+                    .setMessage("App failed to start: " + e.getMessage())
                     .setPositiveButton("OK", new DialogInterface.OnClickListener() {
                         @Override public void onClick(DialogInterface d, int w) { finish(); }
                     })
@@ -254,29 +229,36 @@ public class MainActivity extends Activity {
     }
 
     // === ADMOB INTERSTITIAL AD ===
+    private com.google.android.gms.ads.interstitial.InterstitialAd interstitialAd;
+    private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
+    private int navCount = 0;
+    private static final int INTERSTITIAL_INTERVAL = 3;
+    private boolean isPremiumUser = false;
+
     private void loadInterstitialAd() {
         if (admobInterstitialId == null || admobInterstitialId.isEmpty() ||
-            admobInterstitialId.startsWith("${")) {
+            admobInterstitialId.contains("${")) {
             Log.w(TAG, "AdMob Interstitial ID not set, skipping ad load");
             return;
         }
         try {
-            AdRequest adRequest = new AdRequest.Builder().build();
-            InterstitialAd.load(this, admobInterstitialId, adRequest,
-                new InterstitialAdLoadCallback() {
+            com.google.android.gms.ads.AdRequest adRequest = new com.google.android.gms.ads.AdRequest.Builder().build();
+            com.google.android.gms.ads.interstitial.InterstitialAd.load(this, admobInterstitialId, adRequest,
+                new com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                     @Override
-                    public void onAdLoaded(InterstitialAd ad) {
+                    public void onAdLoaded(com.google.android.gms.ads.interstitial.InterstitialAd ad) {
                         interstitialAd = ad;
-                        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                        interstitialAd.setFullScreenContentCallback(new com.google.android.gms.ads.FullScreenContentCallback() {
                             @Override
                             public void onAdDismissedFullScreenContent() {
                                 interstitialAd = null;
                                 loadInterstitialAd();
                             }
                         });
+                        Log.d(TAG, "Interstitial ad loaded");
                     }
                     @Override
-                    public void onAdFailedToLoad(LoadAdError error) {
+                    public void onAdFailedToLoad(com.google.android.gms.ads.LoadAdError error) {
                         interstitialAd = null;
                         Log.w(TAG, "Ad load failed: " + error.getMessage());
                     }
@@ -308,8 +290,6 @@ public class MainActivity extends Activity {
     }
 
     // === PREMIUM CHECK ===
-    private boolean isPremiumUser = false;
-
     private void checkPremiumAndToggleAds() {
         if (webView == null) return;
         webView.evaluateJavascript("(function(){ try { return window.__EV_PREMIUM === true; } catch(e) { return false; } })()", new ValueCallback<String>() {
@@ -323,19 +303,23 @@ public class MainActivity extends Activity {
         });
     }
 
-    // === SMS AUTO-READ FOR OTP — all wrapped in try-catch ===
+    // === SMS AUTO-READ FOR OTP ===
+    private SmsBroadcastReceiver smsReceiver;
+    private boolean smsReceiverRegistered = false;
+
     private void startSmsRetriever() {
         try {
-            SmsRetrieverClient client = SmsRetriever.getClient(this);
-            Task<Void> task = client.startSmsRetriever();
-            task.addOnSuccessListener(new OnSuccessListener<Void>() {
+            com.google.android.gms.auth.api.phone.SmsRetrieverClient client =
+                com.google.android.gms.auth.api.phone.SmsRetriever.getClient(this);
+            com.google.android.gms.tasks.Task<Void> task = client.startSmsRetriever();
+            task.addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                 @Override
                 public void onSuccess(Void aVoid) {
                     Log.d(TAG, "SMS Retriever started");
                     registerSmsReceiver();
                 }
             });
-            task.addOnFailureListener(new OnFailureListener() {
+            task.addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
                 @Override
                 public void onFailure(Exception e) {
                     Log.e(TAG, "SMS Retriever failed: " + e.getMessage());
@@ -353,9 +337,8 @@ public class MainActivity extends Activity {
                 smsReceiverRegistered = false;
             }
             smsReceiver = new SmsBroadcastReceiver();
-            IntentFilter filter = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
-            // FIX: Android 13+ (API 33) requires RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED flag
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            IntentFilter filter = new IntentFilter(com.google.android.gms.auth.api.phone.SmsRetriever.SMS_RETRIEVED_ACTION);
+            if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(smsReceiver, filter, Context.RECEIVER_EXPORTED);
             } else {
                 registerReceiver(smsReceiver, filter);
@@ -389,22 +372,18 @@ public class MainActivity extends Activity {
     private class SmsBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
-            if (SmsRetriever.SMS_RETRIEVED_ACTION.equals(intent.getAction())) {
+            if (com.google.android.gms.auth.api.phone.SmsRetriever.SMS_RETRIEVED_ACTION.equals(intent.getAction())) {
                 android.os.Bundle extras = intent.getExtras();
                 if (extras == null) return;
-                String message = (String) extras.get(SmsRetriever.EXTRA_SMS_MESSAGE);
+                String message = (String) extras.get(com.google.android.gms.auth.api.phone.SmsRetriever.EXTRA_SMS_MESSAGE);
                 if (message != null) {
-                    extractAndDeliverOtp(message);
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{6})");
+                    java.util.regex.Matcher matcher = pattern.matcher(message);
+                    if (matcher.find()) {
+                        String otp = matcher.group(1);
+                        deliverOtpToWebView(otp);
+                    }
                 }
-            }
-        }
-
-        private void extractAndDeliverOtp(String message) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{6})");
-            java.util.regex.Matcher matcher = pattern.matcher(message);
-            if (matcher.find()) {
-                String otp = matcher.group(1);
-                deliverOtpToWebView(otp);
             }
         }
     }
