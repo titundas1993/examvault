@@ -2788,27 +2788,43 @@ function BottomNav() {
   const fallback = tabs.length === 0 ? DEFAULT_BOTTOM_NAV : tabs;
   const items = fallback.slice(0, 5); // Max 5 bottom nav items
 
+  // Color scheme for each tab — matches app branding
+  const tabColors = [
+    { active: "from-ev-orange to-ev-gold", icon: "text-white", bg: "bg-gradient-to-r from-ev-orange to-ev-gold shadow-lg shadow-ev-orange/30" },
+    { active: "from-blue-500 to-indigo-600", icon: "text-white", bg: "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30" },
+    { active: "from-amber-500 to-yellow-500", icon: "text-white", bg: "bg-gradient-to-r from-amber-500 to-yellow-500 shadow-lg shadow-amber-500/30" },
+    { active: "from-teal-500 to-emerald-600", icon: "text-white", bg: "bg-gradient-to-r from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/30" },
+    { active: "from-purple-500 to-pink-500", icon: "text-white", bg: "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30" },
+  ];
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-40 pb-safe">
-      <div className="flex items-center justify-around py-1.5 px-2 max-w-lg mx-auto">
-        {items.map((item, idx) => {
-          const IconComp = ICON_MAP[item.icon] || Home;
-          const isActive = currentView === item.targetView;
-          return (
-            <button
-              key={item.id || idx}
-              onClick={() => {
-                if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
-                else setView(item.targetView as any);
-              }}
-              className={"flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all " + (isActive ? "text-ev-orange" : "text-gray-400 hover:text-gray-600")}
-            >
-              <IconComp className={"w-5 h-5 " + (isActive ? "text-ev-orange" : "")} />
-              <span className={"text-[10px] font-semibold " + (isActive ? "text-ev-orange" : "")}>{item.label}</span>
-              {isActive && <div className="w-1 h-1 rounded-full bg-ev-orange" />}
-            </button>
-          );
-        })}
+    <div className="fixed bottom-0 left-0 right-0 z-40 pb-safe">
+      {/* Gradient top border */}
+      <div className="h-[2px] bg-gradient-to-r from-ev-orange via-ev-gold to-ev-orange" />
+      {/* Nav background with subtle gradient */}
+      <div className="bg-gradient-to-t from-gray-50 to-white/98 backdrop-blur-xl">
+        <div className="flex items-center justify-around py-2 px-2 max-w-lg mx-auto">
+          {items.map((item, idx) => {
+            const IconComp = ICON_MAP[item.icon] || Home;
+            const isActive = currentView === item.targetView;
+            const color = tabColors[idx] || tabColors[0];
+            return (
+              <button
+                key={item.id || idx}
+                onClick={() => {
+                  if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
+                  else setView(item.targetView as any);
+                }}
+                className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all duration-300 active:scale-90"
+              >
+                <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? color.bg : ""}`}>
+                  <IconComp className={`w-5 h-5 transition-all duration-300 ${isActive ? color.icon : "text-gray-400"}`} />
+                </div>
+                <span className={`text-[10px] font-bold transition-all duration-300 ${isActive ? "text-ev-navy" : "text-gray-400"}`}>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
