@@ -1702,10 +1702,24 @@ function SubTestsDialog({ open, onClose, parentItem, collectionName }: { open: b
   );
 }
 
-// ==================== QUESTIONS ADMIN ====================
+// ==================== QUESTIONS ADMIN (Drill-Down) ====================
 function QuestionsAdmin() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mockTests, setMockTests] = useState<any[]>([]);
+  const [freeTests, setFreeTests] = useState<any[]>([]);
+  const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
+  const [testSeries, setTestSeries] = useState<any[]>([]);
+  const [popularTests, setPopularTests] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Drill-down navigation state
+  const [navLevel, setNavLevel] = useState<"types" | "tests" | "subtests" | "questions">("types");
+  const [activeTestType, setActiveTestType] = useState<string>("");
+  const [activeTestId, setActiveTestId] = useState<string>("");
+  const [activeSubTestId, setActiveSubTestId] = useState<string>("");
+
+  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [saving, setSaving] = useState(false);
@@ -1717,37 +1731,18 @@ function QuestionsAdmin() {
   const [bulkCategory, setBulkCategory] = useState("WBCS");
   const [bulkSubject, setBulkSubject] = useState("GK");
   const [bulkDifficulty, setBulkDifficulty] = useState("medium");
-  const [bulkTestId, setBulkTestId] = useState("");
   const [bulkImporting, setBulkImporting] = useState(false);
-  const [mockTests, setMockTests] = useState<any[]>([]);
-  const [freeTests, setFreeTests] = useState<any[]>([]);
-  const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
-  const [testSeries, setTestSeries] = useState<any[]>([]);
-  const [popularTests, setPopularTests] = useState<any[]>([]);
-  // Test Type + Title selector state (for both single add & bulk import)
-  const [selectedTestType, setSelectedTestType] = useState<string>("");
-  const [selectedTitleId, setSelectedTitleId] = useState<string>("");
-  const [bulkTestType, setBulkTestType] = useState<string>("");
-  const [bulkTitleId, setBulkTitleId] = useState<string>("");
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [customCategory, setCustomCategory] = useState("");
   const [customSubject, setCustomSubject] = useState("");
   const [bulkCustomCategory, setBulkCustomCategory] = useState("");
   const [bulkCustomSubject, setBulkCustomSubject] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
-  const [bulkEditField, setBulkEditField] = useState<string>("");
-  const [bulkEditValue, setBulkEditValue] = useState<any>("");
-  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Helper: get tests list for a given test type
   const getTestsForType = (testType: string): any[] => {
     switch (testType) {
       case "mockTests": return mockTests;
@@ -1760,173 +1755,98 @@ function QuestionsAdmin() {
   };
 
   const TEST_TYPE_OPTIONS = [
-    { value: "mockTests", label: "📋 Mock Tests" },
-    { value: "freeTests", label: "🆓 Free Tests" },
-    { value: "dailyQuiz", label: "📝 Daily Quiz" },
-    { value: "testSeries", label: "📚 Test Series" },
-    { value: "popularTests", label: "⭐ Popular Tests" },
+    { value: "mockTests", label: "Mock Tests", icon: BookOpen, color: "from-ev-orange to-orange-600" },
+    { value: "freeTests", label: "Free Tests", icon: Zap, color: "from-green-500 to-emerald-600" },
+    { value: "dailyQuiz", label: "Daily Quiz", icon: Brain, color: "from-purple-500 to-purple-600" },
+    { value: "testSeries", label: "Test Series", icon: Trophy, color: "from-ev-gold to-amber-500" },
+    { value: "popularTests", label: "Popular Tests", icon: Star, color: "from-amber-500 to-yellow-600" },
   ];
 
-  // Get selected test data and question count info
-  const getSelectedTestData = (testType: string, titleId: string) => {
-    if (!testType || testType === "none" || !titleId) return null;
-    const tests = getTestsForType(testType);
-    return tests.find((t: any) => t.id === titleId) || null;
-  };
+  const getTestTypeLabel = (value: string) => TEST_TYPE_OPTIONS.find(t => t.value === value)?.label || value;
 
   const getQuestionCountForTest = (testId: string): number => {
     return questions.filter((q: any) => q.testId === testId).length;
   };
 
-  // Reusable test info card component
-  const TestInfoCard = ({ testType, titleId, onSubTestSelect, selectedSubTestId }: { testType: string; titleId: string; onSubTestSelect?: (subTestId: string) => void; selectedSubTestId?: string }) => {
-    const testData = getSelectedTestData(testType, titleId);
-    if (!testData) return null;
-    const hasSubTests = testData.subTests && testData.subTests.length > 0;
-    const accessType = testData.accessType || (testData.isFree ? "free" : "premium");
-    const duration = testData.duration || 0;
+  // Get current test data
+  const getActiveTest = () => {
+    if (!activeTestType || !activeTestId) return null;
+    return getTestsForType(activeTestType).find((t: any) => t.id === activeTestId) || null;
+  };
 
-    // Calculate total uploaded for parent (includes questions assigned to parent ID + all sub-test IDs)
-    const parentDirectUploaded = getQuestionCountForTest(titleId);
-    const subTestIds = hasSubTests ? testData.subTests.map((st: any) => st.id) : [];
-    const totalUploadedIncludingSubs = parentDirectUploaded + subTestIds.reduce((sum: number, sid: string) => sum + getQuestionCountForTest(sid), 0);
+  // Get current sub-test data
+  const getActiveSubTest = () => {
+    const test = getActiveTest();
+    if (!test || !test.subTests || !activeSubTestId) return null;
+    return test.subTests.find((st: any) => st.id === activeSubTestId) || null;
+  };
 
-    // Calculate total Q from sub-tests if parent has 0
-    const subTestsTotalQ = hasSubTests ? testData.subTests.reduce((sum: number, st: any) => sum + (st.totalQuestions || 0), 0) : 0;
-    const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || subTestsTotalQ || 0;
-    const remaining = totalQ > 0 ? Math.max(0, totalQ - totalUploadedIncludingSubs) : -1;
-    const isFull = totalQ > 0 && totalUploadedIncludingSubs >= totalQ;
+  // Get questions for current view
+  const getCurrentQuestions = () => {
+    const test = getActiveTest();
+    if (!test) return [];
 
-    // If a sub-test is selected, show its specific info
-    const selectedSubTest = selectedSubTestId && hasSubTests ? testData.subTests.find((st: any) => st.id === selectedSubTestId) : null;
-    const subTestUploaded = selectedSubTest ? questions.filter((q: any) => q.testId === selectedSubTestId).length : 0;
-    const subTestTotal = selectedSubTest?.totalQuestions || 0;
-    const subTestRemaining = subTestTotal > 0 ? Math.max(0, subTestTotal - subTestUploaded) : -1;
-    const subTestIsFull = subTestTotal > 0 && subTestUploaded >= subTestTotal;
+    if (activeSubTestId) {
+      return questions.filter((q: any) => q.testId === activeSubTestId);
+    }
 
-    return (
-      <div className={`rounded-xl p-4 border-2 ${selectedSubTest ? (subTestIsFull ? "border-red-300 bg-red-50" : "border-blue-300 bg-blue-50") : (isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50")}`}>
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="font-bold text-ev-navy text-sm">{selectedSubTest ? selectedSubTest.title : testData.title}</h4>
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${accessType === "free" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-            {accessType === "free" ? "🆓 FREE" : "👑 PREMIUM"}
-          </span>
-        </div>
-        
-        {/* Sub-test specific stats OR parent test stats */}
-        {selectedSubTest ? (
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {selectedSubTest.duration > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{selectedSubTest.duration} min</span>
-              </div>
-            )}
-            {subTestTotal > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{subTestTotal}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{subTestUploaded}</span>
-            </div>
-            {subTestTotal > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${subTestIsFull ? "text-red-600" : "text-blue-600"}`}>{subTestRemaining}</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {duration > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{duration} min</span>
-              </div>
-            )}
-            {totalQ > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{totalQ}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{totalUploadedIncludingSubs}</span>
-            </div>
-            {totalQ > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${isFull ? "text-red-600" : "text-blue-600"}`}>{remaining}</span>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Progress bar */}
-        {(selectedSubTest && subTestTotal > 0) && (
-          <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className={`h-2 rounded-full transition-all ${subTestIsFull ? "bg-red-500" : subTestUploaded > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (subTestUploaded / subTestTotal) * 100)}%` }} />
-            </div>
-            <p className="text-[10px] text-gray-500 mt-1 text-right">{subTestUploaded}/{subTestTotal} questions ({Math.round((subTestUploaded / subTestTotal) * 100)}%)</p>
-          </div>
-        )}
-        {(!selectedSubTest && totalQ > 0) && (
-          <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : totalUploadedIncludingSubs > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (totalUploadedIncludingSubs / totalQ) * 100)}%` }} />
-            </div>
-            <p className="text-[10px] text-gray-500 mt-1 text-right">{totalUploadedIncludingSubs}/{totalQ} questions ({Math.round((totalUploadedIncludingSubs / totalQ) * 100)}%)</p>
-          </div>
-        )}
-        
-        {selectedSubTest && subTestIsFull && (
-          <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
-            ⚠️ This sub-test already has all {subTestTotal} questions uploaded!
-          </div>
-        )}
-        {!selectedSubTest && isFull && (
-          <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
-            ⚠️ This test already has all {totalQ} questions uploaded!
-          </div>
-        )}
-        
-        {/* Sub-Tests list */}
-        {hasSubTests && onSubTestSelect && (
-          <div className="mt-3 border-t border-gray-200 pt-3">
-            <h5 className="text-xs font-bold text-ev-navy mb-2 flex items-center gap-1.5">
-              <Grid3X3 className="w-3.5 h-3.5 text-ev-orange" />
-              Sub-Tests ({testData.subTests.length})
-            </h5>
-            <div className="space-y-1.5">
-              {testData.subTests.map((st: any, idx: number) => {
-                const isSelected = selectedSubTestId === st.id;
-                const stUploaded = questions.filter((q: any) => q.testId === st.id).length;
-                const stTotal = st.totalQuestions || 0;
-                const stIsFull = stTotal > 0 && stUploaded >= stTotal;
-                return (
-                  <button
-                    key={st.id}
-                    onClick={() => { onSubTestSelect(st.id); }}
-                    className={`w-full text-left rounded-lg p-2.5 border text-xs transition-all ${isSelected ? "border-ev-orange bg-ev-orange/10" : stIsFull ? "border-red-200 bg-red-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${isSelected ? "bg-ev-orange text-white" : stIsFull ? "bg-red-500 text-white" : "bg-ev-navy/10 text-ev-navy"}`}>{idx + 1}</span>
-                      <span className="font-bold text-ev-navy flex-1 truncate">{st.title}</span>
-                      {isSelected && <CheckCircle className="w-3.5 h-3.5 text-ev-orange" />}
-                      {stIsFull && !isSelected && <span className="text-red-500 font-bold">FULL</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-gray-400 ml-7">
-                      {st.duration > 0 && <span>⏱️ {st.duration}min</span>}
-                      {stTotal > 0 && <span className={stIsFull ? "text-red-500 font-bold" : ""}>📝 {stUploaded}/{stTotal}Q</span>}
-                      {st.subject && <span>📖 {st.subject}</span>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+    if (test.subTests && test.subTests.length > 0) {
+      return [];
+    }
+
+    return questions.filter((q: any) => q.testId === activeTestId);
+  };
+
+  // Get questions filtered by search
+  const getFilteredQuestions = () => {
+    const qs = getCurrentQuestions();
+    if (!searchTerm) return qs;
+    return qs.filter(q =>
+      Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
     );
   };
 
+  // Navigation helpers
+  const navigateToTests = (testType: string) => {
+    setActiveTestType(testType);
+    setActiveTestId("");
+    setActiveSubTestId("");
+    setNavLevel("tests");
+  };
+
+  const navigateToTest = (testId: string) => {
+    setActiveTestId(testId);
+    setActiveSubTestId("");
+    const test = getTestsForType(activeTestType).find((t: any) => t.id === testId);
+    if (test && test.subTests && test.subTests.length > 0) {
+      setNavLevel("subtests");
+    } else {
+      setNavLevel("questions");
+    }
+  };
+
+  const navigateToSubTest = (subTestId: string) => {
+    setActiveSubTestId(subTestId);
+    setNavLevel("questions");
+  };
+
+  const goBack = () => {
+    if (navLevel === "questions" && activeSubTestId) {
+      setActiveSubTestId("");
+      setNavLevel("subtests");
+    } else if (navLevel === "questions") {
+      setActiveTestId("");
+      setNavLevel("tests");
+    } else if (navLevel === "subtests") {
+      setActiveTestId("");
+      setNavLevel("tests");
+    } else if (navLevel === "tests") {
+      setActiveTestType("");
+      setNavLevel("types");
+    }
+  };
+
+  // Load data
   const loadQuestions = useCallback(async () => {
     setLoading(true);
     try {
@@ -1957,6 +1877,7 @@ function QuestionsAdmin() {
 
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
 
+  // Save question
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1966,6 +1887,12 @@ function QuestionsAdmin() {
       }
       if (saveData.subject === "Others" && customSubject.trim()) {
         saveData.subject = customSubject.trim();
+      }
+      // Auto-assign testId based on current drill-down position
+      if (!saveData.testId && activeSubTestId) {
+        saveData.testId = activeSubTestId;
+      } else if (!saveData.testId && activeTestId) {
+        saveData.testId = activeTestId;
       }
       if (editingItem) {
         const { id, createdAt, ...rest } = saveData;
@@ -1981,6 +1908,7 @@ function QuestionsAdmin() {
     setSaving(false);
   };
 
+  // Delete question
   const handleDelete = async () => {
     if (!deletingId) return;
     setSaving(true);
@@ -1993,6 +1921,7 @@ function QuestionsAdmin() {
     setSaving(false);
   };
 
+  // Bulk import
   const handleBulkImport = async () => {
     if (!bulkText.trim()) return;
     setBulkImporting(true);
@@ -2002,108 +1931,59 @@ function QuestionsAdmin() {
       const questionsList: any[] = [];
       let parseErrors: string[] = [];
       const text = bulkText.trim();
+      const targetTestId = activeSubTestId || activeTestId || "";
 
-      // Check if it's pipe-separated format (one question per line)
-      // Format: Question | OptionA | OptionB | OptionC | OptionD | Answer | Explanation
       const pipeLines = text.split("\n").map(l => l.trim()).filter(l => l && l.includes("|") && l.split("|").length >= 6);
-      
+
       if (pipeLines.length > 0) {
-        // Pipe-separated format
         for (let i = 0; i < pipeLines.length; i++) {
           const parts = pipeLines[i].split("|").map(p => p.trim());
           if (parts.length >= 6) {
             const ans = parts[5].toUpperCase().trim();
             if (parts[0] && parts[1] && parts[2] && parts[3] && parts[4] && ["A", "B", "C", "D"].includes(ans)) {
               questionsList.push({
-                category: effectiveBulkCategory,
-                subject: effectiveBulkSubject,
-                difficulty: bulkDifficulty,
-                marks: 1,
-                testId: bulkTestId || "",
-                question: parts[0],
-                optionA: parts[1],
-                optionB: parts[2],
-                optionC: parts[3],
-                optionD: parts[4],
-                correctAnswer: ans,
-                explanation: parts[6] || "",
+                category: effectiveBulkCategory, subject: effectiveBulkSubject,
+                difficulty: bulkDifficulty, marks: 1, testId: targetTestId,
+                question: parts[0], optionA: parts[1], optionB: parts[2],
+                optionC: parts[3], optionD: parts[4], correctAnswer: ans, explanation: parts[6] || "",
               });
             } else {
-              parseErrors.push(`Line ${i + 1}: Invalid pipe format or missing fields`);
+              parseErrors.push(`Line ${i + 1}: Invalid pipe format`);
             }
           }
         }
       } else {
-        // Block format — each question separated by blank line
         const blocks = text.split(/\n\s*\n/);
-
         for (let i = 0; i < blocks.length; i++) {
           const lines = blocks[i].trim().split("\n").map(l => l.trim()).filter(l => l);
           let q: any = {
-            category: effectiveBulkCategory,
-            subject: effectiveBulkSubject,
-            difficulty: bulkDifficulty,
-            marks: 1,
-            testId: bulkTestId || "",
-            question: "",
-            optionA: "",
-            optionB: "",
-            optionC: "",
-            optionD: "",
-            correctAnswer: "A",
-            explanation: "",
+            category: effectiveBulkCategory, subject: effectiveBulkSubject,
+            difficulty: bulkDifficulty, marks: 1, testId: targetTestId,
+            question: "", optionA: "", optionB: "", optionC: "", optionD: "",
+            correctAnswer: "A", explanation: "",
           };
-
           for (const line of lines) {
-            // Format 1: Q: / Q1: / Q1) prefix
-            if (/^Q\d*[\s.:)：\)]/i.test(line)) {
-              q.question = line.replace(/^Q\d*[\s.:)：\)]+/i, "").trim();
-            }
-            // Format 2: 1. / 1) / 1: numbered questions
-            else if (/^\d+[\s.:)\]]/.test(line) && !q.question) {
-              q.question = line.replace(/^\d+[\s.:)\]]+/, "").trim();
-            }
-            // Format 1: Q: prefix (simple)
-            else if (/^Q[\s:：]/i.test(line) && !q.question) {
-              q.question = line.replace(/^Q[\s:：]+/i, "").trim();
-            }
-            // Option A — Format 1: A: or Format 2: a)
-            else if (/^[Aa][\s.:)：)]/.test(line) && !/^Ans/i.test(line) && !/^Answer/i.test(line)) {
-              q.optionA = line.replace(/^[Aa][\s.:)：)]+/, "").trim();
-            }
-            // Option B
-            else if (/^[Bb][\s.:)：)]/.test(line)) {
-              q.optionB = line.replace(/^[Bb][\s.:)：)]+/, "").trim();
-            }
-            // Option C
-            else if (/^[Cc][\s.:)：)]/.test(line)) {
-              q.optionC = line.replace(/^[Cc][\s.:)：)]+/, "").trim();
-            }
-            // Option D
-            else if (/^[Dd][\s.:)：)]/.test(line)) {
-              q.optionD = line.replace(/^[Dd][\s.:)：)]+/, "").trim();
-            }
-            // Answer: Ans: or Answer:
-            else if (/^Ans[\s.:：)]/i.test(line) || /^Answer[\s.:：)]/i.test(line)) {
-              const ans = line.replace(/^(Ans|Answer)[\s.:：)]+/i, "").trim().toUpperCase();
-              // Handle "B" or "B) New Delhi" — extract just the letter
+            if (/^Q\d*[\s.：)]/i.test(line)) { q.question = line.replace(/^Q\d*[\s.：)]+/i, "").trim(); }
+            else if (/^\d+[\s.)\]]/.test(line) && !q.question) { q.question = line.replace(/^\d+[\s.)\]]+/, "").trim(); }
+            else if (/^Q[\s：]/i.test(line) && !q.question) { q.question = line.replace(/^Q[\s：]+/i, "").trim(); }
+            else if (/^[Aa][\s.：)]/.test(line) && !/^Ans/i.test(line)) { q.optionA = line.replace(/^[Aa][\s.：)]+/, "").trim(); }
+            else if (/^[Bb][\s.：)]/.test(line)) { q.optionB = line.replace(/^[Bb][\s.：)]+/, "").trim(); }
+            else if (/^[Cc][\s.：)]/.test(line)) { q.optionC = line.replace(/^[Cc][\s.：)]+/, "").trim(); }
+            else if (/^[Dd][\s.：)]/.test(line)) { q.optionD = line.replace(/^[Dd][\s.：)]+/, "").trim(); }
+            else if (/^Ans[\s.：)]/i.test(line) || /^Answer[\s.：)]/i.test(line)) {
+              const ans = line.replace(/^(Ans|Answer)[\s.：)]+/i, "").trim().toUpperCase();
               const ansLetter = ans.charAt(0);
               if (["A", "B", "C", "D"].includes(ansLetter)) q.correctAnswer = ansLetter;
             }
-            // Explanation: Exp: or Explanation:
-            else if (/^Exp[\s.:：)]/i.test(line) || /^Explanation[\s.:：)]/i.test(line)) {
-              q.explanation = line.replace(/^(Exp|Explanation)[\s.:：)]+/i, "").trim();
+            else if (/^Exp[\s.：)]/i.test(line) || /^Explanation[\s.：)]/i.test(line)) {
+              q.explanation = line.replace(/^(Exp|Explanation)[\s.：)]+/i, "").trim();
             }
-            // Fallback: first unprocessed line becomes the question
-            else if (!q.question) {
-              q.question = line;
-            }
+            else if (!q.question) { q.question = line; }
           }
-
           if (q.question && q.optionA && q.optionB && q.optionC && q.optionD) {
             questionsList.push(q);
           } else {
-            parseErrors.push(`Block ${i + 1}: Missing question or options (Q:${!!q.question} A:${!!q.optionA} B:${!!q.optionB} C:${!!q.optionC} D:${!!q.optionD})`);
+            parseErrors.push(`Block ${i + 1}: Missing fields`);
           }
         }
       }
@@ -2114,54 +1994,31 @@ function QuestionsAdmin() {
         return;
       }
 
-      // Enforce question count limit for the selected test/sub-test
-      if (bulkTestId && bulkTitleId) {
-        // Check if it's a sub-test
-        const parentData = getSelectedTestData(bulkTestType, bulkTitleId);
-        const subTest = parentData?.subTests?.find((st: any) => st.id === bulkTestId);
-        
-        if (subTest) {
-          // Sub-test limit enforcement
-          const totalQ = subTest.totalQuestions || 0;
-          if (totalQ > 0) {
-            const alreadyUploaded = questions.filter((q: any) => q.testId === bulkTestId).length;
-            const remaining = totalQ - alreadyUploaded;
-            if (remaining <= 0) {
-              showToast(`"${subTest.title}" already has all ${totalQ} questions! Cannot upload more.`, "error");
-              setBulkImporting(false);
-              return;
-            }
-            if (questionsList.length > remaining) {
-              showToast(`Only ${remaining} questions remaining for "${subTest.title}" (total: ${totalQ}, uploaded: ${alreadyUploaded}). You tried to upload ${questionsList.length}.`, "error");
-              setBulkImporting(false);
-              return;
-            }
+      // Enforce question count limit
+      if (targetTestId) {
+        const test = getActiveTest();
+        const subTest = activeSubTestId ? test?.subTests?.find((st: any) => st.id === activeSubTestId) : null;
+        const limitQ = subTest ? (subTest.totalQuestions || 0) : (test?.questions || test?.totalQuestions || 0);
+        if (limitQ > 0) {
+          const alreadyUploaded = getQuestionCountForTest(targetTestId);
+          const remaining = limitQ - alreadyUploaded;
+          if (remaining <= 0) {
+            showToast(`Already has all ${limitQ} questions!`, "error");
+            setBulkImporting(false);
+            return;
           }
-        } else if (parentData) {
-          // Parent test limit enforcement
-          const totalQ = parentData.questions || parentData.totalQuestions || parentData.totalTests || 0;
-          if (totalQ > 0) {
-            const alreadyUploaded = getQuestionCountForTest(bulkTestId);
-            const remaining = totalQ - alreadyUploaded;
-            if (remaining <= 0) {
-              showToast(`This test already has all ${totalQ} questions! Cannot upload more.`, "error");
-              setBulkImporting(false);
-              return;
-            }
-            if (questionsList.length > remaining) {
-              showToast(`Only ${remaining} questions remaining (total: ${totalQ}, uploaded: ${alreadyUploaded}). You tried to upload ${questionsList.length}.`, "error");
-              setBulkImporting(false);
-              return;
-            }
+          if (questionsList.length > remaining) {
+            showToast(`Only ${remaining} questions remaining. You tried to upload ${questionsList.length}.`, "error");
+            setBulkImporting(false);
+            return;
           }
         }
       }
 
-      // Import all questions
       const result = await adminImportCollection("questions", questionsList);
       const imported = result?.imported || 0;
       let msg = `${imported} questions imported!`;
-      if (parseErrors.length > 0) msg += ` (${parseErrors.length} skipped due to errors)`;
+      if (parseErrors.length > 0) msg += ` (${parseErrors.length} skipped)`;
       showToast(msg, "success");
       setBulkDialogOpen(false);
       setBulkText("");
@@ -2172,161 +2029,287 @@ function QuestionsAdmin() {
     setBulkImporting(false);
   };
 
-  // Filtered questions by search AND selected test
-  const filteredQuestions = questions.filter(q => {
-    // Filter by selected test/title if any
-    if (selectedTitleId && selectedTitleId !== "none") {
-      // Include questions matching parent test ID or any sub-test ID
-      const testData = getSelectedTestData(selectedTestType, selectedTitleId);
-      const subTestIds = testData?.subTests?.map((st: any) => st.id) || [];
-      const matchesTest = q.testId === selectedTitleId || subTestIds.includes(q.testId);
-      if (!matchesTest) return false;
-    }
-    // Filter by search term
-    return Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()));
-  });
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+  // Open add question dialog with auto-assigned testId
+  const openAddDialog = () => {
+    setEditingItem(null);
+    const testId = activeSubTestId || activeTestId || "";
+    setFormData({
+      question: "", optionA: "", optionB: "", optionC: "", optionD: "",
+      correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK",
+      difficulty: "medium", marks: 1, testId
     });
+    setCustomCategory("");
+    setCustomSubject("");
+    setDialogOpen(true);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredQuestions.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    setBulkActionLoading(true);
-    try {
-      for (const id of selectedIds) {
-        await adminDeleteDoc("questions", id);
-      }
-      showToast(`${selectedIds.size} questions deleted!`, "success");
-      setSelectedIds(new Set());
-      setBulkDeleteDialogOpen(false);
-      loadQuestions();
-    } catch (e: any) {
-      showToast(`Bulk delete failed: ${e.message}`, "error");
-    }
-    setBulkActionLoading(false);
-  };
-
-  const handleBulkEdit = async () => {
-    if (selectedIds.size === 0 || !bulkEditField) return;
-    setBulkActionLoading(true);
-    try {
-      for (const id of selectedIds) {
-        await adminUpdateDoc("questions", id, { [bulkEditField]: bulkEditValue });
-      }
-      showToast(`${selectedIds.size} questions updated!`, "success");
-      setSelectedIds(new Set());
-      setBulkEditDialogOpen(false);
-      setBulkEditField("");
-      setBulkEditValue("");
-      loadQuestions();
-    } catch (e: any) {
-      showToast(`Bulk edit failed: ${e.message}`, "error");
-    }
-    setBulkActionLoading(false);
-  };
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div>;
+  }
 
   return (
     <div>
+      {/* Header with breadcrumb */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
             <FileQuestion className="w-6 h-6 text-white" />
           </div>
-          <div><h2 className="text-2xl font-black text-ev-navy">Questions</h2><p className="text-gray-500 text-sm">Manage question bank • {questions.length} questions</p></div>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-400 mb-0.5">
+              <button onClick={() => { setNavLevel("types"); setActiveTestType(""); setActiveTestId(""); setActiveSubTestId(""); }} className="hover:text-ev-orange transition-colors">Questions</button>
+              {activeTestType && <><ChevronRight className="w-3 h-3" /><button onClick={() => { setNavLevel("tests"); setActiveTestId(""); setActiveSubTestId(""); }} className="hover:text-ev-orange transition-colors">{getTestTypeLabel(activeTestType)}</button></>}
+              {activeTestId && <><ChevronRight className="w-3 h-3" /><button onClick={goBack} className="hover:text-ev-orange transition-colors truncate max-w-[150px]">{getActiveTest()?.title || "Test"}</button></>}
+              {activeSubTestId && <><ChevronRight className="w-3 h-3" /><span className="text-ev-navy font-semibold truncate max-w-[150px]">{getActiveSubTest()?.title || "Sub-Test"}</span></>}
+            </div>
+            <h2 className="text-2xl font-black text-ev-navy">
+              {navLevel === "types" ? "Questions" : navLevel === "tests" ? getTestTypeLabel(activeTestType) : navLevel === "subtests" ? (getActiveTest()?.title || "Test") : (getActiveSubTest()?.title || getActiveTest()?.title || "Questions")}
+            </h2>
+            <p className="text-gray-500 text-sm">{questions.length} total questions</p>
+          </div>
         </div>
-        <button onClick={() => {
-          setEditingItem(null);
-          setFormData({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK", difficulty: "medium", marks: 1, testId: "" });
-          setCustomCategory("");
-          setCustomSubject("");
-          setSelectedTestType("");
-          setSelectedTitleId("");
-          setDialogOpen(true);
-        }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
-        <button onClick={() => { loadCategoriesIntoGlobals(); setBulkTestType(""); setBulkTitleId(""); setBulkTestId(""); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
+        <div className="flex items-center gap-2">
+          {navLevel !== "types" && (
+            <button onClick={goBack} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm flex items-center gap-1.5 hover:bg-gray-200 transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
+          {navLevel === "questions" && (
+            <>
+              <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
+              <button onClick={() => { setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Search + Bulk Actions Bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-          <input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
-            placeholder="Search questions..."
-          />
-        </div>
-        {selectedIds.size > 0 && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2">
-            <span className="text-sm font-bold text-ev-navy bg-blue-50 px-3 py-2 rounded-xl">{selectedIds.size} selected</span>
-            <button onClick={() => setBulkEditDialogOpen(true)} className="px-3 py-2 rounded-xl bg-blue-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-blue-600 transition-colors">
-              <Edit className="w-3.5 h-3.5" /> Bulk Edit
-            </button>
-            <button onClick={() => setBulkDeleteDialogOpen(true)} className="px-3 py-2 rounded-xl bg-red-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedIds.size})
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition-colors">
-              <X className="w-3.5 h-3.5" /> Clear
-            </button>
-          </motion.div>
-        )}
-      </div>
-
-      {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div> : filteredQuestions.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-lg"><FileQuestion className="w-10 h-10 text-white" /></div>
-          <h3 className="text-lg font-bold text-ev-navy mb-2">No Questions</h3>
-          <p className="text-gray-500 text-sm">Add questions to build your question bank.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead className="w-10">
-                <input type="checkbox" checked={filteredQuestions.length > 0 && selectedIds.size === filteredQuestions.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
-              </TableHead>
-              <TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy">Total Q</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {filteredQuestions.map(q => {
-                const isSelected = selectedIds.has(q.id);
-                return (
-                <TableRow key={q.id} className={isSelected ? "bg-blue-50/50" : ""}>
-                  <TableCell>
-                    <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(q.id)} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
-                  </TableCell>
-                  <TableCell className="max-w-[300px] truncate font-medium">{q.question}</TableCell>
-                  <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
-                  <TableCell>{q.subject}</TableCell>
-                  <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
-                  <TableCell><span className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">{q.marks || 1}</span></TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => { setEditingItem(q); const catInList = EXAM_CATEGORIES.some(c => c.value === q.category); const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject); setFormData({ question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD, correctAnswer: q.correctAnswer, explanation: q.explanation || "", category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others", difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || "" }); setCustomCategory(catInList ? "" : q.category); setCustomSubject(subInList ? "" : q.subject); setDialogOpen(true); }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => { setDeletingId(q.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-              })}
-            </TableBody>
-          </Table>
+      {/* LEVEL 1: TEST TYPES */}
+      {navLevel === "types" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {TEST_TYPE_OPTIONS.map(tt => {
+            const tests = getTestsForType(tt.value);
+            const totalQ = tests.reduce((sum: number, t: any) => {
+              const direct = getQuestionCountForTest(t.id);
+              const subQ = (t.subTests || []).reduce((s: number, st: any) => s + getQuestionCountForTest(st.id), 0);
+              return sum + direct + subQ;
+            }, 0);
+            const Icon = tt.icon;
+            return (
+              <div key={tt.value} onClick={() => navigateToTests(tt.value)} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-ev-orange/30 transition-all active:scale-[0.98] group">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${tt.color} flex items-center justify-center shadow-lg mb-4 group-hover:scale-105 transition-transform`}>
+                  <Icon className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-ev-navy mb-1">{tt.label}</h3>
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <span>{tests.length} tests</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="font-bold text-ev-orange">{totalQ} questions</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* LEVEL 2: TESTS LIST */}
+      {navLevel === "tests" && (
+        <div className="space-y-3">
+          {getTestsForType(activeTestType).map((test: any) => {
+            const directQ = getQuestionCountForTest(test.id);
+            const subTestQ = (test.subTests || []).reduce((sum: number, st: any) => sum + getQuestionCountForTest(st.id), 0);
+            const totalQ = directQ + subTestQ;
+            const hasSubTests = test.subTests && test.subTests.length > 0;
+            const accessType = test.accessType || (test.isFree ? "free" : "premium");
+            return (
+              <div key={test.id} onClick={() => navigateToTest(test.id)} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-ev-orange/30 transition-all active:scale-[0.99]">
+                <div className="flex items-center gap-3">
+                  {test.imageUrl ? (
+                    <img src={test.imageUrl} alt={test.title} className="w-14 h-14 rounded-xl object-cover shadow-md flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
+                      <FileQuestion className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-ev-navy truncate">{test.title}</h4>
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${accessType === "free" ? "bg-green-50 text-ev-green" : "bg-amber-50 text-amber-600"}`}>{accessType === "free" ? "FREE" : "PREMIUM"}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
+                      <span className="font-bold text-ev-orange">{totalQ} questions</span>
+                      {hasSubTests && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 font-bold text-xs">
+                          <Grid3X3 className="w-3 h-3" /> {test.subTests.length} sub-tests
+                        </span>
+                      )}
+                      {test.category && <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs">{test.category}</span>}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                </div>
+              </div>
+            );
+          })}
+          {getTestsForType(activeTestType).length === 0 && (
+            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+              <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-400 font-medium">No tests in this category yet</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LEVEL 3: SUB-TESTS LIST */}
+      {navLevel === "subtests" && (() => {
+        const test = getActiveTest();
+        if (!test) return null;
+        return (
+          <div className="space-y-3">
+            <div className="bg-white rounded-2xl p-4 border-2 border-ev-orange/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-ev-navy">{test.title}</h4>
+                  <p className="text-sm text-gray-500">{test.subTests?.length || 0} sub-tests • Click any sub-test to manage its questions</p>
+                </div>
+                <span className={`px-3 py-1 rounded-lg text-xs font-bold ${(test.accessType || "premium") === "free" ? "bg-green-50 text-ev-green" : "bg-amber-50 text-amber-600"}`}>{(test.accessType || "premium") === "free" ? "FREE" : "PREMIUM"}</span>
+              </div>
+            </div>
+            {(test.subTests || []).map((st: any, idx: number) => {
+              const stQ = getQuestionCountForTest(st.id);
+              const stTotal = st.totalQuestions || 0;
+              const stIsFull = stTotal > 0 && stQ >= stTotal;
+              const pct = stTotal > 0 ? Math.min(100, (stQ / stTotal) * 100) : 0;
+              return (
+                <div key={st.id} onClick={() => navigateToSubTest(st.id)} className={`bg-white rounded-2xl p-4 border-2 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-[0.99] ${stIsFull ? "border-red-200 hover:border-red-300" : "border-gray-100 hover:border-ev-orange/30"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${stIsFull ? "bg-red-100 text-red-600" : "bg-ev-navy/10 text-ev-navy"}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                        {stIsFull && <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-600 text-xs font-bold">FULL</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span className="font-bold text-ev-orange">{stQ} questions</span>
+                        {stTotal > 0 && <span>of {stTotal}</span>}
+                        {st.duration > 0 && <span>⏱️ {st.duration} min</span>}
+                        {st.subject && <span>📖 {st.subject}</span>}
+                      </div>
+                      {stTotal > 0 && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div className={`h-1.5 rounded-full transition-all ${stIsFull ? "bg-red-500" : stQ > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5 text-right">{stQ}/{stTotal} ({Math.round(pct)}%)</p>
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* LEVEL 4: QUESTIONS LIST */}
+      {navLevel === "questions" && (() => {
+        const filtered = getFilteredQuestions();
+        const currentTargetId = activeSubTestId || activeTestId;
+        const currentTarget = getActiveSubTest() || getActiveTest();
+        const currentQCount = getQuestionCountForTest(currentTargetId);
+        const limitQ = currentTarget?.totalQuestions || currentTarget?.questions || 0;
+        const isFull = limitQ > 0 && currentQCount >= limitQ;
+        const pct = limitQ > 0 ? Math.min(100, (currentQCount / limitQ) * 100) : 0;
+
+        return (
+          <div>
+            {currentTarget && (
+              <div className={`rounded-xl p-4 border-2 mb-4 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-bold text-ev-navy text-sm">
+                      {activeSubTestId ? getActiveSubTest()?.title : getActiveTest()?.title}
+                    </h4>
+                    <p className="text-xs text-gray-500">
+                      {currentQCount}{limitQ > 0 ? `/${limitQ}` : ""} questions uploaded
+                      {activeSubTestId && getActiveSubTest()?.duration ? ` • ⏱️ ${getActiveSubTest()!.duration} min` : ""}
+                      {activeSubTestId && getActiveSubTest()?.subject ? ` • 📖 ${getActiveSubTest()!.subject}` : ""}
+                    </p>
+                  </div>
+                  {isFull && <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-bold">⚠️ FULL</span>}
+                </div>
+                {limitQ > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : currentQCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="relative mb-4">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm" placeholder="Search questions..." />
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-400 font-medium mb-2">No questions yet</p>
+                <p className="text-gray-400 text-sm mb-4">Add questions using the button above or bulk import</p>
+                <button onClick={openAddDialog} className="px-4 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg"><Plus className="w-4 h-4 inline mr-1" /> Add Question</button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead className="font-semibold text-ev-navy">#</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Question</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Category</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Subject</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Difficulty</TableHead>
+                    <TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {filtered.map((q: any, idx: number) => (
+                      <TableRow key={q.id}>
+                        <TableCell className="text-xs text-gray-400 font-bold">{idx + 1}</TableCell>
+                        <TableCell className="max-w-[300px] truncate font-medium">{q.question}</TableCell>
+                        <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
+                        <TableCell>{q.subject}</TableCell>
+                        <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => {
+                              setEditingItem(q);
+                              const catInList = EXAM_CATEGORIES.some(c => c.value === q.category);
+                              const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject);
+                              setFormData({
+                                question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD,
+                                correctAnswer: q.correctAnswer, explanation: q.explanation || "",
+                                category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others",
+                                difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || ""
+                              });
+                              setCustomCategory(catInList ? "" : q.category);
+                              setCustomSubject(subInList ? "" : q.subject);
+                              setDialogOpen(true);
+                            }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                            <button onClick={() => { setDeletingId(q.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ADD/EDIT QUESTION DIALOG */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingItem ? "Edit Question" : "Add Question"}</DialogTitle></DialogHeader>
@@ -2345,44 +2328,22 @@ function QuestionsAdmin() {
             </div>
             {(formData.category === "Others" || formData.subject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
-                {formData.category === "Others" && (
-                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
-                )}
-                {formData.subject === "Others" && (
-                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={customSubject} onChange={e => setCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
-                )}
+                {formData.category === "Others" && <div><Label className="font-medium">Custom Category *</Label><Input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Custom category..." /></div>}
+                {formData.subject === "Others" && <div><Label className="font-medium">Custom Subject *</Label><Input value={customSubject} onChange={e => setCustomSubject(e.target.value)} placeholder="Custom subject..." /></div>}
               </div>
             )}
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Difficulty</Label><Select value={formData.difficulty || "medium"} onValueChange={v => setFormData({ ...formData, difficulty: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
               <div><Label className="font-medium">Marks</Label><Input type="number" value={formData.marks || 1} onChange={e => setFormData({ ...formData, marks: Number(e.target.value) })} /></div>
             </div>
-            {/* Test Type + Title Selector */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="font-medium">Test Type</Label>
-                <Select value={selectedTestType} onValueChange={v => { setSelectedTestType(v); setSelectedTitleId(""); setFormData({ ...formData, testId: "" }); }}>
-                  <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— No specific test —</SelectItem>
-                    {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            {(activeSubTestId || activeTestId) && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs">
+                <span className="font-bold text-blue-700">Auto-assigned to:</span>{" "}
+                <span className="text-blue-600">
+                  {activeSubTestId ? `${getActiveTest()?.title} → ${getActiveSubTest()?.title}` : getActiveTest()?.title}
+                </span>
               </div>
-              {selectedTestType && selectedTestType !== "none" && (
-                <div>
-                  <Label className="font-medium">Select Title</Label>
-                  <Select value={selectedTitleId} onValueChange={v => { setSelectedTitleId(v); setFormData({ ...formData, testId: v }); }}>
-                    <SelectTrigger><SelectValue placeholder={`Select ${TEST_TYPE_OPTIONS.find(t => t.value === selectedTestType)?.label || "test"}...`} /></SelectTrigger>
-                    <SelectContent>
-                      {getTestsForType(selectedTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-            {/* Test Info Card */}
-            {selectedTitleId && <TestInfoCard testType={selectedTestType} titleId={selectedTitleId} onSubTestSelect={(subId) => setFormData({ ...formData, testId: subId })} selectedSubTestId={formData.testId !== selectedTitleId ? formData.testId : undefined} />}
+            )}
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2392,110 +2353,9 @@ function QuestionsAdmin() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Question?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Edit Dialog */}
-      <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Bulk Edit Questions</DialogTitle>
-            <DialogDescription>Update a field for {selectedIds.size} selected question(s).</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="font-medium">Field to Update</Label>
-              <Select value={bulkEditField} onValueChange={setBulkEditField}>
-                <SelectTrigger><SelectValue placeholder="Select field..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="category">Category</SelectItem>
-                  <SelectItem value="subject">Subject</SelectItem>
-                  <SelectItem value="difficulty">Difficulty</SelectItem>
-                  <SelectItem value="marks">Marks</SelectItem>
-                  <SelectItem value="testId">Assign to Test</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {bulkEditField && (
-              <div>
-                <Label className="font-medium">New Value</Label>
-                {bulkEditField === "category" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
-                    <SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : bulkEditField === "subject" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select subject..." /></SelectTrigger>
-                    <SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : bulkEditField === "difficulty" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select difficulty..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : bulkEditField === "marks" ? (
-                  <Input type="number" value={bulkEditValue} onChange={e => setBulkEditValue(Number(e.target.value))} placeholder="Enter marks" />
-                ) : bulkEditField === "testId" ? (
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="font-medium">Test Type</Label>
-                      <Select value={bulkTestType} onValueChange={v => { setBulkTestType(v); setBulkTitleId(""); setBulkEditValue(""); }}>
-                        <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— No specific test —</SelectItem>
-                          {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {bulkTestType && bulkTestType !== "none" && (
-                      <div>
-                        <Label className="font-medium">Select Title</Label>
-                        <Select value={bulkTitleId} onValueChange={v => { setBulkTitleId(v); setBulkEditValue(v); }}>
-                          <SelectTrigger><SelectValue placeholder="Select title..." /></SelectTrigger>
-                          <SelectContent>
-                            {getTestsForType(bulkTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Input value={bulkEditValue || ""} onChange={e => setBulkEditValue(e.target.value)} placeholder="Enter value..." />
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkEdit} disabled={!bulkEditField || bulkActionLoading} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
-              Update {selectedIds.size} Items
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Delete Dialog */}
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedIds.size} Questions?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone. {selectedIds.size} question(s) will be permanently deleted.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkActionLoading} className="bg-red-600 text-white hover:bg-red-700">
-              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Delete All ({selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk Import Dialog */}
@@ -2503,211 +2363,67 @@ function QuestionsAdmin() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Import Questions</DialogTitle>
-            <DialogDescription>Upload a text file or paste questions in the format below.</DialogDescription>
+            <DialogDescription>
+              Questions will be added to: <span className="font-bold text-ev-navy">{activeSubTestId ? `${getActiveTest()?.title} → ${getActiveSubTest()?.title}` : getActiveTest()?.title || "current test"}</span>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Category/Subject/Difficulty selectors */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="font-medium">Category</Label>
-                <Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Subject</Label>
-                <Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Difficulty</Label>
-                <Select value={bulkDifficulty} onValueChange={setBulkDifficulty}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="easy">Easy</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="hard">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Test Type</Label>
-                <Select value={bulkTestType} onValueChange={v => { setBulkTestType(v); setBulkTitleId(""); setBulkTestId(""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— No specific test —</SelectItem>
-                    {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              {bulkTestType && bulkTestType !== "none" ? (
-                <div>
-                  <Label className="font-medium">Select Title</Label>
-                  <Select value={bulkTitleId} onValueChange={v => { setBulkTitleId(v); setBulkTestId(v); }}>
-                    <SelectTrigger><SelectValue placeholder={`Select ${TEST_TYPE_OPTIONS.find(t => t.value === bulkTestType)?.label || "test"}...`} /></SelectTrigger>
-                    <SelectContent>
-                      {getTestsForType(bulkTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div>
-                  <Label className="font-medium">Difficulty</Label>
-                  <Select value={bulkDifficulty} onValueChange={setBulkDifficulty}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div><Label className="font-medium">Category</Label><Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Subject</Label><Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Difficulty</Label><Select value={bulkDifficulty} onValueChange={setBulkDifficulty}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
             </div>
-            {/* Test Info Card for Bulk Import */}
-            {bulkTitleId && <TestInfoCard testType={bulkTestType} titleId={bulkTitleId} onSubTestSelect={(subId) => setBulkTestId(subId)} selectedSubTestId={bulkTestId !== bulkTitleId ? bulkTestId : undefined} />}
             {(bulkCategory === "Others" || bulkSubject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
-                {bulkCategory === "Others" && (
-                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={bulkCustomCategory} onChange={e => setBulkCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
-                )}
-                {bulkSubject === "Others" && (
-                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={bulkCustomSubject} onChange={e => setBulkCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
-                )}
+                {bulkCategory === "Others" && <div><Label className="font-medium">Custom Category *</Label><Input value={bulkCustomCategory} onChange={e => setBulkCustomCategory(e.target.value)} placeholder="Custom category..." /></div>}
+                {bulkSubject === "Others" && <div><Label className="font-medium">Custom Subject *</Label><Input value={bulkCustomSubject} onChange={e => setBulkCustomSubject(e.target.value)} placeholder="Custom subject..." /></div>}
               </div>
             )}
-
-            {/* File Upload Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="font-semibold text-ev-navy">Upload Text File (.txt)</Label>
-                <button
-                  onClick={() => {
-                    const sampleText = `Q: What is the capital of India?
-A: Mumbai
-B: New Delhi
-C: Kolkata
-D: Chennai
-Ans: B
-Exp: New Delhi is the capital of India
-
-Q: Which planet is known as the Red Planet?
-A: Venus
-B: Jupiter
-C: Mars
-D: Saturn
-Ans: C
-Exp: Mars appears red due to iron oxide on its surface
-
-Q: Who wrote the Indian national anthem?
-A: Rabindranath Tagore
-B: Mahatma Gandhi
-C: Jawaharlal Nehru
-D: Subhas Chandra Bose
-Ans: A
-Exp: Jana Gana Mana was written by Rabindranath Tagore`;
-                    const blob = new Blob([sampleText], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "sample_questions.txt";
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download Sample File
-                </button>
+                <button onClick={() => {
+                  const sampleText = `Q: What is the capital of India?\nA: Mumbai\nB: New Delhi\nC: Kolkata\nD: Chennai\nAns: B\nExp: New Delhi is the capital of India\n\nQ: Which planet is known as the Red Planet?\nA: Venus\nB: Jupiter\nC: Mars\nD: Saturn\nAns: C\nExp: Mars appears red due to iron oxide`;
+                  const blob = new Blob([sampleText], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = "sample_questions.txt"; a.click();
+                  URL.revokeObjectURL(url);
+                }} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700"><Download className="w-3.5 h-3.5" /> Download Sample</button>
               </div>
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all group">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <FileUp className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors mb-2" />
                   <p className="text-sm text-gray-500 group-hover:text-blue-600 font-medium">Click to upload .txt file</p>
-                  <p className="text-xs text-gray-400 mt-1">or drag & drop</p>
                 </div>
-                <input
-                  type="file"
-                  accept=".txt,.text"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const text = ev.target?.result as string;
-                      if (text) setBulkText(text);
-                    };
-                    reader.readAsText(file);
-                    e.target.value = ""; // reset so same file can be re-uploaded
-                  }}
-                />
+                <input type="file" accept=".txt,.text" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => { const text = ev.target?.result as string; if (text) setBulkText(text); };
+                  reader.readAsText(file); e.target.value = "";
+                }} />
               </label>
             </div>
-
-            {/* Format example - collapsible */}
             <details className="group">
               <summary className="cursor-pointer text-sm font-semibold text-gray-600 hover:text-ev-navy flex items-center gap-2">
-                <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                View Format Guide
+                <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" /> View Format Guide
               </summary>
-              <div className="mt-3 bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-600 border border-gray-200 space-y-3">
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 1 — Q/A/B/C/D/Ans/Exp:</p>
-                  <p>Q: What is the capital of India?</p>
-                  <p>A: Mumbai</p>
-                  <p>B: New Delhi</p>
-                  <p>C: Kolkata</p>
-                  <p>D: Chennai</p>
-                  <p>Ans: B</p>
-                  <p>Exp: New Delhi is the capital of India</p>
-                </div>
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 2 — Numbered questions:</p>
-                  <p>1. What is the capital of India?</p>
-                  <p>a) Mumbai</p>
-                  <p>b) New Delhi</p>
-                  <p>c) Kolkata</p>
-                  <p>d) Chennai</p>
-                  <p>Answer: b</p>
-                  <p>Explanation: New Delhi is the capital</p>
-                </div>
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 3 — Per-line CSV style:</p>
-                  <p>What is the capital of India? | Mumbai | New Delhi | Kolkata | Chennai | B | New Delhi is the capital</p>
-                </div>
-                <p className="font-sans text-gray-500">Separate each question with a blank line. Exp/Explanation is optional.</p>
+              <div className="mt-3 bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-600 border border-gray-200 space-y-2">
+                <p className="font-sans font-bold text-gray-700">Format — Q/A/B/C/D/Ans/Exp:</p>
+                <p>Q: What is the capital?</p><p>A: Mumbai</p><p>B: New Delhi</p><p>C: Kolkata</p><p>D: Chennai</p><p>Ans: B</p><p>Exp: New Delhi is the capital</p>
+                <p className="font-sans text-gray-500 mt-2">Or pipe-separated: Question | OptA | OptB | OptC | OptD | Answer | Explanation</p>
               </div>
             </details>
-
-            {/* Text area */}
             <div>
               <Label className="font-medium text-gray-600">Or paste questions below:</Label>
-              <Textarea
-                value={bulkText}
-                onChange={e => setBulkText(e.target.value)}
-                placeholder="Paste questions here or upload a file above..."
-                rows={10}
-                className="font-mono text-sm mt-1"
-              />
-              {bulkText.trim() && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {bulkText.trim().split(/\n\s*\n/).filter(b => b.trim()).length} question block(s) detected
-                </p>
-              )}
+              <Textarea value={bulkText} onChange={e => setBulkText(e.target.value)} placeholder="Paste questions here..." rows={8} className="font-mono text-sm mt-1" />
+              {bulkText.trim() && <p className="text-xs text-gray-400 mt-1">{bulkText.trim().split(/\n\s*\n/).filter(b => b.trim()).length} question block(s) detected</p>}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBulkDialogOpen(false); setBulkText(""); }}>Cancel</Button>
             <Button onClick={handleBulkImport} disabled={!bulkText.trim() || bulkImporting} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-              {bulkImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-              Import Questions
+              {bulkImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}Import Questions
             </Button>
           </DialogFooter>
         </DialogContent>
