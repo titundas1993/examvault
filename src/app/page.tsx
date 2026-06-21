@@ -476,8 +476,10 @@ function AutoRotatingBanners() {
   const [banners, setBanners] = useState<BannerData[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
 
   // Real-time listener for banners
   useEffect(() => {
@@ -491,7 +493,6 @@ function AutoRotatingBanners() {
       setBanners(data);
     }, (error) => {
       console.error("Banner real-time error:", error);
-      // Fallback: fetch once
       getBanners().then(data => { if (data) setBanners(data); });
     });
     return () => unsubscribe();
@@ -514,25 +515,52 @@ function AutoRotatingBanners() {
     }
   }, [currentIndex]);
 
-  // Swipe handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    setIsPaused(true);
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = () => {
-    const diff = touchStartX.current - touchEndX.current;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0 && banners.length > 1) {
-        setCurrentIndex(prev => (prev + 1) % banners.length);
-      } else if (diff < 0 && banners.length > 1) {
-        setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length);
+  // Native touch handlers for reliable swipe in WebView (non-passive)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      isSwiping.current = false;
+      setIsPaused(true);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = touchStartX.current - e.touches[0].clientX;
+      const dy = touchStartY.current - e.touches[0].clientY;
+      // If horizontal swipe is dominant, prevent vertical scroll and mark as swiping
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+        isSwiping.current = true;
       }
-    }
-    setTimeout(() => setIsPaused(false), 3000);
-  };
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = touchStartX.current - endX;
+      if (Math.abs(diff) > 30 && banners.length > 1) {
+        isSwiping.current = true;
+        if (diff > 0) {
+          setCurrentIndex(prev => (prev + 1) % banners.length);
+        } else {
+          setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length);
+        }
+      }
+      setTimeout(() => setIsPaused(false), 3000);
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [banners.length]);
 
   const gradients = ["from-ev-navy to-blue-800", "from-ev-orange to-orange-700", "from-ev-gold to-yellow-600", "from-green-500 to-emerald-600", "from-purple-500 to-purple-600"];
 
@@ -540,19 +568,17 @@ function AutoRotatingBanners() {
 
   return (
     <div
+      ref={containerRef}
       className="relative overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       <div ref={scrollRef} className="flex" style={{ transform: `translateX(-${currentIndex * 100}%)`, transition: 'transform 0.4s ease' }}>
         {banners.map((b, i) => (
           <motion.div
             key={b.id || i}
             className={"min-w-full flex-shrink-0 rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"}
-            onClick={() => handleBannerClick(b, setView)}
+            onClick={() => { if (!isSwiping.current) handleBannerClick(b, setView); }}
           >
             <div>
               <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
@@ -622,8 +648,10 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
 
   // Auto-scroll every 3 seconds
   useEffect(() => {
@@ -634,25 +662,51 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
     return () => clearInterval(interval);
   }, [announcements.length, isPaused]);
 
-  // Swipe handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    setIsPaused(true);
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = () => {
-    const diff = touchStartX.current - touchEndX.current;
-    if (Math.abs(diff) > 50 && announcements.length > 1) {
-      if (diff > 0) {
-        setCurrentIndex(prev => (prev + 1) % announcements.length);
-      } else {
-        setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length);
+  // Native touch handlers for reliable swipe in WebView (non-passive)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      isSwiping.current = false;
+      setIsPaused(true);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = touchStartX.current - e.touches[0].clientX;
+      const dy = touchStartY.current - e.touches[0].clientY;
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+        isSwiping.current = true;
       }
-    }
-    setTimeout(() => setIsPaused(false), 2000);
-  };
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = touchStartX.current - endX;
+      if (Math.abs(diff) > 30 && announcements.length > 1) {
+        isSwiping.current = true;
+        if (diff > 0) {
+          setCurrentIndex(prev => (prev + 1) % announcements.length);
+        } else {
+          setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length);
+        }
+      }
+      setTimeout(() => setIsPaused(false), 2000);
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [announcements.length]);
 
   if (announcements.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-2">No announcements yet</p>;
@@ -662,11 +716,9 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
   return (
     <div
+      ref={containerRef}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       <AnimatePresence mode="wait">
         <motion.div
@@ -675,7 +727,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          onClick={() => handleAnnouncementClick(a, setView)}
+          onClick={() => { if (!isSwiping.current) handleAnnouncementClick(a, setView); }}
           className="cursor-pointer hover:bg-ev-orange/5 rounded-lg px-1 py-1.5 transition-colors"
         >
           <div className="flex items-center justify-between">
