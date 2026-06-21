@@ -10,6 +10,18 @@ on:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
         default: 'false'
+      admob_app_id:
+        description: 'AdMob App ID (e.g. ca-app-pub-XXXXX~YYYYY)'
+        required: false
+        default: 'ca-app-pub-3940256099942544~3347511713'
+      admob_banner_id:
+        description: 'AdMob Banner Ad Unit ID'
+        required: false
+        default: 'ca-app-pub-3940256099942544/6300978111'
+      admob_interstitial_id:
+        description: 'AdMob Interstitial Ad Unit ID'
+        required: false
+        default: 'ca-app-pub-3940256099942544/1033173712'
 
 permissions:
   contents: write
@@ -44,7 +56,10 @@ jobs:
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
-          echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
+          ADMOB_APP_ID="${{ github.event.inputs.admob_app_id }}"
+          ADMOB_BANNER_ID="${{ github.event.inputs.admob_banner_id }}"
+          ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
+          echo "Building for: $APP_URL (AAB: $BUILD_AAB, AdMob: $ADMOB_APP_ID)"
 
           # Create project directory structure
           mkdir -p android-project/app/src/main/java/com/examvault/app
@@ -148,16 +163,18 @@ jobs:
           dependencies {
               implementation 'androidx.core:core:1.15.0'
               implementation 'androidx.webkit:webkit:1.12.1'
+              implementation 'com.google.android.gms:play-services-ads:23.6.0'
           }
           EOF
 
-          # AndroidManifest.xml
-          cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
+          # AndroidManifest.xml — using unquoted heredoc so $ADMOB_APP_ID gets expanded
+          cat > android-project/app/src/main/AndroidManifest.xml << XMLEOF
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
@@ -166,6 +183,16 @@ jobs:
                   android:theme="@style/Theme.ExamVault"
                   android:usesCleartextTraffic="false"
                   android:networkSecurityConfig="@xml/network_security_config">
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="${ADMOB_APP_ID}" />
+                  <meta-data
+                      android:name="com.google.android.gms.ads.AD_MANAGER_APP"
+                      android:value="true" />
+                  <activity
+                      android:name="com.google.android.gms.ads.AdActivity"
+                      android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
+                      android:theme="@android:style/Theme.Translucent" />
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -214,17 +241,36 @@ jobs:
           import android.view.Window;
           import android.view.WindowManager;
           import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
           import android.net.Uri;
           import android.graphics.Color;
           import android.os.Build;
+          import android.util.Log;
+          import com.google.android.gms.ads.MobileAds;
+          import com.google.android.gms.ads.initialization.InitializationStatus;
+          import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
+          import com.google.android.gms.ads.AdRequest;
+          import com.google.android.gms.ads.AdSize;
+          import com.google.android.gms.ads.AdView;
+          import com.google.android.gms.ads.InterstitialAd;
+          import com.google.android.gms.ads.InterstitialAdLoadCallback;
+          import com.google.android.gms.ads.LoadAdError;
+          import com.google.android.gms.ads.FullScreenContentCallback;
+          import com.google.android.gms.ads.ShowPrivacyOptionsRequest;
 
           public class MainActivity extends Activity {
               private WebView webView;
               private View splashScreen;
+              private AdView adView;
+              private InterstitialAd interstitialAd;
               private static final String PREFS_NAME = "examvault_prefs";
               private static final String KEY_URL = "last_url";
               private String appUrl = "${APP_URL}";
+              private String admobBannerId = "${ADMOB_BANNER_ID}";
+              private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
               private boolean webViewReady = false;
+              private int navCount = 0;
+              private static final int INTERSTITIAL_INTERVAL = 3;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -233,9 +279,12 @@ jobs:
                   getWindow().setFlags(
                       WindowManager.LayoutParams.FLAG_FULLSCREEN,
                       WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  // Keep status bar hidden but allow space for banner ad at bottom
 
-                  FrameLayout container = new FrameLayout(this);
-                  setContentView(container);
+                  // Main layout: WebView on top, Banner Ad at bottom
+                  LinearLayout mainLayout = new LinearLayout(this);
+                  mainLayout.setOrientation(LinearLayout.VERTICAL);
+                  setContentView(mainLayout);
 
                   // === SPLASH SCREEN ===
                   splashScreen = new View(this) {
@@ -259,13 +308,40 @@ jobs:
                           canvas.drawText("Loading...", cx, cy + 150, paint);
                       }
                   };
-                  container.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
+
+                  // Container for WebView + splash (overlapping)
+                  FrameLayout webContainer = new FrameLayout(this);
+                  webContainer.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
 
                   // === WEBVIEW ===
                   webView = new WebView(this);
-                  container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+                  webContainer.addView(webView, new FrameLayout.LayoutParams(-1, -1));
                   webView.setVisibility(View.GONE);
                   webView.setBackgroundColor(Color.parseColor("#001A4B"));
+
+                  // Add WebView container to main layout (weight=1 so it takes remaining space)
+                  LinearLayout.LayoutParams webParams = new LinearLayout.LayoutParams(-1, 0, 1.0f);
+                  mainLayout.addView(webContainer, webParams);
+
+                  // === ADMOB BANNER AD ===
+                  MobileAds.initialize(this, new OnInitializationCompleteListener() {
+                      @Override
+                      public void onInitializationComplete(InitializationStatus status) {
+                          Log.d("ExamVault", "AdMob initialized");
+                      }
+                  });
+
+                  adView = new AdView(this);
+                  adView.setAdUnitId(admobBannerId);
+                  adView.setAdSize(AdSize.BANNER);
+                  LinearLayout.LayoutParams adParams = new LinearLayout.LayoutParams(-2, -2);
+                  adParams.gravity = android.view.Gravity.CENTER_HORIZONTAL;
+                  mainLayout.addView(adView, adParams);
+                  AdRequest adRequest = new AdRequest.Builder().build();
+                  adView.loadAd(adRequest);
+
+                  // Load interstitial ad
+                  loadInterstitialAd();
 
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
@@ -352,8 +428,10 @@ jobs:
                           result = result != null ? result.replace("\"", "") : "";
                           if ("exam_warning".equals(result)) {
                               // Warning dialog shown in JS
+                              onNavigationEvent();
                           } else if ("went_back".equals(result)) {
                               // done
+                              onNavigationEvent();
                           } else if ("at_home".equals(result)) {
                               showExitDialog();
                           } else {
@@ -375,6 +453,45 @@ jobs:
                       .show();
               }
 
+              // === ADMOB INTERSTITIAL AD ===
+              private void loadInterstitialAd() {
+                  AdRequest adRequest = new AdRequest.Builder().build();
+                  InterstitialAd.load(this, admobInterstitialId, adRequest,
+                      new InterstitialAdLoadCallback() {
+                          @Override
+                          public void onAdLoaded(InterstitialAd ad) {
+                              interstitialAd = ad;
+                              interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                                  @Override
+                                  public void onAdDismissedFullScreenContent() {
+                                      interstitialAd = null;
+                                      loadInterstitialAd(); // preload next
+                                  }
+                              });
+                          }
+                          @Override
+                          public void onAdFailedToLoad(LoadAdError error) {
+                              interstitialAd = null;
+                          }
+                      });
+              }
+
+              private void showInterstitialAd() {
+                  if (interstitialAd != null) {
+                      interstitialAd.show(this);
+                  } else {
+                      loadInterstitialAd();
+                  }
+              }
+
+              private void onNavigationEvent() {
+                  navCount++;
+                  if (navCount >= INTERSTITIAL_INTERVAL) {
+                      navCount = 0;
+                      showInterstitialAd();
+                  }
+              }
+
               private int recoveryAttemptCount = 0;
 
               @Override
@@ -389,6 +506,7 @@ jobs:
                       splashScreen.setVisibility(View.GONE);
                       webView.setVisibility(View.VISIBLE);
                   }
+                  if (adView != null) { adView.resume(); }
               }
 
               private void scheduleRecoveryCheck(final long delayMs) {
@@ -413,12 +531,14 @@ jobs:
 
               @Override
               protected void onPause() {
+                  if (adView != null) { adView.pause(); }
                   if (webView != null) webView.onPause();
                   super.onPause();
               }
 
               @Override
               protected void onDestroy() {
+                  if (adView != null) { adView.destroy(); }
                   if (webView != null) {
                       webView.stopLoading();
                       webView.destroy();
@@ -477,6 +597,8 @@ jobs:
           -keepclassmembers class * {
               @android.webkit.JavascriptInterface <methods>;
           }
+          -keep public class com.google.android.gms.ads.** { *; }
+          -keep public class com.google.ads.** { *; }
           EOF
 
           # gradle wrapper properties
