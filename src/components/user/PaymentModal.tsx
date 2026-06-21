@@ -179,7 +179,21 @@ export default function PaymentModal() {
         prefill: {
           name: user.name || "",
           email: user.email || "",
-          contact: "",
+          contact: (user as any)?.phone || "",
+        },
+        config: {
+          display: {
+            blocks: {
+              banks: ["SBI", "HDFC", "ICICI", "AXIS", "KOTAK", "PNB", "BOB"],
+            },
+          },
+        },
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: false,
         },
         notes: {
           userId: firebaseUser.uid,

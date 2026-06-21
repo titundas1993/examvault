@@ -51,6 +51,26 @@ export default function LoginScreen() {
   const [recaptchaKey, setRecaptchaKey] = useState(0); // forces new DOM element on change
   const recaptchaVerifierRef = useRef<any>(null);
 
+  // Auto OTP fill from Android SMS Retriever
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__EV_OTP_CALLBACK = (receivedOtp: string) => {
+        if (receivedOtp && receivedOtp.length === 6 && otpSent) {
+          setOtp(receivedOtp);
+        }
+      };
+      // Tell Android to start listening for SMS
+      if ((window as any).AndroidOtp?.requestOtp) {
+        (window as any).AndroidOtp.requestOtp();
+      }
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        delete (window as any).__EV_OTP_CALLBACK;
+      }
+    };
+  }, [otpSent]);
+
   // Resend OTP countdown timer
   useEffect(() => {
     if (resendTimer <= 0) return;

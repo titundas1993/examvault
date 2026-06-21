@@ -10,18 +10,6 @@ on:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
         default: 'false'
-      admob_app_id:
-        description: 'AdMob App ID (e.g. ca-app-pub-XXXXX~YYYYY)'
-        required: false
-        default: 'ca-app-pub-1742730064755213~7890219994'
-      admob_banner_id:
-        description: 'AdMob Banner Ad Unit ID'
-        required: false
-        default: 'ca-app-pub-1742730064755213/4499859652'
-      admob_interstitial_id:
-        description: 'AdMob Interstitial Ad Unit ID'
-        required: false
-        default: 'ca-app-pub-1742730064755213/5520307609'
 
 permissions:
   contents: write
@@ -56,10 +44,7 @@ jobs:
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
-          ADMOB_APP_ID="${{ github.event.inputs.admob_app_id }}"
-          ADMOB_BANNER_ID="${{ github.event.inputs.admob_banner_id }}"
-          ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
-          echo "Building for: $APP_URL (AAB: $BUILD_AAB, AdMob: $ADMOB_APP_ID)"
+          echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
 
           # Create project directory structure
           mkdir -p android-project/app/src/main/java/com/examvault/app
@@ -164,17 +149,18 @@ jobs:
               implementation 'androidx.core:core:1.15.0'
               implementation 'androidx.webkit:webkit:1.12.1'
               implementation 'com.google.android.gms:play-services-ads:23.6.0'
+              implementation 'com.google.android.gms:play-services-auth:21.0.0'
           }
           EOF
 
-          # AndroidManifest.xml — using unquoted heredoc so $ADMOB_APP_ID gets expanded
-          cat > android-project/app/src/main/AndroidManifest.xml << XMLEOF
+          # AndroidManifest.xml
+          cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-              <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+              <uses-permission android:name="android.permission.RECEIVE_SMS" />
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
@@ -183,16 +169,6 @@ jobs:
                   android:theme="@style/Theme.ExamVault"
                   android:usesCleartextTraffic="false"
                   android:networkSecurityConfig="@xml/network_security_config">
-                  <meta-data
-                      android:name="com.google.android.gms.ads.APPLICATION_ID"
-                      android:value="${ADMOB_APP_ID}" />
-                  <meta-data
-                      android:name="com.google.android.gms.ads.AD_MANAGER_APP"
-                      android:value="true" />
-                  <activity
-                      android:name="com.google.android.gms.ads.AdActivity"
-                      android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
-                      android:theme="@android:style/Theme.Translucent" />
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -220,11 +196,353 @@ jobs:
           </network-security-config>
           XMLEOF
 
-          # MainActivity.java — copy from repo template and replace variables
-          cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/app/MainActivity.java
-          sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
-          sed -i "s|\${ADMOB_BANNER_ID}|$ADMOB_BANNER_ID|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
-          sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
+          # MainActivity.java
+          cat > android-project/app/src/main/java/com/examvault/app/MainActivity.java << JAVAEOF
+          package com.examvault.app;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.DialogInterface;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebChromeClient;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebResourceError;
+          import android.webkit.WebResourceRequest;
+          import android.view.View;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.widget.FrameLayout;
+          import android.net.Uri;
+          import android.graphics.Color;
+          import android.os.Build;
+          import android.util.Log;
+          import com.google.android.gms.auth.api.phone.SmsRetriever;
+          import com.google.android.gms.auth.api.phone.SmsRetrieverClient;
+          import com.google.android.gms.tasks.OnFailureListener;
+          import com.google.android.gms.tasks.OnSuccessListener;
+          import com.google.android.gms.tasks.Task;
+          import android.content.BroadcastReceiver;
+          import android.content.IntentFilter;
+          import android.os.Handler;
+          import android.os.Looper;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              private View splashScreen;
+              private static final String PREFS_NAME = "examvault_prefs";
+              private static final String KEY_URL = "last_url";
+              private String appUrl = "${APP_URL}";
+              private boolean webViewReady = false;
+              private SmsBroadcastReceiver smsReceiver;
+              private Handler handler = new Handler(Looper.getMainLooper());
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+                  getWindow().setFlags(
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+                  FrameLayout container = new FrameLayout(this);
+                  setContentView(container);
+
+                  // === SPLASH SCREEN ===
+                  splashScreen = new View(this) {
+                      @Override
+                      protected void onDraw(android.graphics.Canvas canvas) {
+                          super.onDraw(canvas);
+                          canvas.drawColor(Color.parseColor("#001A4B"));
+                          android.graphics.Paint paint = new android.graphics.Paint();
+                          paint.setColor(Color.WHITE);
+                          paint.setTextSize(80);
+                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+                          paint.setTextAlign(android.graphics.Paint.Align.CENTER);
+                          int cx = getWidth() / 2;
+                          int cy = getHeight() / 2 - 40;
+                          canvas.drawText("EXAM", cx, cy, paint);
+                          paint.setColor(Color.parseColor("#EB6301"));
+                          canvas.drawText("VAULT", cx, cy + 90, paint);
+                          paint.setColor(Color.parseColor("#FEA216"));
+                          paint.setTextSize(28);
+                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL));
+                          canvas.drawText("Loading...", cx, cy + 150, paint);
+                      }
+                  };
+                  container.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
+
+                  // === WEBVIEW ===
+                  webView = new WebView(this);
+                  container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+                  webView.setVisibility(View.GONE);
+                  webView.setBackgroundColor(Color.parseColor("#001A4B"));
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                  settings.setAllowFileAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setSupportZoom(false);
+                  settings.setUseWideViewPort(true);
+                  settings.setLoadWithOverviewMode(true);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                  settings.setDatabasePath(getFilesDir().getPath() + "/databases");
+                  android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                  cookieManager.setAcceptCookie(true);
+                  cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                          String host = Uri.parse(url).getHost();
+                          if (host != null &&
+                              (host.contains("examvault") ||
+                               host.contains("vercel.app") ||
+                               host.contains("firebaseio.com") ||
+                               host.contains("googleapis.com") ||
+                               host.contains("firebaseapp.com"))) {
+                              return false;
+                          }
+                          try {
+                              view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                          } catch (Exception e) {}
+                          return true;
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          super.onPageFinished(view, url);
+                          webViewReady = true;
+                          splashScreen.setVisibility(View.GONE);
+                          webView.setVisibility(View.VISIBLE);
+                          view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
+                          SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                          prefs.edit().putString(KEY_URL, url).apply();
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                          super.onReceivedError(view, request, error);
+                      }
+                  });
+
+                  webView.setWebChromeClient(new WebChromeClient());
+
+                  // === OTP Auto-Fill: JS Interface + SMS Retriever ===
+                  webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
+
+                  // Start SMS Retriever for auto OTP
+                  startSmsRetriever();
+
+                  String urlToLoad = appUrl;
+                  if (savedInstanceState != null) {
+                      String savedUrl = savedInstanceState.getString(KEY_URL);
+                      if (savedUrl != null && !savedUrl.isEmpty()) {
+                          urlToLoad = savedUrl;
+                      }
+                  } else {
+                      Uri data = getIntent().getData();
+                      if (data != null) {
+                          urlToLoad = data.toString();
+                      }
+                  }
+                  webView.loadUrl(urlToLoad);
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle outState) {
+                  super.onSaveInstanceState(outState);
+                  if (webView != null && webView.getUrl() != null) {
+                      outState.putString(KEY_URL, webView.getUrl());
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView == null) { super.onBackPressed(); return; }
+                  webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { st.goBack(); return 'went_back'; } else if(st.currentView === 'home') { return 'at_home'; } else { st.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
+                      @Override
+                      public void onReceiveValue(String result) {
+                          result = result != null ? result.replace("\"", "") : "";
+                          if ("exam_warning".equals(result)) {
+                              // Warning dialog shown in JS
+                          } else if ("went_back".equals(result)) {
+                              // done
+                          } else if ("at_home".equals(result)) {
+                              showExitDialog();
+                          } else {
+                              if (webView.canGoBack()) { webView.goBack(); }
+                              else { showExitDialog(); }
+                          }
+                      }
+                  });
+              }
+
+              private void showExitDialog() {
+                  new AlertDialog.Builder(this)
+                      .setTitle("Exit ExamVault?")
+                      .setMessage("Are you sure you want to close the app?")
+                      .setPositiveButton("Exit", new DialogInterface.OnClickListener() {
+                          @Override public void onClick(DialogInterface d, int w) { finish(); }
+                      })
+                      .setNegativeButton("Cancel", null)
+                      .show();
+              }
+
+              private int recoveryAttemptCount = 0;
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (webView != null) {
+                      webView.onResume();
+                      if (!webViewReady) {
+                          recoveryAttemptCount = 0;
+                          scheduleRecoveryCheck(1500);
+                      }
+                      splashScreen.setVisibility(View.GONE);
+                      webView.setVisibility(View.VISIBLE);
+                  }
+              }
+
+              private void scheduleRecoveryCheck(final long delayMs) {
+                  if (webView == null || splashScreen == null) return;
+                  webView.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          if (webView == null) return;
+                          if (webView.getContentHeight() == 0) {
+                              recoveryAttemptCount++;
+                              SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                              String lastUrl = prefs.getString(KEY_URL, appUrl);
+                              webView.loadUrl(lastUrl);
+                              if (recoveryAttemptCount < 3) {
+                                  scheduleRecoveryCheck(3000);
+                              }
+                          }
+                          splashScreen.setVisibility(View.GONE);
+                          webView.setVisibility(View.VISIBLE);
+                      }
+                  }, delayMs);
+              }
+
+              @Override
+              protected void onPause() {
+                  if (webView != null) webView.onPause();
+                  super.onPause();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.stopLoading();
+                      webView.destroy();
+                      webView = null;
+                  }
+                  super.onDestroy();
+              }
+
+              @Override
+              protected void onNewIntent(Intent intent) {
+                  super.onNewIntent(intent);
+                  if (intent != null && intent.getData() != null) {
+                      String url = intent.getData().toString();
+                      if (webView != null) {
+                          webView.loadUrl(url);
+                      }
+                  }
+              }
+
+              // === SMS AUTO-READ FOR OTP ===
+              private void startSmsRetriever() {
+                  SmsRetrieverClient client = SmsRetriever.getClient(this);
+                  Task<Void> task = client.startSmsRetriever();
+                  task.addOnSuccessListener(new OnSuccessListener<Void>() {
+                      @Override
+                      public void onSuccess(Void aVoid) {
+                          Log.d("ExamVault", "SMS Retriever started");
+                          registerSmsReceiver();
+                      }
+                  });
+                  task.addOnFailureListener(new OnFailureListener() {
+                      @Override
+                      public void onFailure(Exception e) {
+                          Log.e("ExamVault", "SMS Retriever failed: " + e.getMessage());
+                      }
+                  });
+              }
+
+              private void registerSmsReceiver() {
+                  if (smsReceiver != null) {
+                      try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+                  }
+                  smsReceiver = new SmsBroadcastReceiver();
+                  IntentFilter filter = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
+                  registerReceiver(smsReceiver, filter);
+              }
+
+              private void deliverOtpToWebView(final String otp) {
+                  handler.post(new Runnable() {
+                      @Override
+                      public void run() {
+                          if (webView != null) {
+                              String js = "if(window.__EV_OTP_CALLBACK){window.__EV_OTP_CALLBACK('" + otp + "');}";
+                              webView.evaluateJavascript(js, null);
+                              Log.d("ExamVault", "OTP delivered to WebView: " + otp);
+                          }
+                      }
+                  });
+              }
+
+              // JS Interface for OTP communication
+              private class OtpWebInterface {
+                  @android.webkit.JavascriptInterface
+                  public void requestOtp() {
+                      startSmsRetriever();
+                  }
+              }
+
+              // Broadcast Receiver for SMS Retriever API
+              private class SmsBroadcastReceiver extends BroadcastReceiver {
+                  @Override
+                  public void onReceive(android.content.Context context, Intent intent) {
+                      if (SmsRetriever.SMS_RETRIEVED_ACTION.equals(intent.getAction())) {
+                          android.os.Bundle extras = intent.getExtras();
+                          if (extras == null) return;
+                          android.os.Bundle statusBundle = (android.os.Bundle) extras.get(SmsRetriever.EXTRA_SMS_MESSAGE);
+                          if (statusBundle == null) {
+                              // Fallback: try getting message directly
+                              String message = (String) extras.get(SmsRetriever.EXTRA_SMS_MESSAGE);
+                              if (message != null) {
+                                  extractAndDeliverOtp(message);
+                              }
+                              return;
+                          }
+                          String message = statusBundle.getString(SmsRetriever.EXTRA_SMS_MESSAGE);
+                          if (message != null) {
+                              extractAndDeliverOtp(message);
+                          }
+                      }
+                  }
+
+                  private void extractAndDeliverOtp(String message) {
+                      // Extract 6-digit OTP from SMS (common Firebase format)
+                      java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{6})");
+                      java.util.regex.Matcher matcher = pattern.matcher(message);
+                      if (matcher.find()) {
+                          String otp = matcher.group(1);
+                          deliverOtpToWebView(otp);
+                      }
+                  }
+              }
+          }
+          JAVAEOF
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -263,8 +581,6 @@ jobs:
           -keepclassmembers class * {
               @android.webkit.JavascriptInterface <methods>;
           }
-          -keep public class com.google.android.gms.ads.** { *; }
-          -keep public class com.google.ads.** { *; }
           EOF
 
           # gradle wrapper properties
