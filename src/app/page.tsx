@@ -1969,6 +1969,7 @@ function TestInfoScreen() {
   const lang = useAppStore(s => s.language);
   const [testData, setTestData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedSubTest, setSelectedSubTest] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTest() {
@@ -2094,14 +2095,61 @@ function TestInfoScreen() {
         )}
       </div>
 
-      {/* Start Test Button */}
-      <div className="px-4 mt-6">
-        <button
-          onClick={() => setView("exam")}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-        >
-          <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
-        </button>
+      {/* Sub-Tests List or Start Button */}
+      <div className="px-4 mt-4">
+        {testData.subTests && testData.subTests.length > 0 ? (
+          <div className="space-y-3">
+            <h3 className="font-bold text-ev-navy flex items-center gap-2">
+              <Grid3X3 className="w-4 h-4 text-ev-orange" />
+              {lang === "bn" ? "সাব-টেস্টসমূহ" : "Sub-Tests"} ({testData.subTests.length})
+            </h3>
+            {testData.subTests.map((st: any, idx: number) => {
+              const isSelected = selectedSubTest === st.id;
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setSelectedSubTest(st.id)}
+                  className={`w-full text-left bg-white rounded-2xl p-4 border-2 shadow-sm transition-all active:scale-[0.98] ${isSelected ? "border-ev-orange bg-ev-orange/5" : "border-gray-100 hover:border-gray-200"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${isSelected ? "bg-ev-orange text-white" : "bg-ev-navy/10 text-ev-navy"}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        {st.duration > 0 && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {st.duration} min</span>}
+                        {st.totalQuestions > 0 && <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {st.totalQuestions} Q</span>}
+                        {st.subject && <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> {st.subject}</span>}
+                      </div>
+                    </div>
+                    {isSelected && <CheckCircle className="w-5 h-5 text-ev-orange flex-shrink-0" />}
+                  </div>
+                  {st.description && <p className="text-xs text-gray-400 mt-2 ml-13">{st.description}</p>}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => {
+                if (selectedSubTest) {
+                  useAppStore.getState().setSelectedTest(selectedSubTest);
+                  setView("exam");
+                }
+              }}
+              disabled={!selectedSubTest}
+              className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${selectedSubTest ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/30 active:scale-[0.98]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+            >
+              <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setView("exam")}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+          >
+            <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+          </button>
+        )}
       </div>
     </div>
   );

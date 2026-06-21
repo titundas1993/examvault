@@ -515,7 +515,18 @@ export interface MockTestData {
   instructions: string;
   imageUrl?: string;
   isActive: boolean;
+  accessType?: "free" | "premium";
+  subTests?: SubTestData[];
   createdAt?: string;
+}
+
+export interface SubTestData {
+  id: string;
+  title: string;
+  duration: number;
+  totalQuestions: number;
+  subject?: string;
+  description?: string;
 }
 
 const MOCK_TESTS_COLLECTION = "mockTests";
@@ -1071,6 +1082,8 @@ export interface TestSeriesData {
   isActive: boolean;
   description: string;
   imageUrl: string;
+  accessType?: "free" | "premium";
+  subTests?: SubTestData[];
   createdAt?: string;
 }
 
@@ -1167,6 +1180,8 @@ export interface FreeTestData {
   imageUrl: string;
   isActive: boolean;
   description: string;
+  accessType?: "free" | "premium";
+  subTests?: SubTestData[];
   createdAt?: string;
 }
 
@@ -1261,6 +1276,8 @@ export interface DailyQuizData {
   participants: number;
   isActive: boolean;
   description: string;
+  accessType?: "free" | "premium";
+  subTests?: SubTestData[];
   createdAt?: string;
 }
 
@@ -1359,6 +1376,8 @@ export interface PopularTestData {
   difficulty: string;
   isActive: boolean;
   imageUrl: string;
+  accessType?: "free" | "premium";
+  subTests?: SubTestData[];
   createdAt?: string;
 }
 

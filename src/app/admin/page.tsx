@@ -1403,6 +1403,7 @@ function TestAdminWithPicker({
   const [refreshKey, setRefreshKey] = useState(0);
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
   const [postCreatePrompt, setPostCreatePrompt] = useState<{ show: boolean; title: string }>({ show: false, title: "" });
+  const [subTestDialogItem, setSubTestDialogItem] = useState<any>(null);
 
   // Fetch question counts for each test
   const fetchQuestionCounts = useCallback(async () => {
@@ -1478,20 +1479,32 @@ function TestAdminWithPicker({
         onDelete={onDelete}
         rowActions={(item: any) => {
           const qCount = questionCounts[item.id || ""] || 0;
+          const subCount = (item.subTests || []).length;
           return (
-            <button
-              onClick={(e) => { e.stopPropagation(); openPicker(item); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
-              title="Questions add/remove karein"
-            >
-              <FileQuestion className="w-3.5 h-3.5" />
-              Add Questions
-              {qCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
-                  {qCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); setSubTestDialogItem(item); }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs font-bold hover:from-blue-600 hover:to-indigo-700 transition-all shadow-sm"
+                title="Manage Sub-Tests"
+              >
+                <Grid3X3 className="w-3.5 h-3.5" />
+                Sub-Tests
+                {subCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">{subCount}</span>}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); openPicker(item); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
+                title="Questions add/remove karein"
+              >
+                <FileQuestion className="w-3.5 h-3.5" />
+                Add Questions
+                {qCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
+                    {qCount}
+                  </span>
+                )}
+              </button>
+            </div>
           );
         }}
       />
@@ -1543,6 +1556,9 @@ function TestAdminWithPicker({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Sub-Tests Dialog */}
+      <SubTestsDialog open={!!subTestDialogItem} onClose={() => setSubTestDialogItem(null)} parentItem={subTestDialogItem || {}} collectionName={collectionName} />
     </>
   );
 }
@@ -1580,6 +1596,107 @@ function MockTestsAdmin() {
       onUpdate={(id, data) => adminUpdateDoc("mockTests", id, data)}
       onDelete={(id) => adminDeleteDoc("mockTests", id)}
     />
+  );
+}
+
+// ==================== SUB-TESTS DIALOG ====================
+function SubTestsDialog({ open, onClose, parentItem, collectionName }: { open: boolean; onClose: () => void; parentItem: any; collectionName: string }) {
+  const [subTests, setSubTests] = useState<any[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDuration, setNewDuration] = useState(30);
+  const [newTotalQ, setNewTotalQ] = useState(50);
+  const [newSubject, setNewSubject] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (open && parentItem) {
+      setSubTests(parentItem.subTests || []);
+      setNewTitle(""); setNewDuration(30); setNewTotalQ(50); setNewSubject(""); setNewDesc("");
+    }
+  }, [open, parentItem]);
+
+  const showToast = (msg: string, type: "success" | "error") => { setToast({ message: msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const addSubTest = () => {
+    if (!newTitle.trim()) { showToast("Title is required!", "error"); return; }
+    const id = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setSubTests(prev => [...prev, { id, title: newTitle.trim(), duration: newDuration, totalQuestions: newTotalQ, subject: newSubject.trim(), description: newDesc.trim() }]);
+    setNewTitle(""); setNewDuration(30); setNewTotalQ(50); setNewSubject(""); setNewDesc("");
+  };
+
+  const removeSubTest = (id: string) => { setSubTests(prev => prev.filter(st => st.id !== id)); };
+
+  const saveSubTests = async () => {
+    setSaving(true);
+    try {
+      await adminUpdateDoc(collectionName, parentItem.id, { subTests });
+      showToast(`Saved ${subTests.length} sub-tests!`, "success");
+      setTimeout(() => onClose(), 1000);
+    } catch (e: any) { showToast(`Error: ${e.message}`, "error"); }
+    setSaving(false);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        {toast && <div className={`mb-4 p-3 rounded-xl text-sm font-bold ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.message}</div>}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-black text-ev-navy">Sub-Tests: {parentItem?.title}</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Add Sub-Test Form */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+          <h3 className="font-bold text-sm text-ev-navy">Add New Sub-Test</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label className="font-medium text-xs">Title *</Label><Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Test 1 - General Knowledge" className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Duration (min)</Label><Input type="number" value={newDuration} onChange={e => setNewDuration(Number(e.target.value))} className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Total Questions</Label><Input type="number" value={newTotalQ} onChange={e => setNewTotalQ(Number(e.target.value))} className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Subject</Label><Input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="e.g. GK" className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Description</Label><Input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Brief description..." className="text-sm" /></div>
+          </div>
+          <button onClick={addSubTest} className="px-4 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Sub-Test</button>
+        </div>
+
+        {/* Sub-Tests List */}
+        {subTests.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <Grid3X3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No sub-tests yet. Add one above!</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-4">
+            {subTests.map((st, idx) => (
+              <div key={st.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                <span className="w-8 h-8 rounded-lg bg-ev-navy text-white text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>⏱️ {st.duration}min</span>
+                    <span>📝 {st.totalQuestions}Q</span>
+                    {st.subject && <span>📖 {st.subject}</span>}
+                  </div>
+                </div>
+                <button onClick={() => removeSubTest(st.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Save Button */}
+        <div className="flex items-center justify-end gap-3 pt-3 border-t">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-bold">Cancel</button>
+          <button onClick={saveSubTests} disabled={saving} className="px-6 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Save Sub-Tests ({subTests.length})
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
