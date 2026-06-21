@@ -343,6 +343,9 @@ jobs:
                   // Load interstitial ad
                   loadInterstitialAd();
 
+                  // Initial ad visibility check
+                  checkPremiumAndToggleAds();
+
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
@@ -384,6 +387,7 @@ jobs:
                           splashScreen.setVisibility(View.GONE);
                           webView.setVisibility(View.VISIBLE);
                           view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
+                          checkPremiumAndToggleAds();
                           SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                           prefs.edit().putString(KEY_URL, url).apply();
                       }
@@ -477,6 +481,7 @@ jobs:
               }
 
               private void showInterstitialAd() {
+                  if (isPremiumUser) return; // No interstitial for premium users
                   if (interstitialAd != null) {
                       interstitialAd.show(this);
                   } else {
@@ -490,6 +495,33 @@ jobs:
                       navCount = 0;
                       showInterstitialAd();
                   }
+              }
+
+              // === PREMIUM CHECK — hide ads for premium users ===
+              private boolean isPremiumUser = false;
+
+              private void checkPremiumAndToggleAds() {
+                  if (webView == null) return;
+                  webView.evaluateJavascript("(function(){ try { return window.__EV_PREMIUM === true; } catch(e) { return false; } })()", new ValueCallback<String>() {
+                      @Override
+                      public void onReceiveValue(String result) {
+                          boolean premium = "true".equals(result);
+                          if (premium != isPremiumUser) {
+                              isPremiumUser = premium;
+                              runOnUiThread(new Runnable() {
+                                  @Override public void run() {
+                                      if (isPremiumUser) {
+                                          // Hide banner ad
+                                          if (adView != null) adView.setVisibility(View.GONE);
+                                      } else {
+                                          // Show banner ad
+                                          if (adView != null) adView.setVisibility(View.VISIBLE);
+                                      }
+                                  }
+                              });
+                          }
+                      }
+                  });
               }
 
               private int recoveryAttemptCount = 0;

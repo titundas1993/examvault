@@ -2877,6 +2877,17 @@ function ExamVaultAppInner() {
   const isDark = useAppStore(s => s.isDark);
   const authLoading = useAppStore(s => s.authLoading);
   const user = useAppStore(s => s.user);
+  const subscription = useAppStore(s => s.subscription);
+
+  // ══════════════════════════════════════════════════════════
+  // PREMIUM STATUS — communicate to Android WebView for AdMob
+  // If user is premium or has purchased items, hide ads
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    try {
+      (window as any).__EV_PREMIUM = subscription.isPremium;
+    } catch (e) {}
+  }, [subscription.isPremium]);
 
   // ══════════════════════════════════════════════════════════
   // BACK BUTTON HANDLER is now at MODULE LEVEL (see top of file).
