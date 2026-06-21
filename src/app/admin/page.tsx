@@ -1782,13 +1782,20 @@ function QuestionsAdmin() {
   const TestInfoCard = ({ testType, titleId, onSubTestSelect, selectedSubTestId }: { testType: string; titleId: string; onSubTestSelect?: (subTestId: string) => void; selectedSubTestId?: string }) => {
     const testData = getSelectedTestData(testType, titleId);
     if (!testData) return null;
-    const uploadedCount = getQuestionCountForTest(titleId);
-    const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || 0;
-    const remaining = totalQ > 0 ? Math.max(0, totalQ - uploadedCount) : -1;
-    const isFull = totalQ > 0 && uploadedCount >= totalQ;
+    const hasSubTests = testData.subTests && testData.subTests.length > 0;
     const accessType = testData.accessType || (testData.isFree ? "free" : "premium");
     const duration = testData.duration || 0;
-    const hasSubTests = testData.subTests && testData.subTests.length > 0;
+
+    // Calculate total uploaded for parent (includes questions assigned to parent ID + all sub-test IDs)
+    const parentDirectUploaded = getQuestionCountForTest(titleId);
+    const subTestIds = hasSubTests ? testData.subTests.map((st: any) => st.id) : [];
+    const totalUploadedIncludingSubs = parentDirectUploaded + subTestIds.reduce((sum: number, sid: string) => sum + getQuestionCountForTest(sid), 0);
+
+    // Calculate total Q from sub-tests if parent has 0
+    const subTestsTotalQ = hasSubTests ? testData.subTests.reduce((sum: number, st: any) => sum + (st.totalQuestions || 0), 0) : 0;
+    const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || subTestsTotalQ || 0;
+    const remaining = totalQ > 0 ? Math.max(0, totalQ - totalUploadedIncludingSubs) : -1;
+    const isFull = totalQ > 0 && totalUploadedIncludingSubs >= totalQ;
 
     // If a sub-test is selected, show its specific info
     const selectedSubTest = selectedSubTestId && hasSubTests ? testData.subTests.find((st: any) => st.id === selectedSubTestId) : null;
@@ -1841,7 +1848,7 @@ function QuestionsAdmin() {
               </div>
             )}
             <div className="flex items-center gap-1.5 text-gray-600">
-              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{uploadedCount}</span>
+              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{totalUploadedIncludingSubs}</span>
             </div>
             {totalQ > 0 && (
               <div className="flex items-center gap-1.5 text-gray-600">
@@ -1863,9 +1870,9 @@ function QuestionsAdmin() {
         {(!selectedSubTest && totalQ > 0) && (
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : uploadedCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (uploadedCount / totalQ) * 100)}%` }} />
+              <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : totalUploadedIncludingSubs > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (totalUploadedIncludingSubs / totalQ) * 100)}%` }} />
             </div>
-            <p className="text-[10px] text-gray-500 mt-1 text-right">{uploadedCount}/{totalQ} questions ({Math.round((uploadedCount / totalQ) * 100)}%)</p>
+            <p className="text-[10px] text-gray-500 mt-1 text-right">{totalUploadedIncludingSubs}/{totalQ} questions ({Math.round((totalUploadedIncludingSubs / totalQ) * 100)}%)</p>
           </div>
         )}
         
@@ -2165,10 +2172,19 @@ function QuestionsAdmin() {
     setBulkImporting(false);
   };
 
-  // Filtered questions by search
-  const filteredQuestions = questions.filter(q =>
-    Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filtered questions by search AND selected test
+  const filteredQuestions = questions.filter(q => {
+    // Filter by selected test/title if any
+    if (selectedTitleId && selectedTitleId !== "none") {
+      // Include questions matching parent test ID or any sub-test ID
+      const testData = getSelectedTestData(selectedTestType, selectedTitleId);
+      const subTestIds = testData?.subTests?.map((st: any) => st.id) || [];
+      const matchesTest = q.testId === selectedTitleId || subTestIds.includes(q.testId);
+      if (!matchesTest) return false;
+    }
+    // Filter by search term
+    return Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()));
+  });
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
