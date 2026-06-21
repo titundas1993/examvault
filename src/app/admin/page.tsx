@@ -15,7 +15,8 @@ import {
   BookMarked, Headphones, UserCog,
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
-  Crown, CreditCard, IndianRupee, Compass, Database
+  Crown, CreditCard, IndianRupee, Compass, Database,
+  Grid3X3, ArrowLeft, ShoppingCart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
