@@ -29,6 +29,15 @@ import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.FullScreenContentCallback;
+import com.google.android.gms.auth.api.phone.SmsRetriever;
+import com.google.android.gms.auth.api.phone.SmsRetrieverClient;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.os.Handler;
+import android.os.Looper;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -41,6 +50,8 @@ public class MainActivity extends Activity {
     private boolean webViewReady = false;
     private int navCount = 0;
     private static final int INTERSTITIAL_INTERVAL = 3;
+    private SmsBroadcastReceiver smsReceiver;
+    private Handler handler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,28 +84,23 @@ public class MainActivity extends Activity {
             }
         };
 
-        // Container for WebView + splash (overlapping) — full screen, no banner
         FrameLayout webContainer = new FrameLayout(this);
         webContainer.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
 
-        // === WEBVIEW ===
         webView = new WebView(this);
         webContainer.addView(webView, new FrameLayout.LayoutParams(-1, -1));
         webView.setVisibility(View.GONE);
         webView.setBackgroundColor(Color.parseColor("#001A4B"));
 
-        // Full screen WebView — no banner ad
         setContentView(webContainer);
 
-        // === ADMOB INIT (for interstitial only, no banner) ===
+        // === ADMOB INIT (interstitial only) ===
         MobileAds.initialize(this, new OnInitializationCompleteListener() {
             @Override
             public void onInitializationComplete(InitializationStatus status) {
                 Log.d("ExamVault", "AdMob initialized");
             }
         });
-
-        // Load interstitial ad
         loadInterstitialAd();
 
         WebSettings settings = webView.getSettings();
@@ -151,6 +157,10 @@ public class MainActivity extends Activity {
 
         webView.setWebChromeClient(new WebChromeClient());
 
+        // === OTP Auto-Fill: JS Interface + SMS Retriever ===
+        webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
+        startSmsRetriever();
+
         String urlToLoad = appUrl;
         if (savedInstanceState != null) {
             String savedUrl = savedInstanceState.getString(KEY_URL);
@@ -182,10 +192,8 @@ public class MainActivity extends Activity {
             public void onReceiveValue(String result) {
                 result = result != null ? result.replace("\"", "") : "";
                 if ("exam_warning".equals(result)) {
-                    // Warning dialog shown in JS
                     onNavigationEvent();
                 } else if ("went_back".equals(result)) {
-                    // done
                     onNavigationEvent();
                 } else if ("at_home".equals(result)) {
                     showExitDialog();
@@ -220,7 +228,7 @@ public class MainActivity extends Activity {
                         @Override
                         public void onAdDismissedFullScreenContent() {
                             interstitialAd = null;
-                            loadInterstitialAd(); // preload next
+                            loadInterstitialAd();
                         }
                     });
                 }
@@ -232,7 +240,7 @@ public class MainActivity extends Activity {
     }
 
     private void showInterstitialAd() {
-        if (isPremiumUser) return; // No interstitial for premium users
+        if (isPremiumUser) return;
         if (interstitialAd != null) {
             interstitialAd.show(this);
         } else {
@@ -248,7 +256,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    // === PREMIUM CHECK — skip interstitial for premium users ===
+    // === PREMIUM CHECK ===
     private boolean isPremiumUser = false;
 
     private void checkPremiumAndToggleAds() {
@@ -262,6 +270,77 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    // === SMS AUTO-READ FOR OTP ===
+    private void startSmsRetriever() {
+        SmsRetrieverClient client = SmsRetriever.getClient(this);
+        Task<Void> task = client.startSmsRetriever();
+        task.addOnSuccessListener(new OnSuccessListener<Void>() {
+            @Override
+            public void onSuccess(Void aVoid) {
+                Log.d("ExamVault", "SMS Retriever started");
+                registerSmsReceiver();
+            }
+        });
+        task.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(Exception e) {
+                Log.e("ExamVault", "SMS Retriever failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private void registerSmsReceiver() {
+        if (smsReceiver != null) {
+            try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+        }
+        smsReceiver = new SmsBroadcastReceiver();
+        IntentFilter filter = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
+        registerReceiver(smsReceiver, filter);
+    }
+
+    private void deliverOtpToWebView(final String otp) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (webView != null) {
+                    String js = "if(window.__EV_OTP_CALLBACK){window.__EV_OTP_CALLBACK('" + otp + "');}";
+                    webView.evaluateJavascript(js, null);
+                    Log.d("ExamVault", "OTP delivered to WebView: " + otp);
+                }
+            }
+        });
+    }
+
+    private class OtpWebInterface {
+        @android.webkit.JavascriptInterface
+        public void requestOtp() {
+            startSmsRetriever();
+        }
+    }
+
+    private class SmsBroadcastReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(android.content.Context context, Intent intent) {
+            if (SmsRetriever.SMS_RETRIEVED_ACTION.equals(intent.getAction())) {
+                android.os.Bundle extras = intent.getExtras();
+                if (extras == null) return;
+                String message = (String) extras.get(SmsRetriever.EXTRA_SMS_MESSAGE);
+                if (message != null) {
+                    extractAndDeliverOtp(message);
+                }
+            }
+        }
+
+        private void extractAndDeliverOtp(String message) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{6})");
+            java.util.regex.Matcher matcher = pattern.matcher(message);
+            if (matcher.find()) {
+                String otp = matcher.group(1);
+                deliverOtpToWebView(otp);
+            }
+        }
     }
 
     private int recoveryAttemptCount = 0;
@@ -278,7 +357,6 @@ public class MainActivity extends Activity {
             splashScreen.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
         }
-
     }
 
     private void scheduleRecoveryCheck(final long delayMs) {
@@ -303,14 +381,15 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
-
         if (webView != null) webView.onPause();
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
-
+        if (smsReceiver != null) {
+            try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+        }
         if (webView != null) {
             webView.stopLoading();
             webView.destroy();
