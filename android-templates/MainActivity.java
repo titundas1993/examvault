@@ -2,6 +2,7 @@ package com.examvault.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -40,6 +41,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "ExamVault";
     private WebView webView;
     private View splashScreen;
     private InterstitialAd interstitialAd;
@@ -52,128 +54,163 @@ public class MainActivity extends Activity {
     private static final int INTERSTITIAL_INTERVAL = 3;
     private SmsBroadcastReceiver smsReceiver;
     private Handler handler = new Handler(Looper.getMainLooper());
+    private boolean smsReceiverRegistered = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
-        // === SPLASH SCREEN ===
-        splashScreen = new View(this) {
-            @Override
-            protected void onDraw(android.graphics.Canvas canvas) {
-                super.onDraw(canvas);
-                canvas.drawColor(Color.parseColor("#001A4B"));
-                android.graphics.Paint paint = new android.graphics.Paint();
-                paint.setColor(Color.WHITE);
-                paint.setTextSize(80);
-                paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
-                paint.setTextAlign(android.graphics.Paint.Align.CENTER);
-                int cx = getWidth() / 2;
-                int cy = getHeight() / 2 - 40;
-                canvas.drawText("EXAM", cx, cy, paint);
-                paint.setColor(Color.parseColor("#EB6301"));
-                canvas.drawText("VAULT", cx, cy + 90, paint);
-                paint.setColor(Color.parseColor("#FEA216"));
-                paint.setTextSize(28);
-                paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL));
-                canvas.drawText("Loading...", cx, cy + 150, paint);
-            }
-        };
+        try {
+            requestWindowFeature(Window.FEATURE_NO_TITLE);
+            getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
-        FrameLayout webContainer = new FrameLayout(this);
-        webContainer.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
-
-        webView = new WebView(this);
-        webContainer.addView(webView, new FrameLayout.LayoutParams(-1, -1));
-        webView.setVisibility(View.GONE);
-        webView.setBackgroundColor(Color.parseColor("#001A4B"));
-
-        setContentView(webContainer);
-
-        // === ADMOB INIT (interstitial only) ===
-        MobileAds.initialize(this, new OnInitializationCompleteListener() {
-            @Override
-            public void onInitializationComplete(InitializationStatus status) {
-                Log.d("ExamVault", "AdMob initialized");
-            }
-        });
-        loadInterstitialAd();
-
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
-        settings.setAllowFileAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setSupportZoom(false);
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setDatabasePath(getFilesDir().getPath() + "/databases");
-        android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
-        cookieManager.setAcceptCookie(true);
-        cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                String host = Uri.parse(url).getHost();
-                if (host != null &&
-                    (host.contains("examvault") ||
-                     host.contains("vercel.app") ||
-                     host.contains("firebaseio.com") ||
-                     host.contains("googleapis.com") ||
-                     host.contains("firebaseapp.com"))) {
-                    return false;
+            // === SPLASH SCREEN ===
+            splashScreen = new View(this) {
+                @Override
+                protected void onDraw(android.graphics.Canvas canvas) {
+                    super.onDraw(canvas);
+                    canvas.drawColor(Color.parseColor("#001A4B"));
+                    android.graphics.Paint paint = new android.graphics.Paint();
+                    paint.setColor(Color.WHITE);
+                    paint.setTextSize(80);
+                    paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+                    paint.setTextAlign(android.graphics.Paint.Align.CENTER);
+                    int cx = getWidth() / 2;
+                    int cy = getHeight() / 2 - 40;
+                    canvas.drawText("EXAM", cx, cy, paint);
+                    paint.setColor(Color.parseColor("#EB6301"));
+                    canvas.drawText("VAULT", cx, cy + 90, paint);
+                    paint.setColor(Color.parseColor("#FEA216"));
+                    paint.setTextSize(28);
+                    paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL));
+                    canvas.drawText("Loading...", cx, cy + 150, paint);
                 }
-                try {
-                    view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-                } catch (Exception e) {}
-                return true;
+            };
+
+            FrameLayout webContainer = new FrameLayout(this);
+            webContainer.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
+
+            webView = new WebView(this);
+            webContainer.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+            webView.setVisibility(View.GONE);
+            webView.setBackgroundColor(Color.parseColor("#001A4B"));
+
+            setContentView(webContainer);
+
+            // === ADMOB INIT (interstitial only) — wrapped in try-catch ===
+            try {
+                MobileAds.initialize(this, new OnInitializationCompleteListener() {
+                    @Override
+                    public void onInitializationComplete(InitializationStatus status) {
+                        Log.d(TAG, "AdMob initialized");
+                    }
+                });
+                loadInterstitialAd();
+            } catch (Exception e) {
+                Log.e(TAG, "AdMob init error: " + e.getMessage());
             }
 
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                webViewReady = true;
-                splashScreen.setVisibility(View.GONE);
-                webView.setVisibility(View.VISIBLE);
-                view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
-                checkPremiumAndToggleAds();
-                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                prefs.edit().putString(KEY_URL, url).apply();
+            // === WEBVIEW SETTINGS ===
+            WebSettings settings = webView.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(true);
+            settings.setDatabaseEnabled(true);
+            settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+            settings.setAllowFileAccess(true);
+            settings.setMediaPlaybackRequiresUserGesture(false);
+            settings.setSupportZoom(false);
+            settings.setUseWideViewPort(true);
+            settings.setLoadWithOverviewMode(true);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            settings.setDatabasePath(getFilesDir().getPath() + "/databases");
+            android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+            cookieManager.setAcceptCookie(true);
+            cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+            webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                    String host = Uri.parse(url).getHost();
+                    if (host != null &&
+                        (host.contains("examvault") ||
+                         host.contains("vercel.app") ||
+                         host.contains("firebaseio.com") ||
+                         host.contains("googleapis.com") ||
+                         host.contains("firebaseapp.com") ||
+                         host.contains("firebase.google.com") ||
+                         host.contains("google.com") ||
+                         host.contains("gstatic.com") ||
+                         host.contains("googleusercontent.com") ||
+                         host.contains("razorpay.com") ||
+                         host.contains("web.razorpay.com"))) {
+                        return false;
+                    }
+                    try {
+                        view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                    } catch (Exception e) {}
+                    return true;
+                }
+
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    webViewReady = true;
+                    splashScreen.setVisibility(View.GONE);
+                    webView.setVisibility(View.VISIBLE);
+                    view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
+                    checkPremiumAndToggleAds();
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().putString(KEY_URL, url).apply();
+                }
+
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    super.onReceivedError(view, request, error);
+                }
+            });
+
+            webView.setWebChromeClient(new WebChromeClient());
+
+            // === OTP Auto-Fill: JS Interface + SMS Retriever — safe init ===
+            try {
+                webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
+                startSmsRetriever();
+            } catch (Exception e) {
+                Log.e(TAG, "OTP init error: " + e.getMessage());
             }
 
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                super.onReceivedError(view, request, error);
+            String urlToLoad = appUrl;
+            if (savedInstanceState != null) {
+                String savedUrl = savedInstanceState.getString(KEY_URL);
+                if (savedUrl != null && !savedUrl.isEmpty()) {
+                    urlToLoad = savedUrl;
+                }
+            } else {
+                Uri data = getIntent().getData();
+                if (data != null) {
+                    urlToLoad = data.toString();
+                }
             }
-        });
+            webView.loadUrl(urlToLoad);
 
-        webView.setWebChromeClient(new WebChromeClient());
-
-        // === OTP Auto-Fill: JS Interface + SMS Retriever ===
-        webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
-        startSmsRetriever();
-
-        String urlToLoad = appUrl;
-        if (savedInstanceState != null) {
-            String savedUrl = savedInstanceState.getString(KEY_URL);
-            if (savedUrl != null && !savedUrl.isEmpty()) {
-                urlToLoad = savedUrl;
-            }
-        } else {
-            Uri data = getIntent().getData();
-            if (data != null) {
-                urlToLoad = data.toString();
+        } catch (Exception e) {
+            // Last resort: if anything fails in onCreate, log and don't crash
+            Log.e(TAG, "FATAL onCreate error: " + e.getMessage());
+            // Try to show error in a simple dialog instead of crashing
+            try {
+                new AlertDialog.Builder(this)
+                    .setTitle("Error")
+                    .setMessage("App failed to start. Please try again.")
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        @Override public void onClick(DialogInterface d, int w) { finish(); }
+                    })
+                    .show();
+            } catch (Exception e2) {
+                finish();
             }
         }
-        webView.loadUrl(urlToLoad);
     }
 
     @Override
@@ -218,33 +255,47 @@ public class MainActivity extends Activity {
 
     // === ADMOB INTERSTITIAL AD ===
     private void loadInterstitialAd() {
-        AdRequest adRequest = new AdRequest.Builder().build();
-        InterstitialAd.load(this, admobInterstitialId, adRequest,
-            new InterstitialAdLoadCallback() {
-                @Override
-                public void onAdLoaded(InterstitialAd ad) {
-                    interstitialAd = ad;
-                    interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-                        @Override
-                        public void onAdDismissedFullScreenContent() {
-                            interstitialAd = null;
-                            loadInterstitialAd();
-                        }
-                    });
-                }
-                @Override
-                public void onAdFailedToLoad(LoadAdError error) {
-                    interstitialAd = null;
-                }
-            });
+        if (admobInterstitialId == null || admobInterstitialId.isEmpty() ||
+            admobInterstitialId.startsWith("${")) {
+            Log.w(TAG, "AdMob Interstitial ID not set, skipping ad load");
+            return;
+        }
+        try {
+            AdRequest adRequest = new AdRequest.Builder().build();
+            InterstitialAd.load(this, admobInterstitialId, adRequest,
+                new InterstitialAdLoadCallback() {
+                    @Override
+                    public void onAdLoaded(InterstitialAd ad) {
+                        interstitialAd = ad;
+                        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                interstitialAd = null;
+                                loadInterstitialAd();
+                            }
+                        });
+                    }
+                    @Override
+                    public void onAdFailedToLoad(LoadAdError error) {
+                        interstitialAd = null;
+                        Log.w(TAG, "Ad load failed: " + error.getMessage());
+                    }
+                });
+        } catch (Exception e) {
+            Log.e(TAG, "AdMob load error: " + e.getMessage());
+        }
     }
 
     private void showInterstitialAd() {
         if (isPremiumUser) return;
-        if (interstitialAd != null) {
-            interstitialAd.show(this);
-        } else {
-            loadInterstitialAd();
+        try {
+            if (interstitialAd != null) {
+                interstitialAd.show(this);
+            } else {
+                loadInterstitialAd();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Ad show error: " + e.getMessage());
         }
     }
 
@@ -272,32 +323,47 @@ public class MainActivity extends Activity {
         });
     }
 
-    // === SMS AUTO-READ FOR OTP ===
+    // === SMS AUTO-READ FOR OTP — all wrapped in try-catch ===
     private void startSmsRetriever() {
-        SmsRetrieverClient client = SmsRetriever.getClient(this);
-        Task<Void> task = client.startSmsRetriever();
-        task.addOnSuccessListener(new OnSuccessListener<Void>() {
-            @Override
-            public void onSuccess(Void aVoid) {
-                Log.d("ExamVault", "SMS Retriever started");
-                registerSmsReceiver();
-            }
-        });
-        task.addOnFailureListener(new OnFailureListener() {
-            @Override
-            public void onFailure(Exception e) {
-                Log.e("ExamVault", "SMS Retriever failed: " + e.getMessage());
-            }
-        });
+        try {
+            SmsRetrieverClient client = SmsRetriever.getClient(this);
+            Task<Void> task = client.startSmsRetriever();
+            task.addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    Log.d(TAG, "SMS Retriever started");
+                    registerSmsReceiver();
+                }
+            });
+            task.addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(Exception e) {
+                    Log.e(TAG, "SMS Retriever failed: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "startSmsRetriever error: " + e.getMessage());
+        }
     }
 
     private void registerSmsReceiver() {
-        if (smsReceiver != null) {
-            try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+        try {
+            if (smsReceiver != null && smsReceiverRegistered) {
+                try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+                smsReceiverRegistered = false;
+            }
+            smsReceiver = new SmsBroadcastReceiver();
+            IntentFilter filter = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
+            // FIX: Android 13+ (API 33) requires RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED flag
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(smsReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(smsReceiver, filter);
+            }
+            smsReceiverRegistered = true;
+        } catch (Exception e) {
+            Log.e(TAG, "registerSmsReceiver error: " + e.getMessage());
         }
-        smsReceiver = new SmsBroadcastReceiver();
-        IntentFilter filter = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
-        registerReceiver(smsReceiver, filter);
     }
 
     private void deliverOtpToWebView(final String otp) {
@@ -307,7 +373,7 @@ public class MainActivity extends Activity {
                 if (webView != null) {
                     String js = "if(window.__EV_OTP_CALLBACK){window.__EV_OTP_CALLBACK('" + otp + "');}";
                     webView.evaluateJavascript(js, null);
-                    Log.d("ExamVault", "OTP delivered to WebView: " + otp);
+                    Log.d(TAG, "OTP delivered to WebView: " + otp);
                 }
             }
         });
@@ -387,8 +453,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (smsReceiver != null) {
+        if (smsReceiver != null && smsReceiverRegistered) {
             try { unregisterReceiver(smsReceiver); } catch (Exception e) {}
+            smsReceiverRegistered = false;
         }
         if (webView != null) {
             webView.stopLoading();

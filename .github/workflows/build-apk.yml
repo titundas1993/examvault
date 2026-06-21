@@ -6,6 +6,9 @@ on:
       app_url:
         description: 'Deployed PWA URL (e.g. https://examvault-theta.vercel.app)'
         required: true
+      admob_interstitial_id:
+        description: 'AdMob Interstitial Ad Unit ID (e.g. ca-app-pub-XXXXX/YYYYY)'
+        required: true
       build_aab:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
@@ -43,8 +46,14 @@ jobs:
       - name: Create Android WebView project
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
+          ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
           echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
+          echo "AdMob ID: $ADMOB_INTERSTITIAL_ID"
+
+          # Extract domain from APP_URL for network security config
+          APP_DOMAIN=$(echo "$APP_URL" | sed -E 's|https?://([^/]+).*|\1|')
+          echo "App domain: $APP_DOMAIN"
 
           # Create project directory structure
           mkdir -p android-project/app/src/main/java/com/examvault/app
@@ -179,19 +188,27 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+                  <!-- AdMob App ID meta-data (required for ads) -->
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="${ADMOB_APP_ID}" />
               </application>
           </manifest>
           XMLEOF
 
-          # Network security config
+          # Network security config — dynamic domain
           mkdir -p android-project/app/src/main/res/xml
-          cat > android-project/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
+          cat > android-project/app/src/main/res/xml/network_security_config.xml << XMLEOF
           <?xml version="1.0" encoding="utf-8"?>
           <network-security-config>
               <domain-config cleartextTrafficPermitted="false">
-                  <domain includeSubdomains="true">examvault-theta.vercel.app</domain>
+                  <domain includeSubdomains="true">${APP_DOMAIN}</domain>
                   <domain includeSubdomains="true">firebaseio.com</domain>
                   <domain includeSubdomains="true">googleapis.com</domain>
+                  <domain includeSubdomains="true">firebaseapp.com</domain>
+                  <domain includeSubdomains="true">google.com</domain>
+                  <domain includeSubdomains="true">gstatic.com</domain>
+                  <domain includeSubdomains="true">googleusercontent.com</domain>
               </domain-config>
           </network-security-config>
           XMLEOF
@@ -200,6 +217,13 @@ jobs:
           cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/app/MainActivity.java
           sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
           sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
+
+          # Also replace in AndroidManifest.xml
+          ADMOB_APP_ID=$(echo "$ADMOB_INTERSTITIAL_ID" | sed 's|/.*||')
+          sed -i "s|\${ADMOB_APP_ID}|$ADMOB_APP_ID|g" android-project/app/src/main/AndroidManifest.xml
+
+          # Also replace domain in network_security_config.xml
+          sed -i "s|\${APP_DOMAIN}|$APP_DOMAIN|g" android-project/app/src/main/res/xml/network_security_config.xml
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -233,11 +257,15 @@ jobs:
           </resources>
           EOF
 
-          # proguard rules
+          # proguard rules — keep AdMob, SMS Retriever, and JS interface
           cat > android-project/app/proguard-rules.pro << 'EOF'
           -keepclassmembers class * {
               @android.webkit.JavascriptInterface <methods>;
           }
+          -keep class com.google.android.gms.ads.** { *; }
+          -keep class com.google.android.gms.auth.api.phone.** { *; }
+          -keep class com.examvault.app.MainActivity$OtpWebInterface { *; }
+          -keep class com.examvault.app.MainActivity$SmsBroadcastReceiver { *; }
           EOF
 
           # gradle wrapper properties
