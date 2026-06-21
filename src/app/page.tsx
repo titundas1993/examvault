@@ -845,6 +845,7 @@ function HomeTab() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{test.duration} min</span>
                     <span className="flex items-center gap-1"><Target className="w-3 h-3" />{test.marks || 0} marks</span>
                     <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{test.questions} Q</span>
+                    {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
                   </div>
                 </div>
               </div>
@@ -864,10 +865,11 @@ function HomeTab() {
             <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
-              <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+              <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
                 <span>{q.questions} Q</span>
                 <span>•</span>
                 <span>{q.duration} min</span>
+                {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length}</span>}
               </div>
               <div className="mt-2 text-xs text-white/60">{q.participants || 0} joined</div>
             </div>
@@ -931,11 +933,12 @@ function MockTestsTab() {
                 <div className="flex items-center gap-2 mb-0.5">
                   <h4 className="font-bold text-ev-navy">{test.title}</h4>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   <span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
                 </div>
               </div>
             </div>
@@ -1011,7 +1014,10 @@ function TestSeriesTab() {
                     <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
                     {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
+                    {s.subTests && s.subTests.length > 0 && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{s.subTests.length} Sub-Tests</span>}
+                  </div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   {isItemFree(s) ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
@@ -1084,11 +1090,12 @@ function FreeTestsTab() {
               )}
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{test.title}</h4>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   {test.category && <span className="font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{test.category}</span>}
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
                 </div>
               </div>
               <span className="px-3 py-1 rounded-lg bg-green-50 text-ev-green text-xs font-bold">FREE</span>
@@ -1150,9 +1157,10 @@ function FreeQuizzesTab() {
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
                 <h4 className="font-bold text-white">{q.title}</h4>
-                <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+                <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
                   {q.category && <span className="px-2 py-0.5 rounded-md bg-white/20">{q.category}</span>}
                   <span>{q.questions} Q</span><span>•</span><span>{q.duration} min</span>
+                  {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length} Sub-Tests</span>}
                 </div>
               </div>
               <div className="text-right text-white/60 text-xs">{q.participants || 0} joined</div>
@@ -2056,22 +2064,29 @@ function TestInfoScreen() {
       {/* Test Details */}
       <div className="px-4 mt-4 space-y-4">
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className={`grid gap-3 ${testData.subTests && testData.subTests.length > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
             <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
             <p className="text-lg font-bold text-ev-navy">{testData.duration || 0}</p>
-            <p className="text-xs text-gray-500">Minutes</p>
+            <p className="text-xs text-gray-500">{lang === "bn" ? "মিনিট" : "Minutes"}</p>
           </div>
           <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
             <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
             <p className="text-lg font-bold text-ev-navy">{testData.questions || 0}</p>
-            <p className="text-xs text-gray-500">Questions</p>
+            <p className="text-xs text-gray-500">{lang === "bn" ? "প্রশ্ন" : "Questions"}</p>
           </div>
           <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
             <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
             <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
-            <p className="text-xs text-gray-500">Marks</p>
+            <p className="text-xs text-gray-500">{lang === "bn" ? "মার্কস" : "Marks"}</p>
           </div>
+          {testData.subTests && testData.subTests.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-ev-orange/20">
+              <Grid3X3 className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+              <p className="text-lg font-bold text-ev-orange">{testData.subTests.length}</p>
+              <p className="text-xs text-gray-500">{lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests"}</p>
+            </div>
+          )}
         </div>
 
         {/* Description */}
