@@ -17,7 +17,7 @@ import {
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
   Crown, CreditCard, IndianRupee, Compass, Database,
-  Grid3X3, ArrowLeft, ShoppingCart
+  Grid3X3, ArrowLeft, ShoppingCart, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
@@ -2596,66 +2596,784 @@ const LINK_ACTION_OPTIONS = [
 ];
 
 function BannersAdmin() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetCollection("banners");
+      if (data) {
+        data.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+        setItems(data);
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadItems(); }, [loadItems]);
+
+  const openAddDialog = () => {
+    setEditingItem(null);
+    setFormData({ title: "", subtitle: "", linkType: "internal", targetView: "", link: "", linkText: "", gradient: "from-ev-navy to-blue-800", order: items.length, isActive: true, imageUrl: "" });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: any) => {
+    setEditingItem(item);
+    setFormData({ ...item });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title?.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+      if (editingItem) {
+        await adminUpdateDoc("banners", editingItem.id || editingItem.uid, cleanData);
+        showToast("Banner updated successfully!", "success");
+      } else {
+        await adminAddDoc("banners", cleanData);
+        showToast("Banner created successfully!", "success");
+      }
+      setDialogOpen(false);
+      loadItems();
+    } catch (e) { console.error(e); showToast("Error saving banner", "error"); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    setSaving(true);
+    try {
+      await adminDeleteDoc("banners", deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      loadItems();
+      showToast("Banner deleted successfully!", "success");
+    } catch (e) { console.error(e); showToast("Error deleting banner", "error"); }
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (item: any) => {
+    try {
+      await adminUpdateDoc("banners", item.id || item.uid, { isActive: !item.isActive });
+      loadItems();
+      showToast(`Banner ${!item.isActive ? "activated" : "deactivated"}`, "success");
+    } catch (e) { showToast("Error updating banner", "error"); }
+  };
+
+  const handleMoveUp = async (index: number) => {
+    if (index <= 0) return;
+    const newItems = [...items];
+    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
+    // Update order values
+    for (let i = 0; i < newItems.length; i++) {
+      newItems[i] = { ...newItems[i], order: i };
+    }
+    setItems(newItems);
+    try {
+      for (const item of [newItems[index - 1], newItems[index]]) {
+        await adminUpdateDoc("banners", item.id || item.uid, { order: item.order });
+      }
+    } catch (e) { console.error(e); loadItems(); }
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index >= items.length - 1) return;
+    const newItems = [...items];
+    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+    for (let i = 0; i < newItems.length; i++) {
+      newItems[i] = { ...newItems[i], order: i };
+    }
+    setItems(newItems);
+    try {
+      for (const item of [newItems[index], newItems[index + 1]]) {
+        await adminUpdateDoc("banners", item.id || item.uid, { order: item.order });
+      }
+    } catch (e) { console.error(e); loadItems(); }
+  };
+
+  const filteredItems = items.filter(item =>
+    Object.values(item).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const gradientLabels: Record<string, string> = {
+    "from-ev-navy to-blue-800": "Navy Blue",
+    "from-ev-orange to-orange-700": "Orange",
+    "from-ev-gold to-yellow-600": "Gold",
+    "from-green-500 to-emerald-600": "Green",
+    "from-purple-500 to-purple-600": "Purple",
+    "from-cyan-500 to-blue-600": "Cyan",
+  };
+
   return (
-    <CrudAdminPanel
-      title="Banners"
-      subtitle="Manage home page banners"
-      icon={Image}
-      color="from-ev-orange to-red-500"
-      collectionName="banners"
-      fields={[
-        { key: "title", label: "Banner Title", type: "text", placeholder: "e.g. WBCS 2026 Preparation", required: true },
-        { key: "subtitle", label: "Subtitle", type: "text", placeholder: "Start your preparation now" },
-        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
-        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
-        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
-        { key: "linkText", label: "Button Text", type: "text", placeholder: "e.g. Explore Now, Learn More", dependsOn: { field: "linkType", value: ["internal", "external"] } },
-        { key: "gradient", label: "Gradient", type: "select", options: [
-          { label: "Navy Blue", value: "from-ev-navy to-blue-800" },
-          { label: "Orange", value: "from-ev-orange to-orange-700" },
-          { label: "Gold", value: "from-ev-gold to-yellow-600" },
-          { label: "Green", value: "from-green-500 to-emerald-600" },
-          { label: "Purple", value: "from-purple-500 to-purple-600" },
-          { label: "Cyan", value: "from-cyan-500 to-blue-600" },
-        ] },
-        { key: "order", label: "Display Order", type: "number" },
-        { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Banner Image", type: "image" },
-      ]}
-      fetchData={() => adminGetCollection("banners")}
-      onAdd={(data) => adminAddDoc("banners", data)}
-      onUpdate={(id, data) => adminUpdateDoc("banners", id, data)}
-      onDelete={(id) => adminDeleteDoc("banners", id)}
-    />
+    <div>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm flex items-center gap-2 ${toast.type === "success" ? "bg-gradient-to-r from-emerald-500 to-green-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
+            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-ev-orange to-red-500 flex items-center justify-center shadow-lg">
+            <Image className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-ev-navy">Top Banners</h2>
+            <p className="text-gray-500 text-sm">Manage home page banner carousel • {items.length} banners</p>
+          </div>
+        </div>
+        <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Banner
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
+            placeholder="Search banners..." />
+        </div>
+      </div>
+
+      {/* Banner Cards with Live Preview */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-ev-orange to-red-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Image className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-ev-navy mb-2">Top Banner Management</h3>
+          <p className="text-gray-500 text-sm max-w-md mx-auto mb-4">Create and manage the banner carousel that appears at the top of the home page. Banners auto-rotate every 3 seconds.</p>
+          <button onClick={openAddDialog} className="px-6 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg">
+            <Plus className="w-4 h-4 inline mr-1" /> Add Your First Banner
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredItems.map((item, idx) => (
+            <motion.div key={item.id || item.uid || idx}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Live Banner Preview */}
+              <div className={"bg-gradient-to-r " + (item.gradient || "from-ev-navy to-blue-800") + " p-5 flex items-center justify-between"}>
+                <div>
+                  <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
+                  <h3 className="text-lg font-bold text-white mt-1">{item.title || "Untitled Banner"}</h3>
+                  {item.subtitle && <p className="text-white/70 text-sm mt-1">{item.subtitle}</p>}
+                  <span className="mt-2 inline-block px-4 py-1.5 rounded-lg bg-white/20 text-white text-sm font-semibold">
+                    {item.linkText || "Explore →"}
+                  </span>
+                </div>
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.title} className="w-20 h-20 rounded-xl object-cover shadow-lg" />
+                ) : (
+                  <span className="text-5xl">🎯</span>
+                )}
+              </div>
+              {/* Controls Bar */}
+              <div className="px-5 py-3 flex items-center justify-between bg-gray-50/80">
+                <div className="flex items-center gap-3">
+                  {/* Reorder Buttons */}
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleMoveUp(items.indexOf(item))} disabled={items.indexOf(item) === 0}
+                      className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-ev-orange disabled:opacity-30 transition-colors">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-bold text-gray-500 min-w-[2rem] text-center">#{item.order ?? idx + 1}</span>
+                    <button onClick={() => handleMoveDown(items.indexOf(item))} disabled={items.indexOf(item) === items.length - 1}
+                      className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-ev-orange disabled:opacity-30 transition-colors">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Info Tags */}
+                  <span className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">{gradientLabels[item.gradient] || item.gradient || "Default"}</span>
+                  <span className="px-2 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-600">
+                    {item.linkType === "internal" ? `→ ${NAVIGATION_VIEWS.find(v => v.value === item.targetView)?.label || item.targetView}` :
+                     item.linkType === "external" ? "🌐 External" :
+                     item.linkType === "detail" ? "📄 Detail" : "🚫 No Action"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Active Toggle */}
+                  <button onClick={() => handleToggleActive(item)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${item.isActive !== false ? "bg-green-100 text-ev-green" : "bg-red-100 text-ev-red"}`}>
+                    {item.isActive !== false ? "● Active" : "○ Inactive"}
+                  </button>
+                  {/* Edit */}
+                  <button onClick={() => openEditDialog(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                  {/* Delete */}
+                  <button onClick={() => { setDeletingId(item.id || item.uid); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog with Live Preview */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Edit Banner" : "Add New Banner"}</DialogTitle>
+            <DialogDescription>Design your home page top banner with live preview</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+            {/* Form Side */}
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Banner Title <span className="text-red-500">*</span></Label>
+                <Input value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. WBCS 2026 Preparation" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Subtitle</Label>
+                <Input value={formData.subtitle || ""} onChange={e => setFormData({ ...formData, subtitle: e.target.value })} placeholder="Start your preparation now" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Gradient Color</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Navy Blue", value: "from-ev-navy to-blue-800", preview: "bg-gradient-to-r from-ev-navy to-blue-800" },
+                    { label: "Orange", value: "from-ev-orange to-orange-700", preview: "bg-gradient-to-r from-ev-orange to-orange-700" },
+                    { label: "Gold", value: "from-ev-gold to-yellow-600", preview: "bg-gradient-to-r from-ev-gold to-yellow-600" },
+                    { label: "Green", value: "from-green-500 to-emerald-600", preview: "bg-gradient-to-r from-green-500 to-emerald-600" },
+                    { label: "Purple", value: "from-purple-500 to-purple-600", preview: "bg-gradient-to-r from-purple-500 to-purple-600" },
+                    { label: "Cyan", value: "from-cyan-500 to-blue-600", preview: "bg-gradient-to-r from-cyan-500 to-blue-600" },
+                  ].map(g => (
+                    <button key={g.value} onClick={() => setFormData({ ...formData, gradient: g.value })}
+                      className={`p-2 rounded-xl border-2 transition-all text-white text-xs font-bold ${formData.gradient === g.value ? "border-ev-orange shadow-lg scale-105" : "border-transparent"}`}>
+                      <div className={`${g.preview} rounded-lg h-8 mb-1`} />
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Click Action</Label>
+                <Select value={formData.linkType || "internal"} onValueChange={v => setFormData({ ...formData, linkType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.linkType === "internal") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Navigate To</Label>
+                  <Select value={formData.targetView || ""} onValueChange={v => setFormData({ ...formData, targetView: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select page..." /></SelectTrigger>
+                    <SelectContent>
+                      {NAVIGATION_VIEWS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">External URL</Label>
+                  <Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://example.com" />
+                </div>
+              )}
+              {(formData.linkType === "internal" || formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Button Text</Label>
+                  <Input value={formData.linkText || ""} onChange={e => setFormData({ ...formData, linkText: e.target.value })} placeholder="e.g. Explore Now, Learn More" />
+                </div>
+              )}
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Display Order</Label>
+                <Input type="number" value={formData.order ?? 0} onChange={e => setFormData({ ...formData, order: Number(e.target.value) })} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium">Active</Label>
+                <Switch checked={formData.isActive ?? true} onCheckedChange={v => setFormData({ ...formData, isActive: v })} />
+                <span className="text-sm text-gray-600">{formData.isActive !== false ? "Active" : "Inactive"}</span>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Banner Image</Label>
+                {formData.imageUrl && (
+                  <img src={formData.imageUrl} alt="Preview" className="w-24 h-24 object-cover rounded-xl mb-2 border" />
+                )}
+                <Input type="file" accept="image/*" onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) { const url = await uploadImage(file, "banners"); if (url) setFormData({ ...formData, imageUrl: url }); }
+                }} />
+                <Input value={formData.imageUrl || ""} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="Or paste image URL" className="mt-2" />
+              </div>
+            </div>
+            {/* Live Preview Side */}
+            <div className="space-y-3">
+              <Label className="text-sm font-bold text-ev-navy">Live Preview</Label>
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">How it looks on the home page</p>
+                <div className={"rounded-2xl bg-gradient-to-r " + (formData.gradient || "from-ev-navy to-blue-800") + " p-5 flex items-center justify-between shadow-lg"}>
+                  <div>
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
+                    <h3 className="text-lg font-bold text-white mt-1">{formData.title || "Banner Title"}</h3>
+                    {formData.subtitle && <p className="text-white/70 text-sm mt-1">{formData.subtitle}</p>}
+                    <span className="mt-2 inline-block px-4 py-1.5 rounded-lg bg-white/20 text-white text-sm font-semibold">
+                      {formData.linkText || "Explore →"}
+                    </span>
+                  </div>
+                  {formData.imageUrl ? (
+                    <img src={formData.imageUrl} alt={formData.title} className="w-20 h-20 rounded-xl object-cover shadow-lg" />
+                  ) : (
+                    <span className="text-5xl">🎯</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p><b>Click:</b> {formData.linkType === "internal" ? `Navigate to ${NAVIGATION_VIEWS.find(v => v.value === formData.targetView)?.label || formData.targetView || "—"}` :
+                  formData.linkType === "external" ? `Open ${formData.link || "URL"}` :
+                  formData.linkType === "detail" ? "Show detail view" : "No action"}</p>
+                <p><b>Order:</b> #{formData.order ?? 0} • <b>Status:</b> {formData.isActive !== false ? "Active" : "Inactive"}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-ev-orange to-ev-gold text-white">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              {editingItem ? "Update Banner" : "Create Banner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Banner</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure? This banner will be permanently removed from the carousel.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
 // ==================== ANNOUNCEMENTS ADMIN ====================
 function AnnouncementsAdmin() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetCollection("announcements");
+      if (data) {
+        data.sort((a: any, b: any) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+        setItems(data);
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadItems(); }, [loadItems]);
+
+  const openAddDialog = () => {
+    setEditingItem(null);
+    setFormData({ title: "", description: "", type: "new", priority: "medium", linkType: "detail", targetView: "", link: "", linkText: "", isActive: true, imageUrl: "" });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: any) => {
+    setEditingItem(item);
+    setFormData({ ...item });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title?.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+      if (editingItem) {
+        await adminUpdateDoc("announcements", editingItem.id || editingItem.uid, cleanData);
+        showToast("Announcement updated successfully!", "success");
+      } else {
+        await adminAddDoc("announcements", cleanData);
+        showToast("Announcement created successfully!", "success");
+      }
+      setDialogOpen(false);
+      loadItems();
+    } catch (e) { console.error(e); showToast("Error saving announcement", "error"); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    setSaving(true);
+    try {
+      await adminDeleteDoc("announcements", deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      loadItems();
+      showToast("Announcement deleted successfully!", "success");
+    } catch (e) { console.error(e); showToast("Error deleting announcement", "error"); }
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (item: any) => {
+    try {
+      await adminUpdateDoc("announcements", item.id || item.uid, { isActive: !item.isActive });
+      loadItems();
+      showToast(`Announcement ${!item.isActive ? "activated" : "deactivated"}`, "success");
+    } catch (e) { showToast("Error updating announcement", "error"); }
+  };
+
+  const filteredItems = items.filter(item =>
+    Object.values(item).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const announcementTypeConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; label: string }> = {
+    new: { icon: <Sparkles className="w-4 h-4" />, color: "text-ev-green", bg: "bg-green-100", label: "New" },
+    alert: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-ev-orange", bg: "bg-orange-100", label: "Alert" },
+    offer: { icon: <Flame className="w-4 h-4" />, color: "text-ev-red", bg: "bg-red-100", label: "Offer" },
+    info: { icon: <Bell className="w-4 h-4" />, color: "text-blue-500", bg: "bg-blue-100", label: "Info" },
+    warning: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-yellow-500", bg: "bg-yellow-100", label: "Warning" },
+    urgent: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-100", label: "Urgent" },
+    update: { icon: <Sparkles className="w-4 h-4" />, color: "text-purple-500", bg: "bg-purple-100", label: "Update" },
+  };
+
+  const priorityConfig: Record<string, { color: string; label: string }> = {
+    low: { color: "bg-gray-100 text-gray-600", label: "Low" },
+    medium: { color: "bg-blue-100 text-blue-600", label: "Medium" },
+    high: { color: "bg-red-100 text-red-600", label: "High" },
+  };
+
   return (
-    <CrudAdminPanel
-      title="Announcements"
-      subtitle="Manage app announcements"
-      icon={Megaphone}
-      color="from-pink-500 to-rose-600"
-      collectionName="announcements"
-      fields={[
-        { key: "title", label: "Title", type: "text", placeholder: "Announcement title", required: true },
-        { key: "description", label: "Description", type: "textarea", placeholder: "Announcement details..." },
-        { key: "type", label: "Type", type: "select", options: [{ label: "New", value: "new" }, { label: "Alert", value: "alert" }, { label: "Offer", value: "offer" }, { label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Urgent", value: "urgent" }, { label: "Update", value: "update" }] },
-        { key: "priority", label: "Priority", type: "select", options: [{ label: "Low", value: "low" }, { label: "Medium", value: "medium" }, { label: "High", value: "high" }] },
-        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
-        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
-        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
-        { key: "linkText", label: "Link Button Text", type: "text", placeholder: "e.g. Open Now, Check It", dependsOn: { field: "linkType", value: ["internal", "external"] } },
-        { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Image", type: "image" },
-      ]}
-      fetchData={() => adminGetCollection("announcements")}
-      onAdd={(data) => adminAddDoc("announcements", data)}
-      onUpdate={(id, data) => adminUpdateDoc("announcements", id, data)}
-      onDelete={(id) => adminDeleteDoc("announcements", id)}
-    />
+    <div>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm flex items-center gap-2 ${toast.type === "success" ? "bg-gradient-to-r from-emerald-500 to-green-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
+            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg">
+            <Megaphone className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-ev-navy">Announcements</h2>
+            <p className="text-gray-500 text-sm">Manage app announcement carousel • {items.length} announcements</p>
+          </div>
+        </div>
+        <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-sm shadow-lg flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Announcement
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-navy">{items.length}</p>
+          <p className="text-xs text-gray-500">Total</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-green">{items.filter(i => i.isActive !== false).length}</p>
+          <p className="text-xs text-gray-500">Active</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-orange">{items.filter(i => i.type === "alert" || i.type === "urgent" || i.type === "warning").length}</p>
+          <p className="text-xs text-gray-500">Alerts</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-red">{items.filter(i => i.type === "offer").length}</p>
+          <p className="text-xs text-gray-500">Offers</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-pink-400 text-sm"
+            placeholder="Search announcements..." />
+        </div>
+      </div>
+
+      {/* Announcement Cards with Live Preview */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-pink-500" /></div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Megaphone className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-ev-navy mb-2">Announcement Management</h3>
+          <p className="text-gray-500 text-sm max-w-md mx-auto mb-4">Create and manage announcements that appear in the home page carousel. Announcements auto-scroll every 3 seconds.</p>
+          <button onClick={openAddDialog} className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold shadow-lg">
+            <Plus className="w-4 h-4 inline mr-1" /> Add Your First Announcement
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredItems.map((item, idx) => {
+            const typeConf = announcementTypeConfig[item.type] || announcementTypeConfig.info;
+            const prioConf = priorityConfig[item.priority] || priorityConfig.medium;
+            return (
+              <motion.div key={item.id || item.uid || idx}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Preview Row */}
+                <div className="px-5 py-4 flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* Type Badge */}
+                    <div className={`w-9 h-9 rounded-xl ${typeConf.bg} ${typeConf.color} flex items-center justify-center flex-shrink-0`}>
+                      {typeConf.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-ev-navy truncate">{item.title || "Untitled"}</h3>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${typeConf.bg} ${typeConf.color} flex-shrink-0`}>{typeConf.label}</span>
+                        {item.priority && <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${prioConf.color} flex-shrink-0`}>{prioConf.label}</span>}
+                      </div>
+                      {item.description && <p className="text-sm text-gray-500 line-clamp-2">{item.description}</p>}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-gray-400">
+                          {item.linkType === "internal" ? `→ ${NAVIGATION_VIEWS.find(v => v.value === item.targetView)?.label || item.targetView}` :
+                           item.linkType === "external" ? "🌐 External Link" :
+                           item.linkType === "detail" ? "📄 Detail View" : "🚫 No Action"}
+                        </span>
+                        {item.createdAt && <span className="text-xs text-gray-300">• {new Date(item.createdAt).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {item.imageUrl && <img src={item.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover" />}
+                    <button onClick={() => handleToggleActive(item)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${item.isActive !== false ? "bg-green-100 text-ev-green" : "bg-red-100 text-ev-red"}`}>
+                      {item.isActive !== false ? "● Active" : "○ Inactive"}
+                    </button>
+                    <button onClick={() => openEditDialog(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                    <button onClick={() => { setDeletingId(item.id || item.uid); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog with Live Preview */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Edit Announcement" : "Add New Announcement"}</DialogTitle>
+            <DialogDescription>Create announcements that appear in the home page carousel</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+            {/* Form Side */}
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Title <span className="text-red-500">*</span></Label>
+                <Input value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="Announcement title" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Description</Label>
+                <Textarea value={formData.description || ""} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Announcement details..." rows={3} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Type</Label>
+                  <Select value={formData.type || "new"} onValueChange={v => setFormData({ ...formData, type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(announcementTypeConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Priority</Label>
+                  <Select value={formData.priority || "medium"} onValueChange={v => setFormData({ ...formData, priority: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Click Action</Label>
+                <Select value={formData.linkType || "detail"} onValueChange={v => setFormData({ ...formData, linkType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.linkType === "internal") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Navigate To</Label>
+                  <Select value={formData.targetView || ""} onValueChange={v => setFormData({ ...formData, targetView: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select page..." /></SelectTrigger>
+                    <SelectContent>
+                      {NAVIGATION_VIEWS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">External URL</Label>
+                  <Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://example.com" />
+                </div>
+              )}
+              {(formData.linkType === "internal" || formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Link Button Text</Label>
+                  <Input value={formData.linkText || ""} onChange={e => setFormData({ ...formData, linkText: e.target.value })} placeholder="e.g. Open Now, Check It" />
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium">Active</Label>
+                <Switch checked={formData.isActive ?? true} onCheckedChange={v => setFormData({ ...formData, isActive: v })} />
+                <span className="text-sm text-gray-600">{formData.isActive !== false ? "Active" : "Inactive"}</span>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Image</Label>
+                {formData.imageUrl && (
+                  <img src={formData.imageUrl} alt="Preview" className="w-24 h-24 object-cover rounded-xl mb-2 border" />
+                )}
+                <Input type="file" accept="image/*" onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) { const url = await uploadImage(file, "announcements"); if (url) setFormData({ ...formData, imageUrl: url }); }
+                }} />
+                <Input value={formData.imageUrl || ""} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="Or paste image URL" className="mt-2" />
+              </div>
+            </div>
+            {/* Live Preview Side */}
+            <div className="space-y-3">
+              <Label className="text-sm font-bold text-ev-navy">Live Preview</Label>
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">How it looks on the home page</p>
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  {/* Simulate the announcement carousel item */}
+                  <div className="flex items-center gap-2 mb-1">
+                    {(() => {
+                      const conf = announcementTypeConfig[formData.type] || announcementTypeConfig.info;
+                      return <span className={`${conf.bg} ${conf.color} p-1.5 rounded-lg`}>{conf.icon}</span>;
+                    })()}
+                    <span className="text-sm text-gray-700 truncate">{formData.title || "Announcement Title"}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" />
+                  </div>
+                  {formData.description && (
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-1 pl-8">{formData.description}</p>
+                  )}
+                </div>
+              </div>
+              {/* Expanded Preview */}
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">Expanded detail view</p>
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  {formData.imageUrl && <img src={formData.imageUrl} alt="" className="w-full h-32 object-cover rounded-lg mb-3" />}
+                  <div className="flex items-center gap-2 mb-2">
+                    {(() => {
+                      const conf = announcementTypeConfig[formData.type] || announcementTypeConfig.info;
+                      return <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${conf.bg} ${conf.color}`}>{conf.label}</span>;
+                    })()}
+                    {formData.priority && <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${priorityConfig[formData.priority]?.color || "bg-gray-100 text-gray-600"}`}>{priorityConfig[formData.priority]?.label || formData.priority}</span>}
+                  </div>
+                  <h3 className="font-bold text-ev-navy text-lg mb-1">{formData.title || "Announcement Title"}</h3>
+                  {formData.description && <p className="text-sm text-gray-600 whitespace-pre-line">{formData.description}</p>}
+                  {(formData.linkType === "internal" || formData.linkType === "external") && formData.linkText && (
+                    <button className="mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-ev-orange to-ev-gold text-white text-sm font-bold">
+                      {formData.linkText}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p><b>Type:</b> {formData.type || "new"} • <b>Priority:</b> {formData.priority || "medium"}</p>
+                <p><b>Click:</b> {formData.linkType === "internal" ? `Navigate to ${NAVIGATION_VIEWS.find(v => v.value === formData.targetView)?.label || "—"}` :
+                  formData.linkType === "external" ? `Open ${formData.link || "URL"}` :
+                  formData.linkType === "detail" ? "Show detail view" : "No action"}</p>
+                <p><b>Status:</b> {formData.isActive !== false ? "Active" : "Inactive"}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-pink-500 to-rose-600 text-white">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              {editingItem ? "Update Announcement" : "Create Announcement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Announcement</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure? This announcement will be permanently removed.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 

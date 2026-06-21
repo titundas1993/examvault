@@ -17,7 +17,6 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 import android.net.Uri;
 import android.graphics.Color;
 import android.os.Build;
@@ -26,8 +25,6 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.initialization.InitializationStatus;
 import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
 import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdSize;
-import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.LoadAdError;
@@ -36,12 +33,10 @@ import com.google.android.gms.ads.FullScreenContentCallback;
 public class MainActivity extends Activity {
     private WebView webView;
     private View splashScreen;
-    private AdView adView;
     private InterstitialAd interstitialAd;
     private static final String PREFS_NAME = "examvault_prefs";
     private static final String KEY_URL = "last_url";
     private String appUrl = "${APP_URL}";
-    private String admobBannerId = "${ADMOB_BANNER_ID}";
     private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
     private boolean webViewReady = false;
     private int navCount = 0;
@@ -54,12 +49,6 @@ public class MainActivity extends Activity {
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        // Keep status bar hidden but allow space for banner ad at bottom
-
-        // Main layout: WebView on top, Banner Ad at bottom
-        LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.VERTICAL);
-        setContentView(mainLayout);
 
         // === SPLASH SCREEN ===
         splashScreen = new View(this) {
@@ -84,7 +73,7 @@ public class MainActivity extends Activity {
             }
         };
 
-        // Container for WebView + splash (overlapping)
+        // Container for WebView + splash (overlapping) — full screen, no banner
         FrameLayout webContainer = new FrameLayout(this);
         webContainer.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
 
@@ -94,11 +83,10 @@ public class MainActivity extends Activity {
         webView.setVisibility(View.GONE);
         webView.setBackgroundColor(Color.parseColor("#001A4B"));
 
-        // Add WebView container to main layout (weight=1 so it takes remaining space)
-        LinearLayout.LayoutParams webParams = new LinearLayout.LayoutParams(-1, 0, 1.0f);
-        mainLayout.addView(webContainer, webParams);
+        // Full screen WebView — no banner ad
+        setContentView(webContainer);
 
-        // === ADMOB BANNER AD ===
+        // === ADMOB INIT (for interstitial only, no banner) ===
         MobileAds.initialize(this, new OnInitializationCompleteListener() {
             @Override
             public void onInitializationComplete(InitializationStatus status) {
@@ -106,20 +94,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        adView = new AdView(this);
-        adView.setAdUnitId(admobBannerId);
-        adView.setAdSize(AdSize.BANNER);
-        LinearLayout.LayoutParams adParams = new LinearLayout.LayoutParams(-2, -2);
-        adParams.gravity = android.view.Gravity.CENTER_HORIZONTAL;
-        mainLayout.addView(adView, adParams);
-        AdRequest adRequest = new AdRequest.Builder().build();
-        adView.loadAd(adRequest);
-
         // Load interstitial ad
         loadInterstitialAd();
-
-        // Initial ad visibility check
-        checkPremiumAndToggleAds();
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -272,7 +248,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    // === PREMIUM CHECK — hide ads for premium users ===
+    // === PREMIUM CHECK — skip interstitial for premium users ===
     private boolean isPremiumUser = false;
 
     private void checkPremiumAndToggleAds() {
@@ -283,17 +259,6 @@ public class MainActivity extends Activity {
                 boolean premium = "true".equals(result);
                 if (premium != isPremiumUser) {
                     isPremiumUser = premium;
-                    runOnUiThread(new Runnable() {
-                        @Override public void run() {
-                            if (isPremiumUser) {
-                                // Hide banner ad
-                                if (adView != null) adView.setVisibility(View.GONE);
-                            } else {
-                                // Show banner ad
-                                if (adView != null) adView.setVisibility(View.VISIBLE);
-                            }
-                        }
-                    });
                 }
             }
         });
@@ -313,7 +278,7 @@ public class MainActivity extends Activity {
             splashScreen.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
         }
-        if (adView != null) { adView.resume(); }
+
     }
 
     private void scheduleRecoveryCheck(final long delayMs) {
@@ -338,14 +303,14 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
-        if (adView != null) { adView.pause(); }
+
         if (webView != null) webView.onPause();
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
-        if (adView != null) { adView.destroy(); }
+
         if (webView != null) {
             webView.stopLoading();
             webView.destroy();
