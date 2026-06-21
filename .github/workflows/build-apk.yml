@@ -13,15 +13,15 @@ on:
       admob_app_id:
         description: 'AdMob App ID (e.g. ca-app-pub-XXXXX~YYYYY)'
         required: false
-        default: 'ca-app-pub-3940256099942544~3347511713'
+        default: 'ca-app-pub-1742730064755213~7890219994'
       admob_banner_id:
         description: 'AdMob Banner Ad Unit ID'
         required: false
-        default: 'ca-app-pub-3940256099942544/6300978111'
+        default: 'ca-app-pub-1742730064755213/4499859652'
       admob_interstitial_id:
         description: 'AdMob Interstitial Ad Unit ID'
         required: false
-        default: 'ca-app-pub-3940256099942544/1033173712'
+        default: 'ca-app-pub-1742730064755213/5520307609'
 
 permissions:
   contents: write
