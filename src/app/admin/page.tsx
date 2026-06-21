@@ -1790,35 +1790,77 @@ function QuestionsAdmin() {
     const duration = testData.duration || 0;
     const hasSubTests = testData.subTests && testData.subTests.length > 0;
 
+    // If a sub-test is selected, show its specific info
+    const selectedSubTest = selectedSubTestId && hasSubTests ? testData.subTests.find((st: any) => st.id === selectedSubTestId) : null;
+    const subTestUploaded = selectedSubTest ? questions.filter((q: any) => q.testId === selectedSubTestId).length : 0;
+    const subTestTotal = selectedSubTest?.totalQuestions || 0;
+    const subTestRemaining = subTestTotal > 0 ? Math.max(0, subTestTotal - subTestUploaded) : -1;
+    const subTestIsFull = subTestTotal > 0 && subTestUploaded >= subTestTotal;
+
     return (
-      <div className={`rounded-xl p-4 border-2 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+      <div className={`rounded-xl p-4 border-2 ${selectedSubTest ? (subTestIsFull ? "border-red-300 bg-red-50" : "border-blue-300 bg-blue-50") : (isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50")}`}>
         <div className="flex items-center justify-between mb-2">
-          <h4 className="font-bold text-ev-navy text-sm">{testData.title}</h4>
+          <h4 className="font-bold text-ev-navy text-sm">{selectedSubTest ? selectedSubTest.title : testData.title}</h4>
           <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${accessType === "free" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
             {accessType === "free" ? "🆓 FREE" : "👑 PREMIUM"}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          {duration > 0 && (
+        
+        {/* Sub-test specific stats OR parent test stats */}
+        {selectedSubTest ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {selectedSubTest.duration > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{selectedSubTest.duration} min</span>
+              </div>
+            )}
+            {subTestTotal > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{subTestTotal}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-gray-600">
-              <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{duration} min</span>
+              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{subTestUploaded}</span>
             </div>
-          )}
-          {totalQ > 0 && (
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{totalQ}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-gray-600">
-            <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{uploadedCount}</span>
+            {subTestTotal > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${subTestIsFull ? "text-red-600" : "text-blue-600"}`}>{subTestRemaining}</span>
+              </div>
+            )}
           </div>
-          {totalQ > 0 && (
+        ) : (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {duration > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{duration} min</span>
+              </div>
+            )}
+            {totalQ > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{totalQ}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-gray-600">
-              <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${isFull ? "text-red-600" : "text-blue-600"}`}>{remaining}</span>
+              <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{uploadedCount}</span>
             </div>
-          )}
-        </div>
-        {totalQ > 0 && (
+            {totalQ > 0 && (
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${isFull ? "text-red-600" : "text-blue-600"}`}>{remaining}</span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Progress bar */}
+        {(selectedSubTest && subTestTotal > 0) && (
+          <div className="mt-2">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className={`h-2 rounded-full transition-all ${subTestIsFull ? "bg-red-500" : subTestUploaded > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (subTestUploaded / subTestTotal) * 100)}%` }} />
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1 text-right">{subTestUploaded}/{subTestTotal} questions ({Math.round((subTestUploaded / subTestTotal) * 100)}%)</p>
+          </div>
+        )}
+        {(!selectedSubTest && totalQ > 0) && (
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : uploadedCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (uploadedCount / totalQ) * 100)}%` }} />
@@ -1826,11 +1868,18 @@ function QuestionsAdmin() {
             <p className="text-[10px] text-gray-500 mt-1 text-right">{uploadedCount}/{totalQ} questions ({Math.round((uploadedCount / totalQ) * 100)}%)</p>
           </div>
         )}
-        {isFull && (
+        
+        {selectedSubTest && subTestIsFull && (
+          <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
+            ⚠️ This sub-test already has all {subTestTotal} questions uploaded!
+          </div>
+        )}
+        {!selectedSubTest && isFull && (
           <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
             ⚠️ This test already has all {totalQ} questions uploaded!
           </div>
         )}
+        
         {/* Sub-Tests list */}
         {hasSubTests && onSubTestSelect && (
           <div className="mt-3 border-t border-gray-200 pt-3">
@@ -1841,20 +1890,24 @@ function QuestionsAdmin() {
             <div className="space-y-1.5">
               {testData.subTests.map((st: any, idx: number) => {
                 const isSelected = selectedSubTestId === st.id;
+                const stUploaded = questions.filter((q: any) => q.testId === st.id).length;
+                const stTotal = st.totalQuestions || 0;
+                const stIsFull = stTotal > 0 && stUploaded >= stTotal;
                 return (
                   <button
                     key={st.id}
-                    onClick={() => onSubTestSelect(st.id)}
-                    className={`w-full text-left rounded-lg p-2.5 border text-xs transition-all ${isSelected ? "border-ev-orange bg-ev-orange/10" : "border-gray-200 bg-white hover:border-gray-300"}`}
+                    onClick={() => { onSubTestSelect(st.id); }}
+                    className={`w-full text-left rounded-lg p-2.5 border text-xs transition-all ${isSelected ? "border-ev-orange bg-ev-orange/10" : stIsFull ? "border-red-200 bg-red-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${isSelected ? "bg-ev-orange text-white" : "bg-ev-navy/10 text-ev-navy"}`}>{idx + 1}</span>
+                      <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${isSelected ? "bg-ev-orange text-white" : stIsFull ? "bg-red-500 text-white" : "bg-ev-navy/10 text-ev-navy"}`}>{idx + 1}</span>
                       <span className="font-bold text-ev-navy flex-1 truncate">{st.title}</span>
                       {isSelected && <CheckCircle className="w-3.5 h-3.5 text-ev-orange" />}
+                      {stIsFull && !isSelected && <span className="text-red-500 font-bold">FULL</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-gray-400 ml-7">
                       {st.duration > 0 && <span>⏱️ {st.duration}min</span>}
-                      {st.totalQuestions > 0 && <span>📝 {st.totalQuestions}Q</span>}
+                      {stTotal > 0 && <span className={stIsFull ? "text-red-500 font-bold" : ""}>📝 {stUploaded}/{stTotal}Q</span>}
                       {st.subject && <span>📖 {st.subject}</span>}
                     </div>
                   </button>
@@ -2054,11 +2107,32 @@ function QuestionsAdmin() {
         return;
       }
 
-      // Enforce question count limit for the selected test
-      if (bulkTestId) {
-        const testData = getSelectedTestData(bulkTestType, bulkTestId);
-        if (testData) {
-          const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || 0;
+      // Enforce question count limit for the selected test/sub-test
+      if (bulkTestId && bulkTitleId) {
+        // Check if it's a sub-test
+        const parentData = getSelectedTestData(bulkTestType, bulkTitleId);
+        const subTest = parentData?.subTests?.find((st: any) => st.id === bulkTestId);
+        
+        if (subTest) {
+          // Sub-test limit enforcement
+          const totalQ = subTest.totalQuestions || 0;
+          if (totalQ > 0) {
+            const alreadyUploaded = questions.filter((q: any) => q.testId === bulkTestId).length;
+            const remaining = totalQ - alreadyUploaded;
+            if (remaining <= 0) {
+              showToast(`"${subTest.title}" already has all ${totalQ} questions! Cannot upload more.`, "error");
+              setBulkImporting(false);
+              return;
+            }
+            if (questionsList.length > remaining) {
+              showToast(`Only ${remaining} questions remaining for "${subTest.title}" (total: ${totalQ}, uploaded: ${alreadyUploaded}). You tried to upload ${questionsList.length}.`, "error");
+              setBulkImporting(false);
+              return;
+            }
+          }
+        } else if (parentData) {
+          // Parent test limit enforcement
+          const totalQ = parentData.questions || parentData.totalQuestions || parentData.totalTests || 0;
           if (totalQ > 0) {
             const alreadyUploaded = getQuestionCountForTest(bulkTestId);
             const remaining = totalQ - alreadyUploaded;
@@ -2209,7 +2283,7 @@ function QuestionsAdmin() {
               <TableHead className="w-10">
                 <input type="checkbox" checked={filteredQuestions.length > 0 && selectedIds.size === filteredQuestions.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
               </TableHead>
-              <TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy">Total Q</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredQuestions.map(q => {
                 const isSelected = selectedIds.has(q.id);
@@ -2222,6 +2296,7 @@ function QuestionsAdmin() {
                   <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
                   <TableCell>{q.subject}</TableCell>
                   <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
+                  <TableCell><span className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">{q.marks || 1}</span></TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button onClick={() => { setEditingItem(q); const catInList = EXAM_CATEGORIES.some(c => c.value === q.category); const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject); setFormData({ question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD, correctAnswer: q.correctAnswer, explanation: q.explanation || "", category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others", difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || "" }); setCustomCategory(catInList ? "" : q.category); setCustomSubject(subInList ? "" : q.subject); setDialogOpen(true); }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
