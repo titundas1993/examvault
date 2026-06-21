@@ -2728,7 +2728,6 @@ function TestSeriesAdmin() {
         { key: "title", label: "Series Title", type: "text", placeholder: "e.g. WBCS Complete Pack", required: true },
         { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
-        { key: "totalTests", label: "Total Tests", type: "number", placeholder: "25" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "499" },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },

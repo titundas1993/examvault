@@ -845,7 +845,7 @@ function HomeTab() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{test.duration} min</span>
                     <span className="flex items-center gap-1"><Target className="w-3 h-3" />{test.marks || 0} marks</span>
                     <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{test.questions} Q</span>
-                    {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
+                    {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                   </div>
                 </div>
               </div>
@@ -938,7 +938,7 @@ function MockTestsTab() {
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
-                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                 </div>
               </div>
             </div>
@@ -1015,8 +1015,11 @@ function TestSeriesTab() {
                     {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
-                    {s.subTests && s.subTests.length > 0 && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{s.subTests.length} Sub-Tests</span>}
+                    {s.subTests && s.subTests.length > 0 ? (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-ev-orange/10 text-ev-orange font-bold text-sm"><Grid3X3 className="w-3.5 h-3.5" />{s.subTests.length} {s.subTests.length === 1 ? (lang === "bn" ? "সাব-টেস্ট" : "Sub-Test") : (lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests")}</span>
+                    ) : (
+                      <p className="text-sm text-gray-500">{s.category || ""}</p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -1095,7 +1098,7 @@ function FreeTestsTab() {
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
-                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length} Sub-Tests</span>}
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                 </div>
               </div>
               <span className="px-3 py-1 rounded-lg bg-green-50 text-ev-green text-xs font-bold">FREE</span>
@@ -1160,7 +1163,7 @@ function FreeQuizzesTab() {
                 <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
                   {q.category && <span className="px-2 py-0.5 rounded-md bg-white/20">{q.category}</span>}
                   <span>{q.questions} Q</span><span>•</span><span>{q.duration} min</span>
-                  {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length} Sub-Tests</span>}
+                  {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length}</span>}
                 </div>
               </div>
               <div className="text-right text-white/60 text-xs">{q.participants || 0} joined</div>
@@ -2064,30 +2067,39 @@ function TestInfoScreen() {
       {/* Test Details */}
       <div className="px-4 mt-4 space-y-4">
         {/* Quick Stats */}
-        <div className={`grid gap-3 ${testData.subTests && testData.subTests.length > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.duration || 0}</p>
-            <p className="text-xs text-gray-500">{lang === "bn" ? "মিনিট" : "Minutes"}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.questions || 0}</p>
-            <p className="text-xs text-gray-500">{lang === "bn" ? "প্রশ্ন" : "Questions"}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
-            <p className="text-xs text-gray-500">{lang === "bn" ? "মার্কস" : "Marks"}</p>
-          </div>
-          {testData.subTests && testData.subTests.length > 0 && (
-            <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-ev-orange/20">
-              <Grid3X3 className="w-5 h-5 text-ev-orange mx-auto mb-1" />
-              <p className="text-lg font-bold text-ev-orange">{testData.subTests.length}</p>
-              <p className="text-xs text-gray-500">{lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests"}</p>
+        {(() => {
+          const subTestsExist = testData.subTests && testData.subTests.length > 0;
+          const subTestTotalQ = subTestsExist ? testData.subTests.reduce((sum: number, st: any) => sum + (st.totalQuestions || 0), 0) : 0;
+          const displayQ = subTestsExist && testData.questions === 0 ? subTestTotalQ : (testData.questions || 0);
+          const totalDuration = subTestsExist ? testData.subTests.reduce((sum: number, st: any) => sum + (st.duration || 0), 0) : 0;
+          const displayDuration = subTestsExist && !testData.duration ? totalDuration : (testData.duration || 0);
+          return (
+            <div className={`grid gap-3 ${subTestsExist ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{displayDuration}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "মিনিট" : "Minutes"}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{displayQ}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "প্রশ্ন" : "Questions"}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "মার্কস" : "Marks"}</p>
+              </div>
+              {subTestsExist && (
+                <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-ev-orange/20">
+                  <Grid3X3 className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+                  <p className="text-lg font-bold text-ev-orange">{testData.subTests.length}</p>
+                  <p className="text-xs text-gray-500">{lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests"}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Description */}
         {testData.description && (
