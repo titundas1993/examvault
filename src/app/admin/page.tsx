@@ -1648,6 +1648,73 @@ function QuestionsAdmin() {
     { value: "popularTests", label: "⭐ Popular Tests" },
   ];
 
+  // Get selected test data and question count info
+  const getSelectedTestData = (testType: string, titleId: string) => {
+    if (!testType || testType === "none" || !titleId) return null;
+    const tests = getTestsForType(testType);
+    return tests.find((t: any) => t.id === titleId) || null;
+  };
+
+  const getQuestionCountForTest = (testId: string): number => {
+    return questions.filter((q: any) => q.testId === testId).length;
+  };
+
+  // Reusable test info card component
+  const TestInfoCard = ({ testType, titleId }: { testType: string; titleId: string }) => {
+    const testData = getSelectedTestData(testType, titleId);
+    if (!testData) return null;
+    const uploadedCount = getQuestionCountForTest(titleId);
+    const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || 0;
+    const remaining = totalQ > 0 ? Math.max(0, totalQ - uploadedCount) : -1;
+    const isFull = totalQ > 0 && uploadedCount >= totalQ;
+    const accessType = testData.accessType || (testData.isFree ? "free" : "premium");
+    const duration = testData.duration || 0;
+
+    return (
+      <div className={`rounded-xl p-4 border-2 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-bold text-ev-navy text-sm">{testData.title}</h4>
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${accessType === "free" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+            {accessType === "free" ? "🆓 FREE" : "👑 PREMIUM"}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {duration > 0 && (
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span>⏱️</span> <span className="font-medium">Duration:</span> <span className="font-bold text-ev-navy">{duration} min</span>
+            </div>
+          )}
+          {totalQ > 0 && (
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span>📝</span> <span className="font-medium">Total Questions:</span> <span className="font-bold text-ev-navy">{totalQ}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <span>✅</span> <span className="font-medium">Already Uploaded:</span> <span className="font-bold text-green-600">{uploadedCount}</span>
+          </div>
+          {totalQ > 0 && (
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span>📊</span> <span className="font-medium">Remaining:</span> <span className={`font-bold ${isFull ? "text-red-600" : "text-blue-600"}`}>{remaining}</span>
+            </div>
+          )}
+        </div>
+        {totalQ > 0 && (
+          <div className="mt-2">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : uploadedCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${Math.min(100, (uploadedCount / totalQ) * 100)}%` }} />
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1 text-right">{uploadedCount}/{totalQ} questions ({Math.round((uploadedCount / totalQ) * 100)}%)</p>
+          </div>
+        )}
+        {isFull && (
+          <div className="mt-2 p-2 bg-red-100 rounded-lg text-red-700 text-xs font-bold text-center">
+            ⚠️ This test already has all {totalQ} questions uploaded!
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const loadQuestions = useCallback(async () => {
     setLoading(true);
     try {
@@ -1833,6 +1900,28 @@ function QuestionsAdmin() {
         showToast("No valid questions found. Check the format.", "error");
         setBulkImporting(false);
         return;
+      }
+
+      // Enforce question count limit for the selected test
+      if (bulkTestId) {
+        const testData = getSelectedTestData(bulkTestType, bulkTestId);
+        if (testData) {
+          const totalQ = testData.questions || testData.totalQuestions || testData.totalTests || 0;
+          if (totalQ > 0) {
+            const alreadyUploaded = getQuestionCountForTest(bulkTestId);
+            const remaining = totalQ - alreadyUploaded;
+            if (remaining <= 0) {
+              showToast(`This test already has all ${totalQ} questions! Cannot upload more.`, "error");
+              setBulkImporting(false);
+              return;
+            }
+            if (questionsList.length > remaining) {
+              showToast(`Only ${remaining} questions remaining (total: ${totalQ}, uploaded: ${alreadyUploaded}). You tried to upload ${questionsList.length}.`, "error");
+              setBulkImporting(false);
+              return;
+            }
+          }
+        }
       }
 
       // Import all questions
@@ -2049,6 +2138,8 @@ function QuestionsAdmin() {
                 </div>
               )}
             </div>
+            {/* Test Info Card */}
+            {selectedTitleId && <TestInfoCard testType={selectedTestType} titleId={selectedTitleId} />}
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2237,6 +2328,8 @@ function QuestionsAdmin() {
                 </div>
               )}
             </div>
+            {/* Test Info Card for Bulk Import */}
+            {bulkTitleId && <TestInfoCard testType={bulkTestType} titleId={bulkTitleId} />}
             {(bulkCategory === "Others" || bulkSubject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
                 {bulkCategory === "Others" && (
