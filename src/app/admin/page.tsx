@@ -1605,6 +1605,11 @@ function QuestionsAdmin() {
   const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
   const [testSeries, setTestSeries] = useState<any[]>([]);
   const [popularTests, setPopularTests] = useState<any[]>([]);
+  // Test Type + Title selector state (for both single add & bulk import)
+  const [selectedTestType, setSelectedTestType] = useState<string>("");
+  const [selectedTitleId, setSelectedTitleId] = useState<string>("");
+  const [bulkTestType, setBulkTestType] = useState<string>("");
+  const [bulkTitleId, setBulkTitleId] = useState<string>("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [customCategory, setCustomCategory] = useState("");
   const [customSubject, setCustomSubject] = useState("");
@@ -1622,6 +1627,26 @@ function QuestionsAdmin() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  // Helper: get tests list for a given test type
+  const getTestsForType = (testType: string): any[] => {
+    switch (testType) {
+      case "mockTests": return mockTests;
+      case "freeTests": return freeTests;
+      case "dailyQuiz": return dailyQuiz;
+      case "testSeries": return testSeries;
+      case "popularTests": return popularTests;
+      default: return [];
+    }
+  };
+
+  const TEST_TYPE_OPTIONS = [
+    { value: "mockTests", label: "📋 Mock Tests" },
+    { value: "freeTests", label: "🆓 Free Tests" },
+    { value: "dailyQuiz", label: "📝 Daily Quiz" },
+    { value: "testSeries", label: "📚 Test Series" },
+    { value: "popularTests", label: "⭐ Popular Tests" },
+  ];
 
   const loadQuestions = useCallback(async () => {
     setLoading(true);
@@ -1896,9 +1921,11 @@ function QuestionsAdmin() {
           setFormData({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK", difficulty: "medium", marks: 1, testId: "" });
           setCustomCategory("");
           setCustomSubject("");
+          setSelectedTestType("");
+          setSelectedTitleId("");
           setDialogOpen(true);
         }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
-        <button onClick={() => { loadCategoriesIntoGlobals(); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
+        <button onClick={() => { loadCategoriesIntoGlobals(); setBulkTestType(""); setBulkTitleId(""); setBulkTestId(""); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
       </div>
 
       {/* Search + Bulk Actions Bar */}
@@ -1997,7 +2024,30 @@ function QuestionsAdmin() {
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Difficulty</Label><Select value={formData.difficulty || "medium"} onValueChange={v => setFormData({ ...formData, difficulty: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
               <div><Label className="font-medium">Marks</Label><Input type="number" value={formData.marks || 1} onChange={e => setFormData({ ...formData, marks: Number(e.target.value) })} /></div>
-              <div className="col-span-3"><Label className="font-medium">Assign to Test (Optional)</Label><Select value={formData.testId || "none"} onValueChange={v => setFormData({ ...formData, testId: v === "none" ? "" : v })}><SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger><SelectContent><SelectItem value="none">— No specific test —</SelectItem>{mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}{freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}</SelectContent></Select></div>
+            </div>
+            {/* Test Type + Title Selector */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="font-medium">Test Type</Label>
+                <Select value={selectedTestType} onValueChange={v => { setSelectedTestType(v); setSelectedTitleId(""); setFormData({ ...formData, testId: "" }); }}>
+                  <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— No specific test —</SelectItem>
+                    {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedTestType && selectedTestType !== "none" && (
+                <div>
+                  <Label className="font-medium">Select Title</Label>
+                  <Select value={selectedTitleId} onValueChange={v => { setSelectedTitleId(v); setFormData({ ...formData, testId: v }); }}>
+                    <SelectTrigger><SelectValue placeholder={`Select ${TEST_TYPE_OPTIONS.find(t => t.value === selectedTestType)?.label || "test"}...`} /></SelectTrigger>
+                    <SelectContent>
+                      {getTestsForType(selectedTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
@@ -2057,6 +2107,30 @@ function QuestionsAdmin() {
                   </Select>
                 ) : bulkEditField === "marks" ? (
                   <Input type="number" value={bulkEditValue} onChange={e => setBulkEditValue(Number(e.target.value))} placeholder="Enter marks" />
+                ) : bulkEditField === "testId" ? (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="font-medium">Test Type</Label>
+                      <Select value={bulkTestType} onValueChange={v => { setBulkTestType(v); setBulkTitleId(""); setBulkEditValue(""); }}>
+                        <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— No specific test —</SelectItem>
+                          {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {bulkTestType && bulkTestType !== "none" && (
+                      <div>
+                        <Label className="font-medium">Select Title</Label>
+                        <Select value={bulkTitleId} onValueChange={v => { setBulkTitleId(v); setBulkEditValue(v); }}>
+                          <SelectTrigger><SelectValue placeholder="Select title..." /></SelectTrigger>
+                          <SelectContent>
+                            {getTestsForType(bulkTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <Input value={bulkEditValue || ""} onChange={e => setBulkEditValue(e.target.value)} placeholder="Enter value..." />
                 )}
@@ -2130,19 +2204,38 @@ function QuestionsAdmin() {
                 </Select>
               </div>
               <div>
-                <Label className="font-medium">Assign to Test (Optional)</Label>
-                <Select value={bulkTestId || "none"} onValueChange={v => setBulkTestId(v === "none" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger>
+                <Label className="font-medium">Test Type</Label>
+                <Select value={bulkTestType} onValueChange={v => { setBulkTestType(v); setBulkTitleId(""); setBulkTestId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select test type..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— No specific test —</SelectItem>
-                    {mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}
-                    {freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
+                    {TEST_TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {bulkTestType && bulkTestType !== "none" ? (
+                <div>
+                  <Label className="font-medium">Select Title</Label>
+                  <Select value={bulkTitleId} onValueChange={v => { setBulkTitleId(v); setBulkTestId(v); }}>
+                    <SelectTrigger><SelectValue placeholder={`Select ${TEST_TYPE_OPTIONS.find(t => t.value === bulkTestType)?.label || "test"}...`} /></SelectTrigger>
+                    <SelectContent>
+                      {getTestsForType(bulkTestType).map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label className="font-medium">Difficulty</Label>
+                  <Select value={bulkDifficulty} onValueChange={setBulkDifficulty}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Easy</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             {(bulkCategory === "Others" || bulkSubject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
