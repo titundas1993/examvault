@@ -564,7 +564,7 @@ export default function LoginScreen() {
                       Change phone number
                     </button>
                   </>
-                )
+                )}
 
                 <div id={`recaptcha-container-${recaptchaKey}`} key={`recaptcha-${recaptchaKey}`} />
               </motion.div>
