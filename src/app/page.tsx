@@ -3095,13 +3095,38 @@ function ExamVaultAppInner() {
       store.setFirebaseUser(firebaseUser);
       store.setAuthLoading(false);
       if (firebaseUser) {
-        // User is signed in via Firebase
+        // User is signed in via Firebase — set basic info immediately
         store.setUser({
           name: firebaseUser.displayName || "User",
           email: firebaseUser.email || "",
           role: "user",
           uid: firebaseUser.uid,
+          phone: firebaseUser.phoneNumber || "",
         });
+        // Then fetch real role from Firestore profile
+        (async () => {
+          try {
+            const { doc, getDoc } = await import("firebase/firestore");
+            const { db } = await import("@/lib/firebase");
+            const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+            if (profileDoc.exists()) {
+              const profileData = profileDoc.data();
+              const currentStore = useAppStore.getState();
+              // Only update if still the same user
+              if (currentStore.firebaseUser?.uid === firebaseUser.uid) {
+                currentStore.setUser({
+                  name: profileData.name || firebaseUser.displayName || "User",
+                  email: firebaseUser.email || "",
+                  role: profileData.role || "user",
+                  uid: firebaseUser.uid,
+                  phone: profileData.phone || firebaseUser.phoneNumber || "",
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching user role:", e);
+          }
+        })();
         checkSubscriptionStatus(firebaseUser.uid).then((status) => {
           if (status.isPremium) {
             store.setSubscription({
