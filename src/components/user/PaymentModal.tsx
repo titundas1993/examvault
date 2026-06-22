@@ -93,15 +93,6 @@ export default function PaymentModal() {
         description: paymentModalData.planName,
         image: "/logo.png",
         order_id: order.orderId,
-        // Force UPI and other methods to show
-        // Razorpay Standard Checkout respects these method restrictions
-        method: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-          emi: false,
-        },
         handler: async function (response: any) {
           // Step 3: Verify payment on server
           try {
@@ -189,13 +180,6 @@ export default function PaymentModal() {
           name: user.name || "",
           email: user.email || "",
           contact: (user as any)?.phone || firebaseUser?.phoneNumber || "",
-        },
-        config: {
-          display: {
-            blocks: {
-              banks: ["SBI", "HDFC", "ICICI", "AXIS", "KOTAK", "PNB", "BOB"],
-            },
-          },
         },
         notes: {
           userId: firebaseUser.uid,
