@@ -93,6 +93,15 @@ export default function PaymentModal() {
         description: paymentModalData.planName,
         image: "/logo.png",
         order_id: order.orderId,
+        // Force UPI and other methods to show
+        // Razorpay Standard Checkout respects these method restrictions
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: false,
+        },
         handler: async function (response: any) {
           // Step 3: Verify payment on server
           try {
@@ -187,17 +196,6 @@ export default function PaymentModal() {
               banks: ["SBI", "HDFC", "ICICI", "AXIS", "KOTAK", "PNB", "BOB"],
             },
           },
-        },
-        // Razorpay Standard Checkout shows all enabled payment methods automatically.
-        // Make sure UPI is enabled in Razorpay Dashboard → Settings → Payment Methods
-        // The "method" object below only works with Razorpay Custom Checkout (Pro),
-        // but we include it as a hint — Standard Checkout ignores it gracefully.
-        _: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-          emi: false,
         },
         notes: {
           userId: firebaseUser.uid,
