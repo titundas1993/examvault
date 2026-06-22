@@ -76,8 +76,8 @@ interface AppState {
   setSelectedAnnouncementId: (id: string | null) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  user: { name: string; email: string; role: string; uid?: string } | null;
-  setUser: (user: { name: string; email: string; role: string; uid?: string } | null) => void;
+  user: { name: string; email: string; role: string; uid?: string; phone?: string; photoURL?: string } | null;
+  setUser: (user: { name: string; email: string; role: string; uid?: string; phone?: string; photoURL?: string } | null) => void;
   userProfile: UserProfile;
   setUserProfile: (profile: Partial<UserProfile>) => void;
   firebaseUser: User | null;

@@ -16,14 +16,10 @@ import {
   LogOut,
   Trash2,
   ChevronRight,
-  ChevronDown,
   Loader2,
   Mail,
   Check,
   AlertTriangle,
-  CreditCard,
-  Camera,
-  Crown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,9 +49,6 @@ import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { logout as authLogout, sendPasswordReset, getCurrentUser } from "@/lib/services/auth";
 import { updateUserProfile, getAppSettings } from "@/lib/services/firestore";
-import { db, storage } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const languages = [
   { code: "en", label: "EN", native: "English" },
@@ -80,11 +73,8 @@ export default function SettingsTab() {
     setAppSettings,
   } = useAppStore();
 
-  const userProfile = useAppStore((s) => s.userProfile);
   const [editName, setEditName] = useState(user?.name || "");
-  const [editPhone, setEditPhone] = useState(userProfile?.phone || "");
-  const [editPhotoURL, setEditPhotoURL] = useState(userProfile?.photoUrl || "");
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editPhone, setEditPhone] = useState(user?.phone || firebaseUser?.phoneNumber || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -94,9 +84,6 @@ export default function SettingsTab() {
   const [passwordError, setPasswordError] = useState("");
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
 
   // Load app settings on mount
   useEffect(() => {
@@ -113,56 +100,17 @@ export default function SettingsTab() {
     loadSettings();
   }, [setAppSettings]);
 
-  // Load payment history
-  useEffect(() => {
-    const loadPaymentHistory = async () => {
-      if (!firebaseUser?.uid) return;
-      setLoadingHistory(true);
-      try {
-        const paymentsRef = collection(db, "payments");
-        const q = query(paymentsRef, where("userId", "==", firebaseUser.uid), orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        const payments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setPaymentHistory(payments);
-      } catch (err) {
-        console.error("Error loading payment history:", err);
-      }
-      setLoadingHistory(false);
-    };
-    loadPaymentHistory();
-  }, [firebaseUser?.uid]);
-
   const isGuest = !user || user.role === "guest";
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !firebaseUser?.uid) return;
-    setUploadingPhoto(true);
-    try {
-      const fileRef = ref(storage, `users/${firebaseUser.uid}/${Date.now()}_${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
-      setEditPhotoURL(url);
-      await updateUserProfile(firebaseUser.uid, { photoURL: url });
-      useAppStore.getState().setUserProfile({ ...userProfile, photoUrl: url });
-    } catch (err) {
-      console.error("Error uploading photo:", err);
-    }
-    setUploadingPhoto(false);
-  };
 
   const handleSaveProfile = async () => {
     if (!firebaseUser?.uid) return;
     setSavingProfile(true);
     try {
-      const updateData: Record<string, any> = {
+      await updateUserProfile(firebaseUser.uid, {
         name: editName,
         phone: editPhone,
-      };
-      if (editPhotoURL) updateData.photoURL = editPhotoURL;
-      await updateUserProfile(firebaseUser.uid, updateData);
-      setUser({ ...user!, name: editName, phone: editPhone, photoURL: editPhotoURL } as any);
-      useAppStore.getState().setUserProfile({ ...userProfile, phone: editPhone, photoUrl: editPhotoURL });
+      });
+      setUser({ ...user!, name: editName, phone: editPhone });
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (err) {
@@ -184,6 +132,7 @@ export default function SettingsTab() {
     try {
       const user = getCurrentUser();
       if (user && user.email) {
+        // Send password reset email as a secure way to change password
         await sendPasswordReset(user.email);
         setShowPasswordDialog(false);
         alert(`Password reset email sent to ${user.email}. Please check your inbox.`);
@@ -210,11 +159,16 @@ export default function SettingsTab() {
   };
 
   const handleDeleteAccount = async () => {
+    // Note: Full account deletion requires server-side Firebase Admin SDK.
+    // For now, we sign out the user and clear local data as a safety measure.
+    // A proper implementation would call a Cloud Function to delete the Firebase Auth user
+    // and all associated Firestore data.
     try {
       await authLogout();
       setUser(null);
       setFirebaseUser(null);
       setView("login");
+      // Clear all local data
       localStorage.clear();
     } catch (err) {
       console.error("Error deleting account:", err);
@@ -251,7 +205,10 @@ export default function SettingsTab() {
     <div className="min-h-screen bg-ev-light dark:bg-gray-950">
       <div className="p-4 space-y-4 pb-8">
         {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
           <h1 className="text-xl font-bold text-ev-navy dark:text-white">
             {t("settings", language)}
           </h1>
@@ -260,7 +217,7 @@ export default function SettingsTab() {
           </p>
         </motion.div>
 
-        {/* Profile Section with Photo */}
+        {/* Profile Section */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -272,26 +229,6 @@ export default function SettingsTab() {
             Profile
           </h3>
           <Separator />
-          {/* Photo Upload */}
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              {editPhotoURL ? (
-                <img src={editPhotoURL} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-ev-orange/30" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-ev-navy/10 dark:bg-white/10 flex items-center justify-center">
-                  <User className="w-8 h-8 text-ev-navy/30 dark:text-white/30" />
-                </div>
-              )}
-              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-ev-orange text-white flex items-center justify-center cursor-pointer shadow-md hover:bg-ev-orange/90 transition-colors">
-                {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhoto} />
-              </label>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-ev-navy dark:text-white">{editName || "User"}</p>
-              <p className="text-xs text-muted-foreground">{user?.email || editPhone || "Tap photo to change"}</p>
-            </div>
-          </div>
           <div className="space-y-3">
             <div>
               <Label className="text-xs text-muted-foreground mb-1">{t("name", language)}</Label>
@@ -335,76 +272,6 @@ export default function SettingsTab() {
             </Button>
           </div>
         </motion.section>
-
-        {/* Payment History */}
-        <motion.section
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.07 }}
-          className="bg-white dark:bg-gray-900 rounded-xl border border-border"
-        >
-          <button
-            onClick={() => setShowPaymentHistory(!showPaymentHistory)}
-            className="w-full flex items-center justify-between p-4 hover:bg-ev-light dark:hover:bg-gray-800 transition-colors rounded-xl"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-ev-green/10 flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-ev-green" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-ev-navy dark:text-white">Payment History</p>
-                <p className="text-[11px] text-muted-foreground">{paymentHistory.length} transaction{paymentHistory.length !== 1 ? "s" : ""}</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showPaymentHistory ? "rotate-180" : ""}`} />
-          </button>
-          {showPaymentHistory && (
-            <div className="px-4 pb-4 space-y-2">
-              {loadingHistory ? (
-                <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-ev-orange" /></div>
-              ) : paymentHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No payment history yet</p>
-              ) : (
-                paymentHistory.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-ev-light dark:bg-gray-800 rounded-xl">
-                    <div>
-                      <p className="text-sm font-medium text-ev-navy dark:text-white">{p.planName || "Payment"}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-ev-navy dark:text-white">₹{(p.amount || 0) / 100}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === "captured" || p.verified ? "bg-green-100 text-ev-green" : p.status === "failed" ? "bg-red-100 text-ev-red" : "bg-yellow-100 text-yellow-600"}`}>
-                        {p.status === "captured" || p.verified ? "Success" : p.status === "failed" ? "Failed" : p.status || "Pending"}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </motion.section>
-
-        {/* Premium Status */}
-        {useAppStore.getState().subscription.isPremium && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 }}
-            className="bg-gradient-to-r from-ev-navy to-blue-800 rounded-xl p-4"
-          >
-            <div className="flex items-center gap-3">
-              <Crown className="w-5 h-5 text-ev-gold" />
-              <div>
-                <p className="text-sm font-bold text-white">Premium Member</p>
-                <p className="text-[11px] text-white/60">
-                  {useAppStore.getState().subscription.planName || "Active"} • Expires {useAppStore.getState().subscription.premiumExpiry ? new Date(useAppStore.getState().subscription.premiumExpiry).toLocaleDateString("en-IN") : "—"}
-                </p>
-              </div>
-            </div>
-          </motion.section>
-        )}
 
         {/* Change Password */}
         {firebaseUser?.email && (

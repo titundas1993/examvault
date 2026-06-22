@@ -50,6 +50,8 @@ export default function LoginScreen() {
   const [resendTimer, setResendTimer] = useState(0);
   const [recaptchaKey, setRecaptchaKey] = useState(0); // forces new DOM element on change
   const recaptchaVerifierRef = useRef<any>(null);
+  const [phoneAuthUser, setPhoneAuthUser] = useState<any>(null); // temporary hold after OTP verify
+  const [showNameStep, setShowNameStep] = useState(false); // name prompt after phone login
 
   // Auto OTP fill from Android SMS Retriever
   useEffect(() => {
@@ -237,15 +239,67 @@ export default function LoginScreen() {
     try {
       const credential = await confirmationResult.confirm(otp);
       setFirebaseUser(credential.user);
-      setUser({
-        name: credential.user.displayName || credential.user.phoneNumber || "User",
-        email: credential.user.email || "",
+      // Check if user profile already exists in Firestore
+      const { doc, getDoc, setDoc, serverTimestamp } = await import("firebase/firestore");
+      const { db } = await import("@/lib/firebase");
+      const profileDoc = await getDoc(doc(db, "users", credential.user.uid));
+      if (profileDoc.exists()) {
+        // Existing user — use their saved name
+        const profileData = profileDoc.data();
+        setUser({
+          name: profileData.name || credential.user.displayName || "User",
+          email: profileData.email || credential.user.email || "",
+          role: profileData.role || "user",
+          uid: credential.user.uid,
+          phone: profileData.phone || credential.user.phoneNumber || "",
+          photoURL: profileData.photoURL || "",
+        });
+        setView("home");
+      } else {
+        // New user — show name input step
+        setPhoneAuthUser(credential.user);
+        setShowNameStep(true);
+      }
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhoneNameSubmit = async () => {
+    if (!name.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    setLoading(true);
+    try {
+      // Create Firestore profile with the entered name
+      const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+      const { db } = await import("@/lib/firebase");
+      const profileData = {
+        uid: phoneAuthUser.uid,
+        name: name.trim(),
+        email: phoneAuthUser.email || "",
+        phone: phoneAuthUser.phoneNumber || "",
+        photoURL: phoneAuthUser.photoURL || "",
         role: "user",
-        uid: credential.user.uid,
+        language: "en",
+        isDarkMode: false,
+        notificationEnabled: true,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, "users", phoneAuthUser.uid), profileData);
+      setUser({
+        name: name.trim(),
+        email: phoneAuthUser.email || "",
+        role: "user",
+        uid: phoneAuthUser.uid,
+        phone: phoneAuthUser.phoneNumber || "",
       });
       setView("home");
     } catch (err: any) {
-      setError(err.message || "Invalid OTP");
+      setError(err.message || "Failed to save profile");
     } finally {
       setLoading(false);
     }
@@ -441,6 +495,28 @@ export default function LoginScreen() {
                       text="Send OTP"
                     />
                   </>
+                ) : showNameStep ? (
+                  <>
+                    <div className="text-center mb-3">
+                      <div className="w-14 h-14 rounded-full bg-ev-orange-light dark:bg-ev-orange/15 flex items-center justify-center mx-auto mb-3">
+                        <User className="w-7 h-7 text-ev-orange" />
+                      </div>
+                      <p className="text-sm font-semibold text-ev-navy dark:text-white">What&apos;s your name?</p>
+                      <p className="text-xs text-muted-foreground mt-1">This will be displayed on your profile</p>
+                    </div>
+                    <InputField
+                      icon={<User className="w-4 h-4 text-muted-foreground" />}
+                      placeholder="Enter your full name"
+                      type="text"
+                      value={name}
+                      onChange={(v) => { setName(v); clearMessages(); }}
+                    />
+                    <SubmitButton
+                      onClick={handlePhoneNameSubmit}
+                      loading={loading}
+                      text="Continue"
+                    />
+                  </>
                 ) : (
                   <>
                     <div className="text-center">
@@ -488,7 +564,7 @@ export default function LoginScreen() {
                       Change phone number
                     </button>
                   </>
-                )}
+                )
 
                 <div id={`recaptcha-container-${recaptchaKey}`} key={`recaptcha-${recaptchaKey}`} />
               </motion.div>
