@@ -63,7 +63,7 @@ jobs:
           echo "App domain: $APP_DOMAIN"
 
           # Create project directory structure
-          mkdir -p android-project/app/src/main/java/com/examvault/app
+          mkdir -p android-project/app/src/main/java/com/examvault/education
           mkdir -p android-project/app/src/main/res/values
           mkdir -p android-project/app/src/main/res/mipmap-hdpi
           mkdir -p android-project/app/src/main/res/mipmap-mdpi
@@ -112,10 +112,10 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.examvault.app'
+              namespace 'com.examvault.education'
               compileSdk 35
               defaultConfig {
-                  applicationId "com.examvault.app"
+                  applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
                   versionCode 1
@@ -220,9 +220,9 @@ jobs:
           XMLEOF
 
           # MainActivity.java — copy from template and replace variables
-          cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/app/MainActivity.java
-          sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
-          sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/app/MainActivity.java
+          cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/education/MainActivity.java
+          sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
+          sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -288,9 +288,9 @@ jobs:
           echo "=== Verify AdMob App ID in manifest ==="
           grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
           echo "=== Verify APP_URL in MainActivity ==="
-          grep "appUrl" android-project/app/src/main/java/com/examvault/app/MainActivity.java | head -2
+          grep "appUrl" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
           echo "=== Verify ADMOB ID in MainActivity ==="
-          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/app/MainActivity.java | head -2
+          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
           echo "Android project created!"
 
       - name: Build Release APK
