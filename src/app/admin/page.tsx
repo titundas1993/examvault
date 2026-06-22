@@ -38,7 +38,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { storage } from "@/lib/firebase";
+import { storage, auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   getExams, addExam, updateExam, deleteExam, ExamData,
@@ -183,6 +185,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [adminEmail, setAdminEmail] = useState("");
 
   // Session persistence: check for existing token on mount
   // Auto re-login is handled by admin-api.ts when 401 is received
@@ -198,14 +201,55 @@ export default function AdminPage() {
     setLoginLoading(true);
     setLoginError("");
     try {
-      const result = await adminLogin(email, password);
+      // Step 1: Login with Firebase Auth
+      let firebaseUser: User;
+      try {
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        firebaseUser = credential.user;
+      } catch (firebaseErr: any) {
+        // If Firebase auth fails, try the old hardcoded credentials as fallback
+        console.log("Firebase auth failed, trying hardcoded credentials...", firebaseErr?.message);
+        const result = await adminLogin(email, password);
+        if (result.success) {
+          setIsLoggedIn(true);
+          setAdminEmail(email);
+        } else {
+          setLoginError(result.error || "Invalid credentials");
+        }
+        return;
+      }
+
+      // Step 2: Check Firestore role
+      try {
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.role !== "admin") {
+            setLoginError("Access denied. Your account does not have admin privileges. Contact the administrator to get admin access.");
+            return;
+          }
+        } else {
+          setLoginError("User profile not found. Please contact the administrator.");
+          return;
+        }
+      } catch (firestoreErr: any) {
+        console.error("Firestore role check error:", firestoreErr);
+        setLoginError("Failed to verify admin role. Please try again.");
+        return;
+      }
+
+      // Step 3: Get Firebase ID token and send to admin login API
+      const idToken = await firebaseUser.getIdToken();
+      const result = await adminLogin(email, password, idToken);
       if (result.success) {
         setIsLoggedIn(true);
+        setAdminEmail(firebaseUser.email || email);
       } else {
-        setLoginError(result.error || "Invalid credentials");
+        setLoginError(result.error || "Admin login failed");
       }
     } catch (err: any) {
-      setLoginError("Connection error — please try again");
+      setLoginError(err?.message || "Connection error — please try again");
     } finally {
       setLoginLoading(false);
     }
@@ -213,9 +257,12 @@ export default function AdminPage() {
 
   const handleLogout = useCallback(async () => {
     await adminLogout();
+    // Also sign out from Firebase Auth
+    try { await auth.signOut(); } catch { /* ignore */ }
     setIsLoggedIn(false);
     setEmail("");
     setPassword("");
+    setAdminEmail("");
     setCurrentView("dashboard");
   }, []);
 
@@ -273,12 +320,12 @@ export default function AdminPage() {
                 <Shield className="w-8 h-8 text-ev-orange" />
               </div>
               <h1 className="text-2xl font-black text-ev-navy">Admin Panel</h1>
-              <p className="text-gray-500 text-sm">EXAMVAULT Administration</p>
+              <p className="text-gray-500 text-sm">Login with your ExamVault account</p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-gray-700 text-sm font-medium mb-1 block">Admin Email</label>
-                <input value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-ev-navy focus:ring-2 focus:ring-ev-navy/10" placeholder="admin@examvault.com" />
+                <label className="text-gray-700 text-sm font-medium mb-1 block">Email</label>
+                <input value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-ev-navy focus:ring-2 focus:ring-ev-navy/10" placeholder="your@email.com" />
               </div>
               <div>
                 <label className="text-gray-700 text-sm font-medium mb-1 block">Password</label>
@@ -292,6 +339,7 @@ export default function AdminPage() {
               <button onClick={handleLogin} disabled={loginLoading || !email || !password} className="w-full py-3.5 rounded-xl bg-ev-navy text-white font-bold text-lg hover:bg-ev-dark transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 {loginLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> Verifying...</> : "Login to Admin Panel"}
               </button>
+              <p className="text-gray-400 text-xs text-center mt-3">Use your ExamVault Firebase account with admin role to login</p>
             </div>
           </div>
         </motion.div>
