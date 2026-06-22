@@ -97,12 +97,12 @@ export function hasAdminToken(): boolean {
 
 // Login to admin API — returns token on success
 // Supports two methods:
-// 1. Firebase-based: pass firebaseIdToken (preferred) — verifies Firebase Auth + Firestore admin role
+// 1. Firebase-based: pass firebaseAdminLogin=true (preferred) — client has already verified Firebase Auth + Firestore admin role
 // 2. Hardcoded credentials: just email+password (fallback)
-export async function adminLogin(email: string, password: string, firebaseIdToken?: string) {
-  const body: Record<string, string> = { email, password };
-  if (firebaseIdToken) {
-    body.firebaseIdToken = firebaseIdToken;
+export async function adminLogin(email: string, password: string, firebaseAdminLogin?: boolean) {
+  const body: Record<string, string | boolean> = { email, password };
+  if (firebaseAdminLogin) {
+    body.firebaseAdminLogin = true;
   }
 
   const response = await fetch(LOGIN_API, {

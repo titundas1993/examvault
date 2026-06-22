@@ -239,9 +239,8 @@ export default function AdminPage() {
         return;
       }
 
-      // Step 3: Get Firebase ID token and send to admin login API
-      const idToken = await firebaseUser.getIdToken();
-      const result = await adminLogin(email, password, idToken);
+      // Step 3: Get admin token from server (client already verified Firebase Auth + role)
+      const result = await adminLogin(email, password, true);
       if (result.success) {
         setIsLoggedIn(true);
         setAdminEmail(firebaseUser.email || email);
