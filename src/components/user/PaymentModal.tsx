@@ -179,7 +179,7 @@ export default function PaymentModal() {
         prefill: {
           name: user.name || "",
           email: user.email || "",
-          contact: (user as any)?.phone || "",
+          contact: (user as any)?.phone || firebaseUser?.phoneNumber || "",
         },
         config: {
           display: {
@@ -188,7 +188,11 @@ export default function PaymentModal() {
             },
           },
         },
-        method: {
+        // Razorpay Standard Checkout shows all enabled payment methods automatically.
+        // Make sure UPI is enabled in Razorpay Dashboard → Settings → Payment Methods
+        // The "method" object below only works with Razorpay Custom Checkout (Pro),
+        // but we include it as a hint — Standard Checkout ignores it gracefully.
+        _: {
           upi: true,
           card: true,
           netbanking: true,
