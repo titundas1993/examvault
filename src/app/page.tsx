@@ -3027,11 +3027,17 @@ function ExamVaultAppInner() {
   // ══════════════════════════════════════════════════════════
   useEffect(() => {
     try {
-      if ((window as any).AndroidBridge && (window as any).AndroidBridge.onNavigate) {
-        (window as any).AndroidBridge.onNavigate();
+      // Check if premium - if premium, don't trigger ads
+      const isPremium = subscription.isPremium;
+      if (isPremium) return;
+
+      // Android WebView: call native bridge to show ad
+      const bridge = (window as any).AndroidBridge;
+      if (bridge && bridge.onNavigate) {
+        bridge.onNavigate();
       }
     } catch (e) {}
-  }, [currentView]);
+  }, [currentView, subscription.isPremium]);
 
   // ══════════════════════════════════════════════════════════
   // BACK BUTTON HANDLER is now at MODULE LEVEL (see top of file).

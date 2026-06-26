@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
                         Log.e(TAG, "AdMob init error: " + e.getMessage());
                     }
                 }
-            }, 2000);
+            }, 1000);
 
             // === WEBVIEW SETTINGS ===
             WebSettings settings = webView.getSettings();
@@ -235,7 +235,7 @@ public class MainActivity extends Activity {
     private com.google.android.gms.ads.interstitial.InterstitialAd interstitialAd;
     private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
     private int navCount = 0;
-    private static final int INTERSTITIAL_INTERVAL = 3;
+    private static final int INTERSTITIAL_INTERVAL = 2;
     private boolean isPremiumUser = false;
     private boolean adLoadPending = false;
 
