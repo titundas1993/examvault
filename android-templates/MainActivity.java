@@ -199,13 +199,15 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (webView == null) { super.onBackPressed(); return; }
-        webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { st.goBack(); return 'went_back'; } else if(st.currentView === 'home') { return 'at_home'; } else { st.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
+        webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { return 'can_go_back'; } else if(st.currentView === 'home' || st.currentView === 'login') { return 'at_home'; } else { return 'can_go_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String result) {
                 result = result != null ? result.replace("\"", "") : "";
                 if ("exam_warning".equals(result)) {
-                    onNavigationEvent();
-                } else if ("went_back".equals(result)) {
+                    // Warning dialog shown in JS, do nothing
+                } else if ("can_go_back".equals(result)) {
+                    // Go back in the web app's state management (not WebView history)
+                    webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { s.getState().goBack(); } } catch(e) {} })()", null);
                     onNavigationEvent();
                 } else if ("at_home".equals(result)) {
                     showExitDialog();
