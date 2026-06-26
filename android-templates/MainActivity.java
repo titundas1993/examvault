@@ -153,9 +153,10 @@ public class MainActivity extends Activity {
             // === OTP Auto-Fill: JS Interface ===
             try {
                 webView.addJavascriptInterface(new OtpWebInterface(), "AndroidOtp");
+                webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
                 startSmsRetriever();
             } catch (Exception e) {
-                Log.e(TAG, "OTP init error: " + e.getMessage());
+                Log.e(TAG, "JS Interface init error: " + e.getMessage());
             }
 
             String urlToLoad = appUrl;
@@ -236,13 +237,16 @@ public class MainActivity extends Activity {
     private int navCount = 0;
     private static final int INTERSTITIAL_INTERVAL = 3;
     private boolean isPremiumUser = false;
+    private boolean adLoadPending = false;
 
     private void loadInterstitialAd() {
+        if (adLoadPending) return; // prevent duplicate loads
         if (admobInterstitialId == null || admobInterstitialId.isEmpty() ||
             admobInterstitialId.contains("${")) {
             Log.w(TAG, "AdMob Interstitial ID not set, skipping ad load");
             return;
         }
+        adLoadPending = true;
         try {
             com.google.android.gms.ads.AdRequest adRequest = new com.google.android.gms.ads.AdRequest.Builder().build();
             com.google.android.gms.ads.interstitial.InterstitialAd.load(this, admobInterstitialId, adRequest,
@@ -250,41 +254,64 @@ public class MainActivity extends Activity {
                     @Override
                     public void onAdLoaded(com.google.android.gms.ads.interstitial.InterstitialAd ad) {
                         interstitialAd = ad;
+                        adLoadPending = false;
                         interstitialAd.setFullScreenContentCallback(new com.google.android.gms.ads.FullScreenContentCallback() {
                             @Override
                             public void onAdDismissedFullScreenContent() {
                                 interstitialAd = null;
+                                adLoadPending = false;
+                                loadInterstitialAd(); // preload next ad
+                            }
+                            @Override
+                            public void onAdFailedToShowFullScreenContent(com.google.android.gms.ads.AdError adError) {
+                                interstitialAd = null;
+                                adLoadPending = false;
                                 loadInterstitialAd();
                             }
                         });
-                        Log.d(TAG, "Interstitial ad loaded");
+                        Log.d(TAG, "Interstitial ad loaded successfully");
                     }
                     @Override
                     public void onAdFailedToLoad(com.google.android.gms.ads.LoadAdError error) {
                         interstitialAd = null;
+                        adLoadPending = false;
                         Log.w(TAG, "Ad load failed: " + error.getMessage());
+                        // Retry after delay
+                        handler.postDelayed(new Runnable() {
+                            @Override public void run() { loadInterstitialAd(); }
+                        }, 30000); // retry in 30 seconds
                     }
                 });
         } catch (Exception e) {
+            adLoadPending = false;
             Log.e(TAG, "AdMob load error: " + e.getMessage());
         }
     }
 
     private void showInterstitialAd() {
-        if (isPremiumUser) return;
+        if (isPremiumUser) {
+            Log.d(TAG, "Premium user, skipping ad");
+            return;
+        }
         try {
             if (interstitialAd != null) {
+                Log.d(TAG, "Showing interstitial ad");
                 interstitialAd.show(this);
             } else {
+                Log.d(TAG, "No ad ready, loading...");
                 loadInterstitialAd();
             }
         } catch (Exception e) {
             Log.e(TAG, "Ad show error: " + e.getMessage());
+            interstitialAd = null;
+            adLoadPending = false;
         }
     }
 
     private void onNavigationEvent() {
+        if (isPremiumUser) return;
         navCount++;
+        Log.d(TAG, "Navigation event #" + navCount + " (interval: " + INTERSTITIAL_INTERVAL + ")");
         if (navCount >= INTERSTITIAL_INTERVAL) {
             navCount = 0;
             showInterstitialAd();
@@ -308,6 +335,32 @@ public class MainActivity extends Activity {
     // === SMS AUTO-READ FOR OTP ===
     private SmsBroadcastReceiver smsReceiver;
     private boolean smsReceiverRegistered = false;
+
+    // === JS INTERFACE for AdMob navigation events ===
+    private class AdWebInterface {
+        @android.webkit.JavascriptInterface
+        public void onNavigate() {
+            handler.post(new Runnable() {
+                @Override public void run() {
+                    onNavigationEvent();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void showAd() {
+            handler.post(new Runnable() {
+                @Override public void run() {
+                    showInterstitialAd();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public boolean isAdReady() {
+            return interstitialAd != null;
+        }
+    }
 
     private void startSmsRetriever() {
         try {

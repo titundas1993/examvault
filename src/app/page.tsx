@@ -3021,6 +3021,19 @@ function ExamVaultAppInner() {
   }, [subscription.isPremium]);
 
   // ══════════════════════════════════════════════════════════
+  // NOTIFY ANDROID WEBVIEW ON VIEW CHANGE (for AdMob interstitial)
+  // When user navigates between views, tell Android native code
+  // so it can count navigations and show ads at intervals.
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    try {
+      if ((window as any).AndroidBridge && (window as any).AndroidBridge.onNavigate) {
+        (window as any).AndroidBridge.onNavigate();
+      }
+    } catch (e) {}
+  }, [currentView]);
+
+  // ══════════════════════════════════════════════════════════
   // BACK BUTTON HANDLER is now at MODULE LEVEL (see top of file).
   // It was moved out of useEffect to fix timing issues on mobile PWA.
   // ══════════════════════════════════════════════════════════
