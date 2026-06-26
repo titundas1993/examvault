@@ -109,60 +109,54 @@ if (typeof window !== 'undefined' && !(window as any).__evBackInit) {
   // Expose Zustand store globally so Android WebView can call goBack() via JS
   (window as any).__ZUSTAND_STORE__ = useAppStore;
 
-  // Push TWO sentinel entries for buffer.
-  // On Android PWA, when the user presses back and there are zero history entries
-  // ahead of the current position, the system closes the app WITHOUT firing popstate.
-  // Two sentinels guarantee the browser always has at least one pushState entry to
-  // navigate back through, giving our handler a chance to re-push and intercept.
-  window.history.pushState({ appState: true }, '');
-  window.history.pushState({ appState: true }, '');
+  // === ANDROID WEBVIEW: Let onBackPressed() handle back button ===
+  // In Android WebView, the native onBackPressed() calls our JS goBack().
+  // We do NOT want the popstate listener to also fire, as it would cause
+  // a double-back (user presses back once, both handlers fire).
+  // Detect WebView via user agent (wv flag) or our custom flag set by native code.
+  const isAndroidWebView = /wv/.test(navigator.userAgent) || /Android.*Version\/\d/.test(navigator.userAgent) || !!(window as any).__EV_WEBVIEW;
 
-  // Debounce flag — some mobile browsers fire popstate twice for a single back press.
-  let _popstateDebounce = false;
-
-  const handlePopstate = () => {
-    // Skip if this is a rapid double-fire
-    if (_popstateDebounce) return;
-    _popstateDebounce = true;
-    setTimeout(() => { _popstateDebounce = false; }, 250);
-
-    const store = useAppStore.getState();
-
-    // If the app is in the process of exiting, don't interfere
-    if (store.isExitingApp) return;
-
-    // Re-push sentinel IMMEDIATELY so the browser can't run out of history entries.
-    // The browser just consumed one entry by navigating back; we replace it.
+  if (!isAndroidWebView) {
+    // Only register popstate handler for browser/PWA (not Android WebView)
+    // Push TWO sentinel entries for buffer.
+    window.history.pushState({ appState: true }, '');
     window.history.pushState({ appState: true }, '');
 
-    // Decide what to do based on app navigation state
-    if (store.examBackWarning !== undefined && store.currentView === 'exam') {
-      // During exam, show warning dialog instead of going back
-      store.setExamBackWarning(true);
-      return;
-    }
-    if (store.canGoBack()) {
-      // There's a previous view in the app's history — go back
-      store.goBack();
-    } else if (store.currentView === 'home') {
-      // At home with no history — show exit confirmation dialog
-      store.setExitConfirmVisible(true);
-    } else {
-      // On a non-home root view (edge case) — go to home first
-      store.setView('home');
-    }
-  };
+    let _popstateDebounce = false;
 
-  window.addEventListener('popstate', handlePopstate);
+    const handlePopstate = () => {
+      if (_popstateDebounce) return;
+      _popstateDebounce = true;
+      setTimeout(() => { _popstateDebounce = false; }, 250);
 
-  // Handle back-forward cache (bfcache) restore — when the browser restores
-  // the page from cache, the sentinel entries may be gone.
-  window.addEventListener('pageshow', (e: PageTransitionEvent) => {
-    if (e.persisted) {
+      const store = useAppStore.getState();
+
+      if (store.isExitingApp) return;
+
       window.history.pushState({ appState: true }, '');
-      window.history.pushState({ appState: true }, '');
-    }
-  });
+
+      if (store.examBackWarning !== undefined && store.currentView === 'exam') {
+        store.setExamBackWarning(true);
+        return;
+      }
+      if (store.canGoBack()) {
+        store.goBack();
+      } else if (store.currentView === 'home') {
+        store.setExitConfirmVisible(true);
+      } else {
+        store.setView('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopstate);
+
+    window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        window.history.pushState({ appState: true }, '');
+        window.history.pushState({ appState: true }, '');
+      }
+    });
+  }
 }
 
 // ==================== IN-FILE ERROR BOUNDARY ====================
