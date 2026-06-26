@@ -6,6 +6,14 @@ on:
       app_url:
         description: 'Deployed PWA URL (e.g. https://examvault-theta.vercel.app)'
         required: true
+      admob_app_id:
+        description: 'AdMob App ID (ca-app-pub-XXXXX~YYYYY, tilde not slash!)'
+        required: false
+        default: 'ca-app-pub-3940256099942544~3347511713'
+      admob_interstitial_id:
+        description: 'AdMob Interstitial Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
+        required: false
+        default: 'ca-app-pub-3940256099942544/1033173712'
       build_aab:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
@@ -43,8 +51,16 @@ jobs:
       - name: Create Android WebView project
         run: |
           APP_URL="${{ github.event.inputs.app_url }}"
+          ADMOB_APP_ID="${{ github.event.inputs.admob_app_id }}"
+          ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
           echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
+          echo "AdMob App ID: $ADMOB_APP_ID"
+          echo "AdMob Interstitial ID: $ADMOB_INTERSTITIAL_ID"
+
+          # Extract domain from APP_URL for network security config
+          APP_DOMAIN=$(echo "$APP_URL" | sed -E 's|https?://([^/]+).*|\1|')
+          echo "App domain: $APP_DOMAIN"
 
           # Create project directory structure
           mkdir -p android-project/app/src/main/java/com/examvault/education
@@ -91,7 +107,7 @@ jobs:
           EOF
 
           # build.gradle (app) — with release signing config
-          cat > android-project/app/build.gradle << 'EOF'
+          cat > android-project/app/build.gradle << EOF
           plugins {
               id 'com.android.application'
           }
@@ -102,8 +118,9 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 5
-                  versionName "1.1.0"
+                  versionCode 4
+                  versionName "1.0.3"
+                  manifestPlaceholders = [admobAppId: "$ADMOB_APP_ID"]
               }
               signingConfigs {
                   release {
@@ -121,7 +138,7 @@ jobs:
               }
               buildTypes {
                   release {
-                      minifyEnabled true
+                      minifyEnabled false
                       proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
                       signingConfig signingConfigs.release
                   }
@@ -148,10 +165,12 @@ jobs:
           dependencies {
               implementation 'androidx.core:core:1.15.0'
               implementation 'androidx.webkit:webkit:1.12.1'
+              implementation 'com.google.android.gms:play-services-ads:23.6.0'
+              implementation 'com.google.android.gms:play-services-auth:21.0.0'
           }
           EOF
 
-          # AndroidManifest.xml
+          # AndroidManifest.xml — with proper AdMob App ID
           cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -176,384 +195,33 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="ADMOB_APP_ID_PLACEHOLDER" />
               </application>
           </manifest>
           XMLEOF
 
-          # Network security config
+          # Replace AdMob App ID in manifest
+          sed -i "s|ADMOB_APP_ID_PLACEHOLDER|$ADMOB_APP_ID|g" android-project/app/src/main/AndroidManifest.xml
+
+          # Network security config — allow all HTTPS domains the web app needs
           mkdir -p android-project/app/src/main/res/xml
           cat > android-project/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <network-security-config>
-              <domain-config cleartextTrafficPermitted="false">
-                  <domain includeSubdomains="true">examvault-theta.vercel.app</domain>
-                  <domain includeSubdomains="true">firebaseio.com</domain>
-                  <domain includeSubdomains="true">googleapis.com</domain>
-              </domain-config>
+              <base-config cleartextTrafficPermitted="false">
+                  <trust-anchors>
+                      <certificates src="system" />
+                  </trust-anchors>
+              </base-config>
           </network-security-config>
           XMLEOF
 
-          # MainActivity.java — with AdMob Interstitial + Back button fix
-          cat > android-project/app/src/main/java/com/examvault/education/MainActivity.java << 'JAVAEOF'
-          package com.examvault.education;
-
-          import android.app.Activity;
-          import android.app.AlertDialog;
-          import android.content.DialogInterface;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebChromeClient;
-          import android.webkit.ValueCallback;
-          import android.webkit.WebResourceError;
-          import android.webkit.WebResourceRequest;
-          import android.webkit.JavascriptInterface;
-          import android.view.View;
-          import android.view.Window;
-          import android.view.WindowManager;
-          import android.widget.FrameLayout;
-          import android.net.Uri;
-          import android.graphics.Color;
-          import android.os.Build;
-          import android.util.Log;
-
-          import com.google.android.gms.ads.AdError;
-          import com.google.android.gms.ads.AdRequest;
-          import com.google.android.gms.ads.FullScreenContentCallback;
-          import com.google.android.gms.ads.LoadAdError;
-          import com.google.android.gms.ads.interstitial.InterstitialAd;
-          import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
-          import com.google.android.gms.ads.MobileAds;
-
-          public class MainActivity extends Activity {
-              private WebView webView;
-              private View splashScreen;
-              private static final String PREFS_NAME = "examvault_prefs";
-              private static final String KEY_URL = "last_url";
-              private String appUrl = "${APP_URL}";
-              private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
-              private boolean webViewReady = false;
-              private InterstitialAd mInterstitialAd = null;
-              private boolean adShowing = false;
-              private String pendingBackAction = "none"; // "none", "go_back", "exit"
-              private static final String TAG = "ExamVault";
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  requestWindowFeature(Window.FEATURE_NO_TITLE);
-                  getWindow().setFlags(
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN);
-
-                  FrameLayout container = new FrameLayout(this);
-                  setContentView(container);
-
-                  // === SPLASH SCREEN ===
-                  splashScreen = new View(this) {
-                      @Override
-                      protected void onDraw(android.graphics.Canvas canvas) {
-                          super.onDraw(canvas);
-                          canvas.drawColor(Color.parseColor("#001A4B"));
-                          android.graphics.Paint paint = new android.graphics.Paint();
-                          paint.setColor(Color.WHITE);
-                          paint.setTextSize(80);
-                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
-                          paint.setTextAlign(android.graphics.Paint.Align.CENTER);
-                          int cx = getWidth() / 2;
-                          int cy = getHeight() / 2 - 40;
-                          canvas.drawText("EXAM", cx, cy, paint);
-                          paint.setColor(Color.parseColor("#EB6301"));
-                          canvas.drawText("VAULT", cx, cy + 90, paint);
-                          paint.setColor(Color.parseColor("#FEA216"));
-                          paint.setTextSize(28);
-                          paint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL));
-                          canvas.drawText("Loading...", cx, cy + 150, paint);
-                      }
-                  };
-                  container.addView(splashScreen, new FrameLayout.LayoutParams(-1, -1));
-
-                  // === WEBVIEW ===
-                  webView = new WebView(this);
-                  container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
-                  webView.setVisibility(View.GONE);
-                  webView.setBackgroundColor(Color.parseColor("#001A4B"));
-
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
-                  settings.setAllowFileAccess(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-                  settings.setSupportZoom(false);
-                  settings.setUseWideViewPort(true);
-                  settings.setLoadWithOverviewMode(true);
-                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-                  settings.setDatabasePath(getFilesDir().getPath() + "/databases");
-                  android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
-                  cookieManager.setAcceptCookie(true);
-                  cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-                  // JS interface for ad control
-                  webView.addJavascriptInterface(this, "AndroidBridge");
-
-                  webView.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                          String host = Uri.parse(url).getHost();
-                          if (host != null &&
-                              (host.contains("examvault") ||
-                               host.contains("vercel.app") ||
-                               host.contains("firebaseio.com") ||
-                               host.contains("googleapis.com") ||
-                               host.contains("firebaseapp.com") ||
-                               host.contains("razorpay.com") ||
-                               host.contains("play.google.com"))) {
-                              return false;
-                          }
-                          try {
-                              view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-                          } catch (Exception e) {}
-                          return true;
-                      }
-
-                      @Override
-                      public void onPageFinished(WebView view, String url) {
-                          super.onPageFinished(view, url);
-                          webViewReady = true;
-                          splashScreen.setVisibility(View.GONE);
-                          webView.setVisibility(View.VISIBLE);
-                          view.evaluateJavascript("if(!window.__EV_WEBVIEW){window.__EV_WEBVIEW=true;}", null);
-                          SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                          prefs.edit().putString(KEY_URL, url).apply();
-                      }
-
-                      @Override
-                      public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                          super.onReceivedError(view, request, error);
-                      }
-                  });
-
-                  webView.setWebChromeClient(new WebChromeClient());
-
-                  String urlToLoad = appUrl;
-                  if (savedInstanceState != null) {
-                      String savedUrl = savedInstanceState.getString(KEY_URL);
-                      if (savedUrl != null && !savedUrl.isEmpty()) {
-                          urlToLoad = savedUrl;
-                      }
-                  } else {
-                      Uri data = getIntent().getData();
-                      if (data != null) {
-                          urlToLoad = data.toString();
-                      }
-                  }
-                  webView.loadUrl(urlToLoad);
-
-                  // === AdMob Init (deferred) ===
-                  new Thread(new Runnable() {
-                      @Override public void run() {
-                          try {
-                              MobileAds.initialize(getApplicationContext(), initializationStatus -> {
-                                  Log.d(TAG, "AdMob initialized");
-                                  loadInterstitialAd();
-                              });
-                          } catch (Exception e) {
-                              Log.e(TAG, "AdMob init failed: " + e.getMessage());
-                          }
-                      }
-                  }).start();
-              }
-
-              // === AdMob Interstitial ===
-              private void loadInterstitialAd() {
-                  if (isFinishing()) return;
-                  try {
-                      AdRequest adRequest = new AdRequest.Builder().build();
-                      InterstitialAd.load(getApplicationContext(), admobInterstitialId, adRequest,
-                          new InterstitialAdLoadCallback() {
-                              @Override public void onAdLoaded(InterstitialAd interstitialAd) {
-                                  mInterstitialAd = interstitialAd;
-                                  Log.d(TAG, "Interstitial ad loaded");
-                                  mInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-                                      @Override public void onAdDismissedFullScreenContent() {
-                                          mInterstitialAd = null;
-                                          adShowing = false;
-                                          loadInterstitialAd(); // preload next
-                                          handlePendingBackAction();
-                                      }
-                                      @Override public void onAdFailedToShowFullScreenContent(AdError adError) {
-                                          mInterstitialAd = null;
-                                          adShowing = false;
-                                          loadInterstitialAd();
-                                          handlePendingBackAction();
-                                      }
-                                      @Override public void onAdShowedFullScreenContent() {
-                                          adShowing = true;
-                                      }
-                                  });
-                              }
-                              @Override public void onAdFailedToLoad(LoadAdError loadAdError) {
-                                  mInterstitialAd = null;
-                                  Log.d(TAG, "Ad failed to load: " + loadAdError.getMessage());
-                              }
-                          });
-                  } catch (Exception e) {
-                      Log.e(TAG, "Load ad error: " + e.getMessage());
-                  }
-              }
-
-              private void showInterstitialAd(String backAction) {
-                  pendingBackAction = backAction;
-                  if (mInterstitialAd != null && !adShowing) {
-                      try {
-                          mInterstitialAd.show(MainActivity.this);
-                      } catch (Exception e) {
-                          mInterstitialAd = null;
-                          adShowing = false;
-                          handlePendingBackAction();
-                      }
-                  } else {
-                      handlePendingBackAction();
-                  }
-              }
-
-              private void handlePendingBackAction() {
-                  String action = pendingBackAction;
-                  pendingBackAction = "none";
-                  if ("go_back".equals(action)) {
-                      webView.post(() -> {
-                          webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { s.getState().goBack(); } } catch(e) {} })()", null);
-                      });
-                  } else if ("exit".equals(action)) {
-                      showExitDialog();
-                  }
-              }
-
-              // JS interface: call from web to show ad
-              @JavascriptInterface
-              public void showAd() {
-                  runOnUiThread(() -> {
-                      if (mInterstitialAd != null && !adShowing) {
-                          try { mInterstitialAd.show(MainActivity.this); } catch (Exception e) {}
-                      }
-                  });
-              }
-
-              // JS interface: check if ad is ready
-              @JavascriptInterface
-              public boolean isAdReady() {
-                  return mInterstitialAd != null;
-              }
-
-              @Override
-              protected void onSaveInstanceState(Bundle outState) {
-                  super.onSaveInstanceState(outState);
-                  if (webView != null && webView.getUrl() != null) {
-                      outState.putString(KEY_URL, webView.getUrl());
-                  }
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView == null) { super.onBackPressed(); return; }
-                  webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.examBackWarning !== undefined && st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { return 'can_go_back'; } else if(st.currentView === 'home' || st.currentView === 'login') { return 'at_home'; } else { return 'can_go_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
-                      @Override
-                      public void onReceiveValue(String result) {
-                          result = result != null ? result.replace("\"", "") : "";
-                          if ("exam_warning".equals(result)) {
-                              // Warning dialog shown in JS, do nothing
-                          } else if ("can_go_back".equals(result)) {
-                              showInterstitialAd("go_back");
-                          } else if ("at_home".equals(result)) {
-                              showInterstitialAd("exit");
-                          } else {
-                              if (webView.canGoBack()) { webView.goBack(); }
-                              else { showExitDialog(); }
-                          }
-                      }
-                  });
-              }
-
-              private void showExitDialog() {
-                  new AlertDialog.Builder(this)
-                      .setTitle("Exit ExamVault?")
-                      .setMessage("Are you sure you want to close the app?")
-                      .setPositiveButton("Exit", new DialogInterface.OnClickListener() {
-                          @Override public void onClick(DialogInterface d, int w) { finish(); }
-                      })
-                      .setNegativeButton("Cancel", null)
-                      .show();
-              }
-
-              private int recoveryAttemptCount = 0;
-
-              @Override
-              protected void onResume() {
-                  super.onResume();
-                  if (webView != null) {
-                      webView.onResume();
-                      if (!webViewReady) {
-                          recoveryAttemptCount = 0;
-                          scheduleRecoveryCheck(1500);
-                      }
-                      splashScreen.setVisibility(View.GONE);
-                      webView.setVisibility(View.VISIBLE);
-                  }
-              }
-
-              private void scheduleRecoveryCheck(final long delayMs) {
-                  if (webView == null || splashScreen == null) return;
-                  webView.postDelayed(new Runnable() {
-                      @Override public void run() {
-                          if (webView == null) return;
-                          if (webView.getContentHeight() == 0) {
-                              recoveryAttemptCount++;
-                              SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                              String lastUrl = prefs.getString(KEY_URL, appUrl);
-                              webView.loadUrl(lastUrl);
-                              if (recoveryAttemptCount < 3) {
-                                  scheduleRecoveryCheck(3000);
-                              }
-                          }
-                          splashScreen.setVisibility(View.GONE);
-                          webView.setVisibility(View.VISIBLE);
-                      }
-                  }, delayMs);
-              }
-
-              @Override
-              protected void onPause() {
-                  if (webView != null) webView.onPause();
-                  super.onPause();
-              }
-
-              @Override
-              protected void onDestroy() {
-                  if (webView != null) {
-                      webView.stopLoading();
-                      webView.destroy();
-                      webView = null;
-                  }
-                  super.onDestroy();
-              }
-
-              @Override
-              protected void onNewIntent(Intent intent) {
-                  super.onNewIntent(intent);
-                  if (intent != null && intent.getData() != null) {
-                      String url = intent.getData().toString();
-                      if (webView != null) {
-                          webView.loadUrl(url);
-                      }
-                  }
-              }
-          }
-          JAVAEOF
+          # MainActivity.java — copy from template and replace variables
+          cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/education/MainActivity.java
+          sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
+          sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -616,6 +284,12 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
+          echo "=== Verify AdMob App ID in manifest ==="
+          grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
+          echo "=== Verify APP_URL in MainActivity ==="
+          grep "appUrl" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
+          echo "=== Verify ADMOB ID in MainActivity ==="
+          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
           echo "Android project created!"
 
       - name: Build Release APK

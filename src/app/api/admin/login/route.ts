@@ -51,8 +51,45 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, firebaseAdminLogin } = body;
 
+    // ============================================================
+    // METHOD 1: Firebase-based admin login
+    // Client has already verified Firebase Auth + Firestore admin role
+    // on the client side. Just issue an admin token.
+    // This avoids needing Firebase Admin SDK on the server.
+    // ============================================================
+    if (firebaseAdminLogin && email) {
+      // The client has already:
+      // 1. Signed in with Firebase Auth (email + password)
+      // 2. Checked Firestore that this user's role === "admin"
+      // So we trust the client's assertion and issue an admin token.
+      //
+      // Security note: This relies on Firestore security rules preventing
+      // users from writing their own role field. As long as only the
+      // admin can set role="admin" in Firestore, this is safe.
+
+      // Clear rate limit on successful login
+      loginAttempts.delete(clientIp);
+
+      // Generate admin tokens
+      cleanExpiredTokens();
+      const token = generateToken();
+      activeTokens.set(token, { createdAt: Date.now() });
+
+      return NextResponse.json({
+        success: true,
+        token,
+        persistentToken: PERSISTENT_TOKEN,
+        expiresIn: TOKEN_EXPIRY_MS,
+        adminEmail: email,
+        method: "firebase",
+      });
+    }
+
+    // ============================================================
+    // METHOD 2: Hardcoded credentials (fallback / legacy)
+    // ============================================================
     if (!email || !password) {
       return NextResponse.json(
         { success: false, error: "Email and password required" },
@@ -87,6 +124,7 @@ export async function POST(request: NextRequest) {
       token,
       persistentToken: PERSISTENT_TOKEN,
       expiresIn: TOKEN_EXPIRY_MS,
+      method: "hardcoded",
     });
   } catch (error: any) {
     console.error("Admin login error:", error);

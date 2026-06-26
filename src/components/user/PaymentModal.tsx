@@ -179,7 +179,7 @@ export default function PaymentModal() {
         prefill: {
           name: user.name || "",
           email: user.email || "",
-          contact: "",
+          contact: (user as any)?.phone || firebaseUser?.phoneNumber || "",
         },
         notes: {
           userId: firebaseUser.uid,

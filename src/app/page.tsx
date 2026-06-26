@@ -474,7 +474,12 @@ function AutoRotatingBanners() {
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [banners, setBanners] = useState<BannerData[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
 
   // Real-time listener for banners
   useEffect(() => {
@@ -488,42 +493,92 @@ function AutoRotatingBanners() {
       setBanners(data);
     }, (error) => {
       console.error("Banner real-time error:", error);
-      // Fallback: fetch once
       getBanners().then(data => { if (data) setBanners(data); });
     });
     return () => unsubscribe();
   }, []);
 
-  // Auto-rotate every 3 seconds
+  // Auto-rotate every 3 seconds (pause on interaction)
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || isPaused) return;
     const interval = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % banners.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [banners.length, isPaused]);
 
-  // Scroll to current index using CSS transform (works with overflow-hidden)
+  // Scroll to current index using CSS transform
   useEffect(() => {
     if (scrollRef.current) {
-      const child = scrollRef.current.children[currentIndex] as HTMLElement;
-      if (child) {
-        scrollRef.current.style.transform = `translateX(-${currentIndex * 100}%)`;
-        scrollRef.current.style.transition = 'transform 0.4s ease';
-      }
+      scrollRef.current.style.transform = `translateX(-${currentIndex * 100}%)`;
+      scrollRef.current.style.transition = 'transform 0.4s ease';
     }
   }, [currentIndex]);
 
+  // Native touch handlers for reliable swipe in WebView (non-passive)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      isSwiping.current = false;
+      setIsPaused(true);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = touchStartX.current - e.touches[0].clientX;
+      const dy = touchStartY.current - e.touches[0].clientY;
+      // If horizontal swipe is dominant, prevent vertical scroll and mark as swiping
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+        isSwiping.current = true;
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = touchStartX.current - endX;
+      if (Math.abs(diff) > 30 && banners.length > 1) {
+        isSwiping.current = true;
+        if (diff > 0) {
+          setCurrentIndex(prev => (prev + 1) % banners.length);
+        } else {
+          setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length);
+        }
+      }
+      setTimeout(() => setIsPaused(false), 3000);
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [banners.length]);
+
   const gradients = ["from-ev-navy to-blue-800", "from-ev-orange to-orange-700", "from-ev-gold to-yellow-600", "from-green-500 to-emerald-600", "from-purple-500 to-purple-600"];
 
+  if (banners.length === 0) return null;
+
   return (
-    <div className="relative overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative overflow-hidden"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
       <div ref={scrollRef} className="flex" style={{ transform: `translateX(-${currentIndex * 100}%)`, transition: 'transform 0.4s ease' }}>
         {banners.map((b, i) => (
           <motion.div
             key={b.id || i}
             className={"min-w-full flex-shrink-0 rounded-2xl bg-gradient-to-r " + (b.gradient || b.color || gradients[i % gradients.length]) + " p-5 flex items-center justify-between shadow-lg cursor-pointer"}
-            onClick={() => handleBannerClick(b, setView)}
+            onClick={() => { if (!isSwiping.current) handleBannerClick(b, setView); }}
           >
             <div>
               <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
@@ -541,13 +596,30 @@ function AutoRotatingBanners() {
           </motion.div>
         ))}
       </div>
+      {/* Left/Right Arrow Buttons */}
+      {banners.length > 1 && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % banners.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
       {/* Dot indicators */}
       {banners.length > 1 && (
         <div className="flex justify-center gap-2 mt-3">
           {banners.map((_, i) => (
             <button
               key={i}
-              onClick={() => setCurrentIndex(i)}
+              onClick={() => { setCurrentIndex(i); setIsPaused(true); setTimeout(() => setIsPaused(false), 3000); }}
               className={"w-2 h-2 rounded-full transition-all " + (i === currentIndex ? "bg-ev-orange w-6" : "bg-gray-300")}
             />
           ))}
@@ -576,6 +648,10 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
   const { setView } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
 
   // Auto-scroll every 3 seconds
   useEffect(() => {
@@ -586,6 +662,52 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
     return () => clearInterval(interval);
   }, [announcements.length, isPaused]);
 
+  // Native touch handlers for reliable swipe in WebView (non-passive)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      isSwiping.current = false;
+      setIsPaused(true);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = touchStartX.current - e.touches[0].clientX;
+      const dy = touchStartY.current - e.touches[0].clientY;
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+        isSwiping.current = true;
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = touchStartX.current - endX;
+      if (Math.abs(diff) > 30 && announcements.length > 1) {
+        isSwiping.current = true;
+        if (diff > 0) {
+          setCurrentIndex(prev => (prev + 1) % announcements.length);
+        } else {
+          setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length);
+        }
+      }
+      setTimeout(() => setIsPaused(false), 2000);
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [announcements.length]);
+
   if (announcements.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-2">No announcements yet</p>;
   }
@@ -594,10 +716,9 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
   return (
     <div
+      ref={containerRef}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
     >
       <AnimatePresence mode="wait">
         <motion.div
@@ -606,7 +727,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          onClick={() => handleAnnouncementClick(a, setView)}
+          onClick={() => { if (!isSwiping.current) handleAnnouncementClick(a, setView); }}
           className="cursor-pointer hover:bg-ev-orange/5 rounded-lg px-1 py-1.5 transition-colors"
         >
           <div className="flex items-center justify-between">
@@ -631,15 +752,15 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
       {/* Navigation arrows for multiple announcements */}
       {announcements.length > 1 && (
         <div className="flex items-center justify-between mt-2">
-          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
+          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <div className="flex items-center gap-1.5">
             {announcements.map((_, i) => (
-              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); }} className={"rounded-full transition-all " + (i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30")} />
+              <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className={"rounded-full transition-all " + (i === currentIndex ? "w-4 h-1.5 bg-ev-orange" : "w-1.5 h-1.5 bg-ev-orange/30")} />
             ))}
           </div>
-          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % announcements.length); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
+          <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % announcements.length); setIsPaused(true); setTimeout(() => setIsPaused(false), 2000); }} className="p-1 rounded-lg hover:bg-ev-orange/10 text-gray-400 hover:text-ev-orange transition-colors">
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -845,6 +966,7 @@ function HomeTab() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{test.duration} min</span>
                     <span className="flex items-center gap-1"><Target className="w-3 h-3" />{test.marks || 0} marks</span>
                     <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{test.questions} Q</span>
+                    {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                   </div>
                 </div>
               </div>
@@ -864,10 +986,11 @@ function HomeTab() {
             <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
               <Brain className="w-8 h-8 text-white/80 mb-2" />
               <h4 className="text-sm font-bold text-white">{q.title}</h4>
-              <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+              <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
                 <span>{q.questions} Q</span>
                 <span>•</span>
                 <span>{q.duration} min</span>
+                {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length}</span>}
               </div>
               <div className="mt-2 text-xs text-white/60">{q.participants || 0} joined</div>
             </div>
@@ -931,11 +1054,12 @@ function MockTestsTab() {
                 <div className="flex items-center gap-2 mb-0.5">
                   <h4 className="font-bold text-ev-navy">{test.title}</h4>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   <span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                 </div>
               </div>
             </div>
@@ -1011,7 +1135,13 @@ function TestSeriesTab() {
                     <h4 className="font-bold text-ev-navy truncate">{s.title}</h4>
                     {isViewed && <CheckCircle className="w-4 h-4 text-ev-green flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-gray-500">{s.totalTests || s.tests || 0} Tests</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {s.subTests && s.subTests.length > 0 ? (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-ev-orange/10 text-ev-orange font-bold text-sm"><Grid3X3 className="w-3.5 h-3.5" />{s.subTests.length} {s.subTests.length === 1 ? (lang === "bn" ? "সাব-টেস্ট" : "Sub-Test") : (lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests")}</span>
+                    ) : (
+                      <p className="text-sm text-gray-500">{s.category || ""}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   {isItemFree(s) ? <span className="text-ev-green font-bold">FREE</span> : <span className="text-ev-orange font-bold">₹{s.price || 0}</span>}
@@ -1084,11 +1214,12 @@ function FreeTestsTab() {
               )}
               <div className="flex-1">
                 <h4 className="font-bold text-ev-navy">{test.title}</h4>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   {test.category && <span className="font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{test.category}</span>}
                   <span>{test.duration} min</span>
                   <span>{test.questions} Q</span>
                   <span>{test.marks || 0} marks</span>
+                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
                 </div>
               </div>
               <span className="px-3 py-1 rounded-lg bg-green-50 text-ev-green text-xs font-bold">FREE</span>
@@ -1150,9 +1281,10 @@ function FreeQuizzesTab() {
               <Brain className="w-8 h-8 text-white/80" />
               <div className="flex-1">
                 <h4 className="font-bold text-white">{q.title}</h4>
-                <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+                <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
                   {q.category && <span className="px-2 py-0.5 rounded-md bg-white/20">{q.category}</span>}
                   <span>{q.questions} Q</span><span>•</span><span>{q.duration} min</span>
+                  {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length}</span>}
                 </div>
               </div>
               <div className="text-right text-white/60 text-xs">{q.participants || 0} joined</div>
@@ -1969,6 +2101,7 @@ function TestInfoScreen() {
   const lang = useAppStore(s => s.language);
   const [testData, setTestData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedSubTest, setSelectedSubTest] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTest() {
@@ -2055,23 +2188,39 @@ function TestInfoScreen() {
       {/* Test Details */}
       <div className="px-4 mt-4 space-y-4">
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.duration || 0}</p>
-            <p className="text-xs text-gray-500">Minutes</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.questions || 0}</p>
-            <p className="text-xs text-gray-500">Questions</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-            <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
-            <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
-            <p className="text-xs text-gray-500">Marks</p>
-          </div>
-        </div>
+        {(() => {
+          const subTestsExist = testData.subTests && testData.subTests.length > 0;
+          const subTestTotalQ = subTestsExist ? testData.subTests.reduce((sum: number, st: any) => sum + (st.totalQuestions || 0), 0) : 0;
+          const displayQ = subTestsExist && testData.questions === 0 ? subTestTotalQ : (testData.questions || 0);
+          const totalDuration = subTestsExist ? testData.subTests.reduce((sum: number, st: any) => sum + (st.duration || 0), 0) : 0;
+          const displayDuration = subTestsExist && !testData.duration ? totalDuration : (testData.duration || 0);
+          return (
+            <div className={`grid gap-3 ${subTestsExist ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <Clock className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{displayDuration}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "মিনিট" : "Minutes"}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{displayQ}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "প্রশ্ন" : "Questions"}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+                <Target className="w-5 h-5 text-ev-green mx-auto mb-1" />
+                <p className="text-lg font-bold text-ev-navy">{testData.marks || 0}</p>
+                <p className="text-xs text-gray-500">{lang === "bn" ? "মার্কস" : "Marks"}</p>
+              </div>
+              {subTestsExist && (
+                <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-ev-orange/20">
+                  <Grid3X3 className="w-5 h-5 text-ev-orange mx-auto mb-1" />
+                  <p className="text-lg font-bold text-ev-orange">{testData.subTests.length}</p>
+                  <p className="text-xs text-gray-500">{lang === "bn" ? "সাব-টেস্ট" : "Sub-Tests"}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Description */}
         {testData.description && (
@@ -2094,14 +2243,61 @@ function TestInfoScreen() {
         )}
       </div>
 
-      {/* Start Test Button */}
-      <div className="px-4 mt-6">
-        <button
-          onClick={() => setView("exam")}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-        >
-          <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
-        </button>
+      {/* Sub-Tests List or Start Button */}
+      <div className="px-4 mt-4">
+        {testData.subTests && testData.subTests.length > 0 ? (
+          <div className="space-y-3">
+            <h3 className="font-bold text-ev-navy flex items-center gap-2">
+              <Grid3X3 className="w-4 h-4 text-ev-orange" />
+              {lang === "bn" ? "সাব-টেস্টসমূহ" : "Sub-Tests"} ({testData.subTests.length})
+            </h3>
+            {testData.subTests.map((st: any, idx: number) => {
+              const isSelected = selectedSubTest === st.id;
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setSelectedSubTest(st.id)}
+                  className={`w-full text-left bg-white rounded-2xl p-4 border-2 shadow-sm transition-all active:scale-[0.98] ${isSelected ? "border-ev-orange bg-ev-orange/5" : "border-gray-100 hover:border-gray-200"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${isSelected ? "bg-ev-orange text-white" : "bg-ev-navy/10 text-ev-navy"}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        {st.duration > 0 && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {st.duration} min</span>}
+                        {st.totalQuestions > 0 && <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {st.totalQuestions} Q</span>}
+                        {st.subject && <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> {st.subject}</span>}
+                      </div>
+                    </div>
+                    {isSelected && <CheckCircle className="w-5 h-5 text-ev-orange flex-shrink-0" />}
+                  </div>
+                  {st.description && <p className="text-xs text-gray-400 mt-2 ml-13">{st.description}</p>}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => {
+                if (selectedSubTest) {
+                  useAppStore.getState().setSelectedTest(selectedSubTest);
+                  setView("exam");
+                }
+              }}
+              disabled={!selectedSubTest}
+              className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${selectedSubTest ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/30 active:scale-[0.98]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+            >
+              <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setView("exam")}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+          >
+            <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2713,27 +2909,43 @@ function BottomNav() {
   const fallback = tabs.length === 0 ? DEFAULT_BOTTOM_NAV : tabs;
   const items = fallback.slice(0, 5); // Max 5 bottom nav items
 
+  // Color scheme for each tab — matches app branding
+  const tabColors = [
+    { active: "from-ev-orange to-ev-gold", icon: "text-white", bg: "bg-gradient-to-r from-ev-orange to-ev-gold shadow-lg shadow-ev-orange/30" },
+    { active: "from-blue-500 to-indigo-600", icon: "text-white", bg: "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30" },
+    { active: "from-amber-500 to-yellow-500", icon: "text-white", bg: "bg-gradient-to-r from-amber-500 to-yellow-500 shadow-lg shadow-amber-500/30" },
+    { active: "from-teal-500 to-emerald-600", icon: "text-white", bg: "bg-gradient-to-r from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/30" },
+    { active: "from-purple-500 to-pink-500", icon: "text-white", bg: "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30" },
+  ];
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-40 pb-safe">
-      <div className="flex items-center justify-around py-1.5 px-2 max-w-lg mx-auto">
-        {items.map((item, idx) => {
-          const IconComp = ICON_MAP[item.icon] || Home;
-          const isActive = currentView === item.targetView;
-          return (
-            <button
-              key={item.id || idx}
-              onClick={() => {
-                if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
-                else setView(item.targetView as any);
-              }}
-              className={"flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all " + (isActive ? "text-ev-orange" : "text-gray-400 hover:text-gray-600")}
-            >
-              <IconComp className={"w-5 h-5 " + (isActive ? "text-ev-orange" : "")} />
-              <span className={"text-[10px] font-semibold " + (isActive ? "text-ev-orange" : "")}>{item.label}</span>
-              {isActive && <div className="w-1 h-1 rounded-full bg-ev-orange" />}
-            </button>
-          );
-        })}
+    <div className="fixed bottom-0 left-0 right-0 z-40 pb-safe">
+      {/* Gradient top border */}
+      <div className="h-[2px] bg-gradient-to-r from-ev-orange via-ev-gold to-ev-orange" />
+      {/* Nav background with subtle gradient */}
+      <div className="bg-gradient-to-t from-gray-50 to-white/98 backdrop-blur-xl">
+        <div className="flex items-center justify-around py-2 px-2 max-w-lg mx-auto">
+          {items.map((item, idx) => {
+            const IconComp = ICON_MAP[item.icon] || Home;
+            const isActive = currentView === item.targetView;
+            const color = tabColors[idx] || tabColors[0];
+            return (
+              <button
+                key={item.id || idx}
+                onClick={() => {
+                  if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
+                  else setView(item.targetView as any);
+                }}
+                className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all duration-300 active:scale-90"
+              >
+                <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? color.bg : ""}`}>
+                  <IconComp className={`w-5 h-5 transition-all duration-300 ${isActive ? color.icon : "text-gray-400"}`} />
+                </div>
+                <span className={`text-[10px] font-bold transition-all duration-300 ${isActive ? "text-ev-navy" : "text-gray-400"}`}>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2802,6 +3014,17 @@ function ExamVaultAppInner() {
   const isDark = useAppStore(s => s.isDark);
   const authLoading = useAppStore(s => s.authLoading);
   const user = useAppStore(s => s.user);
+  const subscription = useAppStore(s => s.subscription);
+
+  // ══════════════════════════════════════════════════════════
+  // PREMIUM STATUS — communicate to Android WebView for AdMob
+  // If user is premium or has purchased items, hide ads
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    try {
+      (window as any).__EV_PREMIUM = subscription.isPremium;
+    } catch (e) {}
+  }, [subscription.isPremium]);
 
   // ══════════════════════════════════════════════════════════
   // BACK BUTTON HANDLER is now at MODULE LEVEL (see top of file).
@@ -2872,13 +3095,38 @@ function ExamVaultAppInner() {
       store.setFirebaseUser(firebaseUser);
       store.setAuthLoading(false);
       if (firebaseUser) {
-        // User is signed in via Firebase
+        // User is signed in via Firebase — set basic info immediately
         store.setUser({
           name: firebaseUser.displayName || "User",
           email: firebaseUser.email || "",
           role: "user",
           uid: firebaseUser.uid,
+          phone: firebaseUser.phoneNumber || "",
         });
+        // Then fetch real role from Firestore profile
+        (async () => {
+          try {
+            const { doc, getDoc } = await import("firebase/firestore");
+            const { db } = await import("@/lib/firebase");
+            const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+            if (profileDoc.exists()) {
+              const profileData = profileDoc.data();
+              const currentStore = useAppStore.getState();
+              // Only update if still the same user
+              if (currentStore.firebaseUser?.uid === firebaseUser.uid) {
+                currentStore.setUser({
+                  name: profileData.name || firebaseUser.displayName || "User",
+                  email: firebaseUser.email || "",
+                  role: profileData.role || "user",
+                  uid: firebaseUser.uid,
+                  phone: profileData.phone || firebaseUser.phoneNumber || "",
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching user role:", e);
+          }
+        })();
         checkSubscriptionStatus(firebaseUser.uid).then((status) => {
           if (status.isPremium) {
             store.setSubscription({

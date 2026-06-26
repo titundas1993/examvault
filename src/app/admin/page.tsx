@@ -1,4 +1,5 @@
 "use client";
+// Admin Panel v1.0.32
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,7 +16,8 @@ import {
   BookMarked, Headphones, UserCog,
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
-  Crown, CreditCard, IndianRupee, Compass, Database
+  Crown, CreditCard, IndianRupee, Compass, Database,
+  Grid3X3, ArrowLeft, ShoppingCart, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
@@ -36,7 +38,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { storage } from "@/lib/firebase";
+import { storage, auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   getExams, addExam, updateExam, deleteExam, ExamData,
@@ -181,6 +185,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [adminEmail, setAdminEmail] = useState("");
 
   // Session persistence: check for existing token on mount
   // Auto re-login is handled by admin-api.ts when 401 is received
@@ -196,14 +201,54 @@ export default function AdminPage() {
     setLoginLoading(true);
     setLoginError("");
     try {
-      const result = await adminLogin(email, password);
+      // Step 1: Login with Firebase Auth
+      let firebaseUser: User;
+      try {
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        firebaseUser = credential.user;
+      } catch (firebaseErr: any) {
+        // If Firebase auth fails, try the old hardcoded credentials as fallback
+        console.log("Firebase auth failed, trying hardcoded credentials...", firebaseErr?.message);
+        const result = await adminLogin(email, password);
+        if (result.success) {
+          setIsLoggedIn(true);
+          setAdminEmail(email);
+        } else {
+          setLoginError(result.error || "Invalid credentials");
+        }
+        return;
+      }
+
+      // Step 2: Check Firestore role
+      try {
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.role !== "admin") {
+            setLoginError("Access denied. Your account does not have admin privileges. Contact the administrator to get admin access.");
+            return;
+          }
+        } else {
+          setLoginError("User profile not found. Please contact the administrator.");
+          return;
+        }
+      } catch (firestoreErr: any) {
+        console.error("Firestore role check error:", firestoreErr);
+        setLoginError("Failed to verify admin role. Please try again.");
+        return;
+      }
+
+      // Step 3: Get admin token from server (client already verified Firebase Auth + role)
+      const result = await adminLogin(email, password, true);
       if (result.success) {
         setIsLoggedIn(true);
+        setAdminEmail(firebaseUser.email || email);
       } else {
-        setLoginError(result.error || "Invalid credentials");
+        setLoginError(result.error || "Admin login failed");
       }
     } catch (err: any) {
-      setLoginError("Connection error — please try again");
+      setLoginError(err?.message || "Connection error — please try again");
     } finally {
       setLoginLoading(false);
     }
@@ -211,9 +256,12 @@ export default function AdminPage() {
 
   const handleLogout = useCallback(async () => {
     await adminLogout();
+    // Also sign out from Firebase Auth
+    try { await auth.signOut(); } catch { /* ignore */ }
     setIsLoggedIn(false);
     setEmail("");
     setPassword("");
+    setAdminEmail("");
     setCurrentView("dashboard");
   }, []);
 
@@ -271,12 +319,12 @@ export default function AdminPage() {
                 <Shield className="w-8 h-8 text-ev-orange" />
               </div>
               <h1 className="text-2xl font-black text-ev-navy">Admin Panel</h1>
-              <p className="text-gray-500 text-sm">EXAMVAULT Administration</p>
+              <p className="text-gray-500 text-sm">Login with your ExamVault account</p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-gray-700 text-sm font-medium mb-1 block">Admin Email</label>
-                <input value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-ev-navy focus:ring-2 focus:ring-ev-navy/10" placeholder="admin@examvault.com" />
+                <label className="text-gray-700 text-sm font-medium mb-1 block">Email</label>
+                <input value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-ev-navy focus:ring-2 focus:ring-ev-navy/10" placeholder="your@email.com" />
               </div>
               <div>
                 <label className="text-gray-700 text-sm font-medium mb-1 block">Password</label>
@@ -290,6 +338,7 @@ export default function AdminPage() {
               <button onClick={handleLogin} disabled={loginLoading || !email || !password} className="w-full py-3.5 rounded-xl bg-ev-navy text-white font-bold text-lg hover:bg-ev-dark transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 {loginLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> Verifying...</> : "Login to Admin Panel"}
               </button>
+              <p className="text-gray-400 text-xs text-center mt-3">Use your ExamVault Firebase account with admin role to login</p>
             </div>
           </div>
         </motion.div>
@@ -1403,6 +1452,7 @@ function TestAdminWithPicker({
   const [refreshKey, setRefreshKey] = useState(0);
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
   const [postCreatePrompt, setPostCreatePrompt] = useState<{ show: boolean; title: string }>({ show: false, title: "" });
+  const [subTestDialogItem, setSubTestDialogItem] = useState<any>(null);
 
   // Fetch question counts for each test
   const fetchQuestionCounts = useCallback(async () => {
@@ -1478,20 +1528,32 @@ function TestAdminWithPicker({
         onDelete={onDelete}
         rowActions={(item: any) => {
           const qCount = questionCounts[item.id || ""] || 0;
+          const subCount = (item.subTests || []).length;
           return (
-            <button
-              onClick={(e) => { e.stopPropagation(); openPicker(item); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
-              title="Questions add/remove karein"
-            >
-              <FileQuestion className="w-3.5 h-3.5" />
-              Add Questions
-              {qCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
-                  {qCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); setSubTestDialogItem(item); }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs font-bold hover:from-blue-600 hover:to-indigo-700 transition-all shadow-sm"
+                title="Manage Sub-Tests"
+              >
+                <Grid3X3 className="w-3.5 h-3.5" />
+                Sub-Tests
+                {subCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">{subCount}</span>}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); openPicker(item); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
+                title="Questions add/remove karein"
+              >
+                <FileQuestion className="w-3.5 h-3.5" />
+                Add Questions
+                {qCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
+                    {qCount}
+                  </span>
+                )}
+              </button>
+            </div>
           );
         }}
       />
@@ -1543,6 +1605,9 @@ function TestAdminWithPicker({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Sub-Tests Dialog */}
+      <SubTestsDialog open={!!subTestDialogItem} onClose={() => setSubTestDialogItem(null)} parentItem={subTestDialogItem || {}} collectionName={collectionName} />
     </>
   );
 }
@@ -1583,10 +1648,125 @@ function MockTestsAdmin() {
   );
 }
 
-// ==================== QUESTIONS ADMIN ====================
+// ==================== SUB-TESTS DIALOG ====================
+function SubTestsDialog({ open, onClose, parentItem, collectionName }: { open: boolean; onClose: () => void; parentItem: any; collectionName: string }) {
+  const [subTests, setSubTests] = useState<any[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDuration, setNewDuration] = useState(30);
+  const [newTotalQ, setNewTotalQ] = useState(50);
+  const [newSubject, setNewSubject] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (open && parentItem) {
+      setSubTests(parentItem.subTests || []);
+      setNewTitle(""); setNewDuration(30); setNewTotalQ(50); setNewSubject(""); setNewDesc("");
+    }
+  }, [open, parentItem]);
+
+  const showToast = (msg: string, type: "success" | "error") => { setToast({ message: msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const addSubTest = () => {
+    if (!newTitle.trim()) { showToast("Title is required!", "error"); return; }
+    const id = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setSubTests(prev => [...prev, { id, title: newTitle.trim(), duration: newDuration, totalQuestions: newTotalQ, subject: newSubject.trim(), description: newDesc.trim() }]);
+    setNewTitle(""); setNewDuration(30); setNewTotalQ(50); setNewSubject(""); setNewDesc("");
+  };
+
+  const removeSubTest = (id: string) => { setSubTests(prev => prev.filter(st => st.id !== id)); };
+
+  const saveSubTests = async () => {
+    setSaving(true);
+    try {
+      await adminUpdateDoc(collectionName, parentItem.id, { subTests });
+      showToast(`Saved ${subTests.length} sub-tests!`, "success");
+      setTimeout(() => onClose(), 1000);
+    } catch (e: any) { showToast(`Error: ${e.message}`, "error"); }
+    setSaving(false);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        {toast && <div className={`mb-4 p-3 rounded-xl text-sm font-bold ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.message}</div>}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-black text-ev-navy">Sub-Tests: {parentItem?.title}</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Add Sub-Test Form */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+          <h3 className="font-bold text-sm text-ev-navy">Add New Sub-Test</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label className="font-medium text-xs">Title *</Label><Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Test 1 - General Knowledge" className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Duration (min)</Label><Input type="number" value={newDuration} onChange={e => setNewDuration(Number(e.target.value))} className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Total Questions</Label><Input type="number" value={newTotalQ} onChange={e => setNewTotalQ(Number(e.target.value))} className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Subject</Label><Input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="e.g. GK" className="text-sm" /></div>
+            <div><Label className="font-medium text-xs">Description</Label><Input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Brief description..." className="text-sm" /></div>
+          </div>
+          <button onClick={addSubTest} className="px-4 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Sub-Test</button>
+        </div>
+
+        {/* Sub-Tests List */}
+        {subTests.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <Grid3X3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No sub-tests yet. Add one above!</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-4">
+            {subTests.map((st, idx) => (
+              <div key={st.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                <span className="w-8 h-8 rounded-lg bg-ev-navy text-white text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>⏱️ {st.duration}min</span>
+                    <span>📝 {st.totalQuestions}Q</span>
+                    {st.subject && <span>📖 {st.subject}</span>}
+                  </div>
+                </div>
+                <button onClick={() => removeSubTest(st.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Save Button */}
+        <div className="flex items-center justify-end gap-3 pt-3 border-t">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-bold">Cancel</button>
+          <button onClick={saveSubTests} disabled={saving} className="px-6 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Save Sub-Tests ({subTests.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== QUESTIONS ADMIN (Drill-Down) ====================
 function QuestionsAdmin() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mockTests, setMockTests] = useState<any[]>([]);
+  const [freeTests, setFreeTests] = useState<any[]>([]);
+  const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
+  const [testSeries, setTestSeries] = useState<any[]>([]);
+  const [popularTests, setPopularTests] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Drill-down navigation state
+  const [navLevel, setNavLevel] = useState<"types" | "tests" | "subtests" | "questions">("types");
+  const [activeTestType, setActiveTestType] = useState<string>("");
+  const [activeTestId, setActiveTestId] = useState<string>("");
+  const [activeSubTestId, setActiveSubTestId] = useState<string>("");
+
+  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [saving, setSaving] = useState(false);
@@ -1598,31 +1778,122 @@ function QuestionsAdmin() {
   const [bulkCategory, setBulkCategory] = useState("WBCS");
   const [bulkSubject, setBulkSubject] = useState("GK");
   const [bulkDifficulty, setBulkDifficulty] = useState("medium");
-  const [bulkTestId, setBulkTestId] = useState("");
   const [bulkImporting, setBulkImporting] = useState(false);
-  const [mockTests, setMockTests] = useState<any[]>([]);
-  const [freeTests, setFreeTests] = useState<any[]>([]);
-  const [dailyQuiz, setDailyQuiz] = useState<any[]>([]);
-  const [testSeries, setTestSeries] = useState<any[]>([]);
-  const [popularTests, setPopularTests] = useState<any[]>([]);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [customCategory, setCustomCategory] = useState("");
   const [customSubject, setCustomSubject] = useState("");
   const [bulkCustomCategory, setBulkCustomCategory] = useState("");
   const [bulkCustomSubject, setBulkCustomSubject] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
-  const [bulkEditField, setBulkEditField] = useState<string>("");
-  const [bulkEditValue, setBulkEditValue] = useState<any>("");
-  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
+  const getTestsForType = (testType: string): any[] => {
+    switch (testType) {
+      case "mockTests": return mockTests;
+      case "freeTests": return freeTests;
+      case "dailyQuiz": return dailyQuiz;
+      case "testSeries": return testSeries;
+      case "popularTests": return popularTests;
+      default: return [];
+    }
+  };
+
+  const TEST_TYPE_OPTIONS = [
+    { value: "mockTests", label: "Mock Tests", icon: BookOpen, color: "from-ev-orange to-orange-600" },
+    { value: "freeTests", label: "Free Tests", icon: Zap, color: "from-green-500 to-emerald-600" },
+    { value: "dailyQuiz", label: "Daily Quiz", icon: Brain, color: "from-purple-500 to-purple-600" },
+    { value: "testSeries", label: "Test Series", icon: Trophy, color: "from-ev-gold to-amber-500" },
+    { value: "popularTests", label: "Popular Tests", icon: Star, color: "from-amber-500 to-yellow-600" },
+  ];
+
+  const getTestTypeLabel = (value: string) => TEST_TYPE_OPTIONS.find(t => t.value === value)?.label || value;
+
+  const getQuestionCountForTest = (testId: string): number => {
+    return questions.filter((q: any) => q.testId === testId).length;
+  };
+
+  // Get current test data
+  const getActiveTest = () => {
+    if (!activeTestType || !activeTestId) return null;
+    return getTestsForType(activeTestType).find((t: any) => t.id === activeTestId) || null;
+  };
+
+  // Get current sub-test data
+  const getActiveSubTest = () => {
+    const test = getActiveTest();
+    if (!test || !test.subTests || !activeSubTestId) return null;
+    return test.subTests.find((st: any) => st.id === activeSubTestId) || null;
+  };
+
+  // Get questions for current view
+  const getCurrentQuestions = () => {
+    const test = getActiveTest();
+    if (!test) return [];
+
+    if (activeSubTestId) {
+      return questions.filter((q: any) => q.testId === activeSubTestId);
+    }
+
+    if (test.subTests && test.subTests.length > 0) {
+      return [];
+    }
+
+    return questions.filter((q: any) => q.testId === activeTestId);
+  };
+
+  // Get questions filtered by search
+  const getFilteredQuestions = () => {
+    const qs = getCurrentQuestions();
+    if (!searchTerm) return qs;
+    return qs.filter(q =>
+      Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  };
+
+  // Navigation helpers
+  const navigateToTests = (testType: string) => {
+    setActiveTestType(testType);
+    setActiveTestId("");
+    setActiveSubTestId("");
+    setNavLevel("tests");
+  };
+
+  const navigateToTest = (testId: string) => {
+    setActiveTestId(testId);
+    setActiveSubTestId("");
+    const test = getTestsForType(activeTestType).find((t: any) => t.id === testId);
+    if (test && test.subTests && test.subTests.length > 0) {
+      setNavLevel("subtests");
+    } else {
+      setNavLevel("questions");
+    }
+  };
+
+  const navigateToSubTest = (subTestId: string) => {
+    setActiveSubTestId(subTestId);
+    setNavLevel("questions");
+  };
+
+  const goBack = () => {
+    if (navLevel === "questions" && activeSubTestId) {
+      setActiveSubTestId("");
+      setNavLevel("subtests");
+    } else if (navLevel === "questions") {
+      setActiveTestId("");
+      setNavLevel("tests");
+    } else if (navLevel === "subtests") {
+      setActiveTestId("");
+      setNavLevel("tests");
+    } else if (navLevel === "tests") {
+      setActiveTestType("");
+      setNavLevel("types");
+    }
+  };
+
+  // Load data
   const loadQuestions = useCallback(async () => {
     setLoading(true);
     try {
@@ -1653,6 +1924,7 @@ function QuestionsAdmin() {
 
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
 
+  // Save question
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1662,6 +1934,12 @@ function QuestionsAdmin() {
       }
       if (saveData.subject === "Others" && customSubject.trim()) {
         saveData.subject = customSubject.trim();
+      }
+      // Auto-assign testId based on current drill-down position
+      if (!saveData.testId && activeSubTestId) {
+        saveData.testId = activeSubTestId;
+      } else if (!saveData.testId && activeTestId) {
+        saveData.testId = activeTestId;
       }
       if (editingItem) {
         const { id, createdAt, ...rest } = saveData;
@@ -1677,6 +1955,7 @@ function QuestionsAdmin() {
     setSaving(false);
   };
 
+  // Delete question
   const handleDelete = async () => {
     if (!deletingId) return;
     setSaving(true);
@@ -1689,6 +1968,7 @@ function QuestionsAdmin() {
     setSaving(false);
   };
 
+  // Bulk import
   const handleBulkImport = async () => {
     if (!bulkText.trim()) return;
     setBulkImporting(true);
@@ -1698,108 +1978,59 @@ function QuestionsAdmin() {
       const questionsList: any[] = [];
       let parseErrors: string[] = [];
       const text = bulkText.trim();
+      const targetTestId = activeSubTestId || activeTestId || "";
 
-      // Check if it's pipe-separated format (one question per line)
-      // Format: Question | OptionA | OptionB | OptionC | OptionD | Answer | Explanation
       const pipeLines = text.split("\n").map(l => l.trim()).filter(l => l && l.includes("|") && l.split("|").length >= 6);
-      
+
       if (pipeLines.length > 0) {
-        // Pipe-separated format
         for (let i = 0; i < pipeLines.length; i++) {
           const parts = pipeLines[i].split("|").map(p => p.trim());
           if (parts.length >= 6) {
             const ans = parts[5].toUpperCase().trim();
             if (parts[0] && parts[1] && parts[2] && parts[3] && parts[4] && ["A", "B", "C", "D"].includes(ans)) {
               questionsList.push({
-                category: effectiveBulkCategory,
-                subject: effectiveBulkSubject,
-                difficulty: bulkDifficulty,
-                marks: 1,
-                testId: bulkTestId || "",
-                question: parts[0],
-                optionA: parts[1],
-                optionB: parts[2],
-                optionC: parts[3],
-                optionD: parts[4],
-                correctAnswer: ans,
-                explanation: parts[6] || "",
+                category: effectiveBulkCategory, subject: effectiveBulkSubject,
+                difficulty: bulkDifficulty, marks: 1, testId: targetTestId,
+                question: parts[0], optionA: parts[1], optionB: parts[2],
+                optionC: parts[3], optionD: parts[4], correctAnswer: ans, explanation: parts[6] || "",
               });
             } else {
-              parseErrors.push(`Line ${i + 1}: Invalid pipe format or missing fields`);
+              parseErrors.push(`Line ${i + 1}: Invalid pipe format`);
             }
           }
         }
       } else {
-        // Block format — each question separated by blank line
         const blocks = text.split(/\n\s*\n/);
-
         for (let i = 0; i < blocks.length; i++) {
           const lines = blocks[i].trim().split("\n").map(l => l.trim()).filter(l => l);
           let q: any = {
-            category: effectiveBulkCategory,
-            subject: effectiveBulkSubject,
-            difficulty: bulkDifficulty,
-            marks: 1,
-            testId: bulkTestId || "",
-            question: "",
-            optionA: "",
-            optionB: "",
-            optionC: "",
-            optionD: "",
-            correctAnswer: "A",
-            explanation: "",
+            category: effectiveBulkCategory, subject: effectiveBulkSubject,
+            difficulty: bulkDifficulty, marks: 1, testId: targetTestId,
+            question: "", optionA: "", optionB: "", optionC: "", optionD: "",
+            correctAnswer: "A", explanation: "",
           };
-
           for (const line of lines) {
-            // Format 1: Q: / Q1: / Q1) prefix
-            if (/^Q\d*[\s.:)：\)]/i.test(line)) {
-              q.question = line.replace(/^Q\d*[\s.:)：\)]+/i, "").trim();
-            }
-            // Format 2: 1. / 1) / 1: numbered questions
-            else if (/^\d+[\s.:)\]]/.test(line) && !q.question) {
-              q.question = line.replace(/^\d+[\s.:)\]]+/, "").trim();
-            }
-            // Format 1: Q: prefix (simple)
-            else if (/^Q[\s:：]/i.test(line) && !q.question) {
-              q.question = line.replace(/^Q[\s:：]+/i, "").trim();
-            }
-            // Option A — Format 1: A: or Format 2: a)
-            else if (/^[Aa][\s.:)：)]/.test(line) && !/^Ans/i.test(line) && !/^Answer/i.test(line)) {
-              q.optionA = line.replace(/^[Aa][\s.:)：)]+/, "").trim();
-            }
-            // Option B
-            else if (/^[Bb][\s.:)：)]/.test(line)) {
-              q.optionB = line.replace(/^[Bb][\s.:)：)]+/, "").trim();
-            }
-            // Option C
-            else if (/^[Cc][\s.:)：)]/.test(line)) {
-              q.optionC = line.replace(/^[Cc][\s.:)：)]+/, "").trim();
-            }
-            // Option D
-            else if (/^[Dd][\s.:)：)]/.test(line)) {
-              q.optionD = line.replace(/^[Dd][\s.:)：)]+/, "").trim();
-            }
-            // Answer: Ans: or Answer:
-            else if (/^Ans[\s.:：)]/i.test(line) || /^Answer[\s.:：)]/i.test(line)) {
-              const ans = line.replace(/^(Ans|Answer)[\s.:：)]+/i, "").trim().toUpperCase();
-              // Handle "B" or "B) New Delhi" — extract just the letter
+            if (/^Q\d*[\s.：)]/i.test(line)) { q.question = line.replace(/^Q\d*[\s.：)]+/i, "").trim(); }
+            else if (/^\d+[\s.)\]]/.test(line) && !q.question) { q.question = line.replace(/^\d+[\s.)\]]+/, "").trim(); }
+            else if (/^Q[\s：]/i.test(line) && !q.question) { q.question = line.replace(/^Q[\s：]+/i, "").trim(); }
+            else if (/^[Aa][\s.：)]/.test(line) && !/^Ans/i.test(line)) { q.optionA = line.replace(/^[Aa][\s.：)]+/, "").trim(); }
+            else if (/^[Bb][\s.：)]/.test(line)) { q.optionB = line.replace(/^[Bb][\s.：)]+/, "").trim(); }
+            else if (/^[Cc][\s.：)]/.test(line)) { q.optionC = line.replace(/^[Cc][\s.：)]+/, "").trim(); }
+            else if (/^[Dd][\s.：)]/.test(line)) { q.optionD = line.replace(/^[Dd][\s.：)]+/, "").trim(); }
+            else if (/^Ans[\s.：)]/i.test(line) || /^Answer[\s.：)]/i.test(line)) {
+              const ans = line.replace(/^(Ans|Answer)[\s.：)]+/i, "").trim().toUpperCase();
               const ansLetter = ans.charAt(0);
               if (["A", "B", "C", "D"].includes(ansLetter)) q.correctAnswer = ansLetter;
             }
-            // Explanation: Exp: or Explanation:
-            else if (/^Exp[\s.:：)]/i.test(line) || /^Explanation[\s.:：)]/i.test(line)) {
-              q.explanation = line.replace(/^(Exp|Explanation)[\s.:：)]+/i, "").trim();
+            else if (/^Exp[\s.：)]/i.test(line) || /^Explanation[\s.：)]/i.test(line)) {
+              q.explanation = line.replace(/^(Exp|Explanation)[\s.：)]+/i, "").trim();
             }
-            // Fallback: first unprocessed line becomes the question
-            else if (!q.question) {
-              q.question = line;
-            }
+            else if (!q.question) { q.question = line; }
           }
-
           if (q.question && q.optionA && q.optionB && q.optionC && q.optionD) {
             questionsList.push(q);
           } else {
-            parseErrors.push(`Block ${i + 1}: Missing question or options (Q:${!!q.question} A:${!!q.optionA} B:${!!q.optionB} C:${!!q.optionC} D:${!!q.optionD})`);
+            parseErrors.push(`Block ${i + 1}: Missing fields`);
           }
         }
       }
@@ -1810,11 +2041,31 @@ function QuestionsAdmin() {
         return;
       }
 
-      // Import all questions
+      // Enforce question count limit
+      if (targetTestId) {
+        const test = getActiveTest();
+        const subTest = activeSubTestId ? test?.subTests?.find((st: any) => st.id === activeSubTestId) : null;
+        const limitQ = subTest ? (subTest.totalQuestions || 0) : (test?.questions || test?.totalQuestions || 0);
+        if (limitQ > 0) {
+          const alreadyUploaded = getQuestionCountForTest(targetTestId);
+          const remaining = limitQ - alreadyUploaded;
+          if (remaining <= 0) {
+            showToast(`Already has all ${limitQ} questions!`, "error");
+            setBulkImporting(false);
+            return;
+          }
+          if (questionsList.length > remaining) {
+            showToast(`Only ${remaining} questions remaining. You tried to upload ${questionsList.length}.`, "error");
+            setBulkImporting(false);
+            return;
+          }
+        }
+      }
+
       const result = await adminImportCollection("questions", questionsList);
       const imported = result?.imported || 0;
       let msg = `${imported} questions imported!`;
-      if (parseErrors.length > 0) msg += ` (${parseErrors.length} skipped due to errors)`;
+      if (parseErrors.length > 0) msg += ` (${parseErrors.length} skipped)`;
       showToast(msg, "success");
       setBulkDialogOpen(false);
       setBulkText("");
@@ -1825,149 +2076,287 @@ function QuestionsAdmin() {
     setBulkImporting(false);
   };
 
-  // Filtered questions by search
-  const filteredQuestions = questions.filter(q =>
-    Object.values(q).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+  // Open add question dialog with auto-assigned testId
+  const openAddDialog = () => {
+    setEditingItem(null);
+    const testId = activeSubTestId || activeTestId || "";
+    setFormData({
+      question: "", optionA: "", optionB: "", optionC: "", optionD: "",
+      correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK",
+      difficulty: "medium", marks: 1, testId
     });
+    setCustomCategory("");
+    setCustomSubject("");
+    setDialogOpen(true);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredQuestions.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    setBulkActionLoading(true);
-    try {
-      for (const id of selectedIds) {
-        await adminDeleteDoc("questions", id);
-      }
-      showToast(`${selectedIds.size} questions deleted!`, "success");
-      setSelectedIds(new Set());
-      setBulkDeleteDialogOpen(false);
-      loadQuestions();
-    } catch (e: any) {
-      showToast(`Bulk delete failed: ${e.message}`, "error");
-    }
-    setBulkActionLoading(false);
-  };
-
-  const handleBulkEdit = async () => {
-    if (selectedIds.size === 0 || !bulkEditField) return;
-    setBulkActionLoading(true);
-    try {
-      for (const id of selectedIds) {
-        await adminUpdateDoc("questions", id, { [bulkEditField]: bulkEditValue });
-      }
-      showToast(`${selectedIds.size} questions updated!`, "success");
-      setSelectedIds(new Set());
-      setBulkEditDialogOpen(false);
-      setBulkEditField("");
-      setBulkEditValue("");
-      loadQuestions();
-    } catch (e: any) {
-      showToast(`Bulk edit failed: ${e.message}`, "error");
-    }
-    setBulkActionLoading(false);
-  };
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div>;
+  }
 
   return (
     <div>
+      {/* Header with breadcrumb */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
             <FileQuestion className="w-6 h-6 text-white" />
           </div>
-          <div><h2 className="text-2xl font-black text-ev-navy">Questions</h2><p className="text-gray-500 text-sm">Manage question bank • {questions.length} questions</p></div>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-400 mb-0.5">
+              <button onClick={() => { setNavLevel("types"); setActiveTestType(""); setActiveTestId(""); setActiveSubTestId(""); }} className="hover:text-ev-orange transition-colors">Questions</button>
+              {activeTestType && <><ChevronRight className="w-3 h-3" /><button onClick={() => { setNavLevel("tests"); setActiveTestId(""); setActiveSubTestId(""); }} className="hover:text-ev-orange transition-colors">{getTestTypeLabel(activeTestType)}</button></>}
+              {activeTestId && <><ChevronRight className="w-3 h-3" /><button onClick={goBack} className="hover:text-ev-orange transition-colors truncate max-w-[150px]">{getActiveTest()?.title || "Test"}</button></>}
+              {activeSubTestId && <><ChevronRight className="w-3 h-3" /><span className="text-ev-navy font-semibold truncate max-w-[150px]">{getActiveSubTest()?.title || "Sub-Test"}</span></>}
+            </div>
+            <h2 className="text-2xl font-black text-ev-navy">
+              {navLevel === "types" ? "Questions" : navLevel === "tests" ? getTestTypeLabel(activeTestType) : navLevel === "subtests" ? (getActiveTest()?.title || "Test") : (getActiveSubTest()?.title || getActiveTest()?.title || "Questions")}
+            </h2>
+            <p className="text-gray-500 text-sm">{questions.length} total questions</p>
+          </div>
         </div>
-        <button onClick={() => {
-          setEditingItem(null);
-          setFormData({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "", category: "WBCS", subject: "GK", difficulty: "medium", marks: 1, testId: "" });
-          setCustomCategory("");
-          setCustomSubject("");
-          setDialogOpen(true);
-        }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
-        <button onClick={() => { loadCategoriesIntoGlobals(); setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
+        <div className="flex items-center gap-2">
+          {navLevel !== "types" && (
+            <button onClick={goBack} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm flex items-center gap-1.5 hover:bg-gray-200 transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
+          {navLevel === "questions" && (
+            <>
+              <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</button>
+              <button onClick={() => { setBulkDialogOpen(true); }} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg flex items-center gap-2"><Upload className="w-4 h-4" /> Bulk Import</button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Search + Bulk Actions Bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-          <input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
-            placeholder="Search questions..."
-          />
-        </div>
-        {selectedIds.size > 0 && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2">
-            <span className="text-sm font-bold text-ev-navy bg-blue-50 px-3 py-2 rounded-xl">{selectedIds.size} selected</span>
-            <button onClick={() => setBulkEditDialogOpen(true)} className="px-3 py-2 rounded-xl bg-blue-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-blue-600 transition-colors">
-              <Edit className="w-3.5 h-3.5" /> Bulk Edit
-            </button>
-            <button onClick={() => setBulkDeleteDialogOpen(true)} className="px-3 py-2 rounded-xl bg-red-500 text-white font-bold text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedIds.size})
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition-colors">
-              <X className="w-3.5 h-3.5" /> Clear
-            </button>
-          </motion.div>
-        )}
-      </div>
-
-      {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div> : filteredQuestions.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-lg"><FileQuestion className="w-10 h-10 text-white" /></div>
-          <h3 className="text-lg font-bold text-ev-navy mb-2">No Questions</h3>
-          <p className="text-gray-500 text-sm">Add questions to build your question bank.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead className="w-10">
-                <input type="checkbox" checked={filteredQuestions.length > 0 && selectedIds.size === filteredQuestions.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
-              </TableHead>
-              <TableHead className="font-semibold text-ev-navy">Question</TableHead><TableHead className="font-semibold text-ev-navy">Category</TableHead><TableHead className="font-semibold text-ev-navy">Subject</TableHead><TableHead className="font-semibold text-ev-navy">Difficulty</TableHead><TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {filteredQuestions.map(q => {
-                const isSelected = selectedIds.has(q.id);
-                return (
-                <TableRow key={q.id} className={isSelected ? "bg-blue-50/50" : ""}>
-                  <TableCell>
-                    <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(q.id)} className="w-4 h-4 rounded border-gray-300 text-ev-orange focus:ring-ev-orange cursor-pointer" />
-                  </TableCell>
-                  <TableCell className="max-w-[300px] truncate font-medium">{q.question}</TableCell>
-                  <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
-                  <TableCell>{q.subject}</TableCell>
-                  <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => { setEditingItem(q); const catInList = EXAM_CATEGORIES.some(c => c.value === q.category); const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject); setFormData({ question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD, correctAnswer: q.correctAnswer, explanation: q.explanation || "", category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others", difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || "" }); setCustomCategory(catInList ? "" : q.category); setCustomSubject(subInList ? "" : q.subject); setDialogOpen(true); }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => { setDeletingId(q.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-              })}
-            </TableBody>
-          </Table>
+      {/* LEVEL 1: TEST TYPES */}
+      {navLevel === "types" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {TEST_TYPE_OPTIONS.map(tt => {
+            const tests = getTestsForType(tt.value);
+            const totalQ = tests.reduce((sum: number, t: any) => {
+              const direct = getQuestionCountForTest(t.id);
+              const subQ = (t.subTests || []).reduce((s: number, st: any) => s + getQuestionCountForTest(st.id), 0);
+              return sum + direct + subQ;
+            }, 0);
+            const Icon = tt.icon;
+            return (
+              <div key={tt.value} onClick={() => navigateToTests(tt.value)} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-ev-orange/30 transition-all active:scale-[0.98] group">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${tt.color} flex items-center justify-center shadow-lg mb-4 group-hover:scale-105 transition-transform`}>
+                  <Icon className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-ev-navy mb-1">{tt.label}</h3>
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <span>{tests.length} tests</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="font-bold text-ev-orange">{totalQ} questions</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* LEVEL 2: TESTS LIST */}
+      {navLevel === "tests" && (
+        <div className="space-y-3">
+          {getTestsForType(activeTestType).map((test: any) => {
+            const directQ = getQuestionCountForTest(test.id);
+            const subTestQ = (test.subTests || []).reduce((sum: number, st: any) => sum + getQuestionCountForTest(st.id), 0);
+            const totalQ = directQ + subTestQ;
+            const hasSubTests = test.subTests && test.subTests.length > 0;
+            const accessType = test.accessType || (test.isFree ? "free" : "premium");
+            return (
+              <div key={test.id} onClick={() => navigateToTest(test.id)} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-ev-orange/30 transition-all active:scale-[0.99]">
+                <div className="flex items-center gap-3">
+                  {test.imageUrl ? (
+                    <img src={test.imageUrl} alt={test.title} className="w-14 h-14 rounded-xl object-cover shadow-md flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
+                      <FileQuestion className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-ev-navy truncate">{test.title}</h4>
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${accessType === "free" ? "bg-green-50 text-ev-green" : "bg-amber-50 text-amber-600"}`}>{accessType === "free" ? "FREE" : "PREMIUM"}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
+                      <span className="font-bold text-ev-orange">{totalQ} questions</span>
+                      {hasSubTests && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 font-bold text-xs">
+                          <Grid3X3 className="w-3 h-3" /> {test.subTests.length} sub-tests
+                        </span>
+                      )}
+                      {test.category && <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs">{test.category}</span>}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                </div>
+              </div>
+            );
+          })}
+          {getTestsForType(activeTestType).length === 0 && (
+            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+              <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-400 font-medium">No tests in this category yet</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LEVEL 3: SUB-TESTS LIST */}
+      {navLevel === "subtests" && (() => {
+        const test = getActiveTest();
+        if (!test) return null;
+        return (
+          <div className="space-y-3">
+            <div className="bg-white rounded-2xl p-4 border-2 border-ev-orange/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-ev-navy">{test.title}</h4>
+                  <p className="text-sm text-gray-500">{test.subTests?.length || 0} sub-tests • Click any sub-test to manage its questions</p>
+                </div>
+                <span className={`px-3 py-1 rounded-lg text-xs font-bold ${(test.accessType || "premium") === "free" ? "bg-green-50 text-ev-green" : "bg-amber-50 text-amber-600"}`}>{(test.accessType || "premium") === "free" ? "FREE" : "PREMIUM"}</span>
+              </div>
+            </div>
+            {(test.subTests || []).map((st: any, idx: number) => {
+              const stQ = getQuestionCountForTest(st.id);
+              const stTotal = st.totalQuestions || 0;
+              const stIsFull = stTotal > 0 && stQ >= stTotal;
+              const pct = stTotal > 0 ? Math.min(100, (stQ / stTotal) * 100) : 0;
+              return (
+                <div key={st.id} onClick={() => navigateToSubTest(st.id)} className={`bg-white rounded-2xl p-4 border-2 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-[0.99] ${stIsFull ? "border-red-200 hover:border-red-300" : "border-gray-100 hover:border-ev-orange/30"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${stIsFull ? "bg-red-100 text-red-600" : "bg-ev-navy/10 text-ev-navy"}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-ev-navy text-sm truncate">{st.title}</h4>
+                        {stIsFull && <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-600 text-xs font-bold">FULL</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span className="font-bold text-ev-orange">{stQ} questions</span>
+                        {stTotal > 0 && <span>of {stTotal}</span>}
+                        {st.duration > 0 && <span>⏱️ {st.duration} min</span>}
+                        {st.subject && <span>📖 {st.subject}</span>}
+                      </div>
+                      {stTotal > 0 && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div className={`h-1.5 rounded-full transition-all ${stIsFull ? "bg-red-500" : stQ > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5 text-right">{stQ}/{stTotal} ({Math.round(pct)}%)</p>
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* LEVEL 4: QUESTIONS LIST */}
+      {navLevel === "questions" && (() => {
+        const filtered = getFilteredQuestions();
+        const currentTargetId = activeSubTestId || activeTestId;
+        const currentTarget = getActiveSubTest() || getActiveTest();
+        const currentQCount = getQuestionCountForTest(currentTargetId);
+        const limitQ = currentTarget?.totalQuestions || currentTarget?.questions || 0;
+        const isFull = limitQ > 0 && currentQCount >= limitQ;
+        const pct = limitQ > 0 ? Math.min(100, (currentQCount / limitQ) * 100) : 0;
+
+        return (
+          <div>
+            {currentTarget && (
+              <div className={`rounded-xl p-4 border-2 mb-4 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-bold text-ev-navy text-sm">
+                      {activeSubTestId ? getActiveSubTest()?.title : getActiveTest()?.title}
+                    </h4>
+                    <p className="text-xs text-gray-500">
+                      {currentQCount}{limitQ > 0 ? `/${limitQ}` : ""} questions uploaded
+                      {activeSubTestId && getActiveSubTest()?.duration ? ` • ⏱️ ${getActiveSubTest()!.duration} min` : ""}
+                      {activeSubTestId && getActiveSubTest()?.subject ? ` • 📖 ${getActiveSubTest()!.subject}` : ""}
+                    </p>
+                  </div>
+                  {isFull && <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-bold">⚠️ FULL</span>}
+                </div>
+                {limitQ > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : currentQCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="relative mb-4">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm" placeholder="Search questions..." />
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-400 font-medium mb-2">No questions yet</p>
+                <p className="text-gray-400 text-sm mb-4">Add questions using the button above or bulk import</p>
+                <button onClick={openAddDialog} className="px-4 py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg"><Plus className="w-4 h-4 inline mr-1" /> Add Question</button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead className="font-semibold text-ev-navy">#</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Question</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Category</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Subject</TableHead>
+                    <TableHead className="font-semibold text-ev-navy">Difficulty</TableHead>
+                    <TableHead className="font-semibold text-ev-navy text-right">Actions</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {filtered.map((q: any, idx: number) => (
+                      <TableRow key={q.id}>
+                        <TableCell className="text-xs text-gray-400 font-bold">{idx + 1}</TableCell>
+                        <TableCell className="max-w-[300px] truncate font-medium">{q.question}</TableCell>
+                        <TableCell><span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">{q.category}</span></TableCell>
+                        <TableCell>{q.subject}</TableCell>
+                        <TableCell><span className={`px-2 py-1 rounded-lg text-xs font-bold ${q.difficulty === "easy" ? "bg-green-50 text-green-600" : q.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>{q.difficulty}</span></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => {
+                              setEditingItem(q);
+                              const catInList = EXAM_CATEGORIES.some(c => c.value === q.category);
+                              const subInList = SUBJECT_CATEGORIES.some(c => c.value === q.subject);
+                              setFormData({
+                                question: q.question, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD,
+                                correctAnswer: q.correctAnswer, explanation: q.explanation || "",
+                                category: catInList ? q.category : "Others", subject: subInList ? q.subject : "Others",
+                                difficulty: q.difficulty, marks: q.marks || 1, testId: q.testId || ""
+                              });
+                              setCustomCategory(catInList ? "" : q.category);
+                              setCustomSubject(subInList ? "" : q.subject);
+                              setDialogOpen(true);
+                            }} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                            <button onClick={() => { setDeletingId(q.id); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ADD/EDIT QUESTION DIALOG */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingItem ? "Edit Question" : "Add Question"}</DialogTitle></DialogHeader>
@@ -1986,19 +2375,22 @@ function QuestionsAdmin() {
             </div>
             {(formData.category === "Others" || formData.subject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
-                {formData.category === "Others" && (
-                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
-                )}
-                {formData.subject === "Others" && (
-                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={customSubject} onChange={e => setCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
-                )}
+                {formData.category === "Others" && <div><Label className="font-medium">Custom Category *</Label><Input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Custom category..." /></div>}
+                {formData.subject === "Others" && <div><Label className="font-medium">Custom Subject *</Label><Input value={customSubject} onChange={e => setCustomSubject(e.target.value)} placeholder="Custom subject..." /></div>}
               </div>
             )}
             <div className="grid grid-cols-3 gap-4">
               <div><Label className="font-medium">Difficulty</Label><Select value={formData.difficulty || "medium"} onValueChange={v => setFormData({ ...formData, difficulty: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
               <div><Label className="font-medium">Marks</Label><Input type="number" value={formData.marks || 1} onChange={e => setFormData({ ...formData, marks: Number(e.target.value) })} /></div>
-              <div className="col-span-3"><Label className="font-medium">Assign to Test (Optional)</Label><Select value={formData.testId || "none"} onValueChange={v => setFormData({ ...formData, testId: v === "none" ? "" : v })}><SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger><SelectContent><SelectItem value="none">— No specific test —</SelectItem>{mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}{freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}{popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}</SelectContent></Select></div>
             </div>
+            {(activeSubTestId || activeTestId) && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs">
+                <span className="font-bold text-blue-700">Auto-assigned to:</span>{" "}
+                <span className="text-blue-600">
+                  {activeSubTestId ? `${getActiveTest()?.title} → ${getActiveSubTest()?.title}` : getActiveTest()?.title}
+                </span>
+              </div>
+            )}
             <div><Label className="font-medium">Explanation</Label><Textarea value={formData.explanation || ""} onChange={e => setFormData({ ...formData, explanation: e.target.value })} placeholder="Explain the correct answer..." rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2008,86 +2400,9 @@ function QuestionsAdmin() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Question?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Edit Dialog */}
-      <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Bulk Edit Questions</DialogTitle>
-            <DialogDescription>Update a field for {selectedIds.size} selected question(s).</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="font-medium">Field to Update</Label>
-              <Select value={bulkEditField} onValueChange={setBulkEditField}>
-                <SelectTrigger><SelectValue placeholder="Select field..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="category">Category</SelectItem>
-                  <SelectItem value="subject">Subject</SelectItem>
-                  <SelectItem value="difficulty">Difficulty</SelectItem>
-                  <SelectItem value="marks">Marks</SelectItem>
-                  <SelectItem value="testId">Assign to Test</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {bulkEditField && (
-              <div>
-                <Label className="font-medium">New Value</Label>
-                {bulkEditField === "category" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
-                    <SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : bulkEditField === "subject" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select subject..." /></SelectTrigger>
-                    <SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : bulkEditField === "difficulty" ? (
-                  <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
-                    <SelectTrigger><SelectValue placeholder="Select difficulty..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : bulkEditField === "marks" ? (
-                  <Input type="number" value={bulkEditValue} onChange={e => setBulkEditValue(Number(e.target.value))} placeholder="Enter marks" />
-                ) : (
-                  <Input value={bulkEditValue || ""} onChange={e => setBulkEditValue(e.target.value)} placeholder="Enter value..." />
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkEdit} disabled={!bulkEditField || bulkActionLoading} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
-              Update {selectedIds.size} Items
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Delete Dialog */}
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedIds.size} Questions?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone. {selectedIds.size} question(s) will be permanently deleted.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkActionLoading} className="bg-red-600 text-white hover:bg-red-700">
-              {bulkActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Delete All ({selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk Import Dialog */}
@@ -2095,190 +2410,67 @@ function QuestionsAdmin() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Import Questions</DialogTitle>
-            <DialogDescription>Upload a text file or paste questions in the format below.</DialogDescription>
+            <DialogDescription>
+              Questions will be added to: <span className="font-bold text-ev-navy">{activeSubTestId ? `${getActiveTest()?.title} → ${getActiveSubTest()?.title}` : getActiveTest()?.title || "current test"}</span>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Category/Subject/Difficulty selectors */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="font-medium">Category</Label>
-                <Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Subject</Label>
-                <Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Difficulty</Label>
-                <Select value={bulkDifficulty} onValueChange={setBulkDifficulty}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="easy">Easy</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="hard">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-medium">Assign to Test (Optional)</Label>
-                <Select value={bulkTestId || "none"} onValueChange={v => setBulkTestId(v === "none" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— No specific test —</SelectItem>
-                    {mockTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📋 Mock Tests</SelectLabel>{mockTests.map(mt => <SelectItem key={mt.id} value={mt.id}>{mt.title}</SelectItem>)}</SelectGroup>}
-                    {freeTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">🆓 Free Tests</SelectLabel>{freeTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {dailyQuiz.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📝 Daily Quiz</SelectLabel>{dailyQuiz.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {testSeries.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">📚 Test Series</SelectLabel>{testSeries.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                    {popularTests.length > 0 && <SelectGroup><SelectLabel className="font-bold text-xs text-ev-navy">⭐ Popular Tests</SelectLabel>{popularTests.map(t => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}</SelectGroup>}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div><Label className="font-medium">Category</Label><Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Subject</Label><Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="font-medium">Difficulty</Label><Select value={bulkDifficulty} onValueChange={setBulkDifficulty}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent></Select></div>
             </div>
             {(bulkCategory === "Others" || bulkSubject === "Others") && (
               <div className="grid grid-cols-2 gap-4">
-                {bulkCategory === "Others" && (
-                  <div><Label className="font-medium">Custom Category Name *</Label><Input value={bulkCustomCategory} onChange={e => setBulkCustomCategory(e.target.value)} placeholder="Type custom category name..." /></div>
-                )}
-                {bulkSubject === "Others" && (
-                  <div><Label className="font-medium">Custom Subject Name *</Label><Input value={bulkCustomSubject} onChange={e => setBulkCustomSubject(e.target.value)} placeholder="Type custom subject name..." /></div>
-                )}
+                {bulkCategory === "Others" && <div><Label className="font-medium">Custom Category *</Label><Input value={bulkCustomCategory} onChange={e => setBulkCustomCategory(e.target.value)} placeholder="Custom category..." /></div>}
+                {bulkSubject === "Others" && <div><Label className="font-medium">Custom Subject *</Label><Input value={bulkCustomSubject} onChange={e => setBulkCustomSubject(e.target.value)} placeholder="Custom subject..." /></div>}
               </div>
             )}
-
-            {/* File Upload Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="font-semibold text-ev-navy">Upload Text File (.txt)</Label>
-                <button
-                  onClick={() => {
-                    const sampleText = `Q: What is the capital of India?
-A: Mumbai
-B: New Delhi
-C: Kolkata
-D: Chennai
-Ans: B
-Exp: New Delhi is the capital of India
-
-Q: Which planet is known as the Red Planet?
-A: Venus
-B: Jupiter
-C: Mars
-D: Saturn
-Ans: C
-Exp: Mars appears red due to iron oxide on its surface
-
-Q: Who wrote the Indian national anthem?
-A: Rabindranath Tagore
-B: Mahatma Gandhi
-C: Jawaharlal Nehru
-D: Subhas Chandra Bose
-Ans: A
-Exp: Jana Gana Mana was written by Rabindranath Tagore`;
-                    const blob = new Blob([sampleText], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "sample_questions.txt";
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download Sample File
-                </button>
+                <button onClick={() => {
+                  const sampleText = `Q: What is the capital of India?\nA: Mumbai\nB: New Delhi\nC: Kolkata\nD: Chennai\nAns: B\nExp: New Delhi is the capital of India\n\nQ: Which planet is known as the Red Planet?\nA: Venus\nB: Jupiter\nC: Mars\nD: Saturn\nAns: C\nExp: Mars appears red due to iron oxide`;
+                  const blob = new Blob([sampleText], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = "sample_questions.txt"; a.click();
+                  URL.revokeObjectURL(url);
+                }} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700"><Download className="w-3.5 h-3.5" /> Download Sample</button>
               </div>
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all group">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <FileUp className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors mb-2" />
                   <p className="text-sm text-gray-500 group-hover:text-blue-600 font-medium">Click to upload .txt file</p>
-                  <p className="text-xs text-gray-400 mt-1">or drag & drop</p>
                 </div>
-                <input
-                  type="file"
-                  accept=".txt,.text"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const text = ev.target?.result as string;
-                      if (text) setBulkText(text);
-                    };
-                    reader.readAsText(file);
-                    e.target.value = ""; // reset so same file can be re-uploaded
-                  }}
-                />
+                <input type="file" accept=".txt,.text" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => { const text = ev.target?.result as string; if (text) setBulkText(text); };
+                  reader.readAsText(file); e.target.value = "";
+                }} />
               </label>
             </div>
-
-            {/* Format example - collapsible */}
             <details className="group">
               <summary className="cursor-pointer text-sm font-semibold text-gray-600 hover:text-ev-navy flex items-center gap-2">
-                <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                View Format Guide
+                <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" /> View Format Guide
               </summary>
-              <div className="mt-3 bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-600 border border-gray-200 space-y-3">
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 1 — Q/A/B/C/D/Ans/Exp:</p>
-                  <p>Q: What is the capital of India?</p>
-                  <p>A: Mumbai</p>
-                  <p>B: New Delhi</p>
-                  <p>C: Kolkata</p>
-                  <p>D: Chennai</p>
-                  <p>Ans: B</p>
-                  <p>Exp: New Delhi is the capital of India</p>
-                </div>
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 2 — Numbered questions:</p>
-                  <p>1. What is the capital of India?</p>
-                  <p>a) Mumbai</p>
-                  <p>b) New Delhi</p>
-                  <p>c) Kolkata</p>
-                  <p>d) Chennai</p>
-                  <p>Answer: b</p>
-                  <p>Explanation: New Delhi is the capital</p>
-                </div>
-                <div>
-                  <p className="font-sans font-bold text-gray-700 mb-1">Format 3 — Per-line CSV style:</p>
-                  <p>What is the capital of India? | Mumbai | New Delhi | Kolkata | Chennai | B | New Delhi is the capital</p>
-                </div>
-                <p className="font-sans text-gray-500">Separate each question with a blank line. Exp/Explanation is optional.</p>
+              <div className="mt-3 bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-600 border border-gray-200 space-y-2">
+                <p className="font-sans font-bold text-gray-700">Format — Q/A/B/C/D/Ans/Exp:</p>
+                <p>Q: What is the capital?</p><p>A: Mumbai</p><p>B: New Delhi</p><p>C: Kolkata</p><p>D: Chennai</p><p>Ans: B</p><p>Exp: New Delhi is the capital</p>
+                <p className="font-sans text-gray-500 mt-2">Or pipe-separated: Question | OptA | OptB | OptC | OptD | Answer | Explanation</p>
               </div>
             </details>
-
-            {/* Text area */}
             <div>
               <Label className="font-medium text-gray-600">Or paste questions below:</Label>
-              <Textarea
-                value={bulkText}
-                onChange={e => setBulkText(e.target.value)}
-                placeholder="Paste questions here or upload a file above..."
-                rows={10}
-                className="font-mono text-sm mt-1"
-              />
-              {bulkText.trim() && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {bulkText.trim().split(/\n\s*\n/).filter(b => b.trim()).length} question block(s) detected
-                </p>
-              )}
+              <Textarea value={bulkText} onChange={e => setBulkText(e.target.value)} placeholder="Paste questions here..." rows={8} className="font-mono text-sm mt-1" />
+              {bulkText.trim() && <p className="text-xs text-gray-400 mt-1">{bulkText.trim().split(/\n\s*\n/).filter(b => b.trim()).length} question block(s) detected</p>}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBulkDialogOpen(false); setBulkText(""); }}>Cancel</Button>
             <Button onClick={handleBulkImport} disabled={!bulkText.trim() || bulkImporting} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-              {bulkImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-              Import Questions
+              {bulkImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}Import Questions
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2315,7 +2507,6 @@ function TestSeriesAdmin() {
         { key: "title", label: "Series Title", type: "text", placeholder: "e.g. WBCS Complete Pack", required: true },
         { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
-        { key: "totalTests", label: "Total Tests", type: "number", placeholder: "25" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "499" },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
@@ -2452,66 +2643,784 @@ const LINK_ACTION_OPTIONS = [
 ];
 
 function BannersAdmin() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetCollection("banners");
+      if (data) {
+        data.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+        setItems(data);
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadItems(); }, [loadItems]);
+
+  const openAddDialog = () => {
+    setEditingItem(null);
+    setFormData({ title: "", subtitle: "", linkType: "internal", targetView: "", link: "", linkText: "", gradient: "from-ev-navy to-blue-800", order: items.length, isActive: true, imageUrl: "" });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: any) => {
+    setEditingItem(item);
+    setFormData({ ...item });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title?.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+      if (editingItem) {
+        await adminUpdateDoc("banners", editingItem.id || editingItem.uid, cleanData);
+        showToast("Banner updated successfully!", "success");
+      } else {
+        await adminAddDoc("banners", cleanData);
+        showToast("Banner created successfully!", "success");
+      }
+      setDialogOpen(false);
+      loadItems();
+    } catch (e) { console.error(e); showToast("Error saving banner", "error"); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    setSaving(true);
+    try {
+      await adminDeleteDoc("banners", deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      loadItems();
+      showToast("Banner deleted successfully!", "success");
+    } catch (e) { console.error(e); showToast("Error deleting banner", "error"); }
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (item: any) => {
+    try {
+      await adminUpdateDoc("banners", item.id || item.uid, { isActive: !item.isActive });
+      loadItems();
+      showToast(`Banner ${!item.isActive ? "activated" : "deactivated"}`, "success");
+    } catch (e) { showToast("Error updating banner", "error"); }
+  };
+
+  const handleMoveUp = async (index: number) => {
+    if (index <= 0) return;
+    const newItems = [...items];
+    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
+    // Update order values
+    for (let i = 0; i < newItems.length; i++) {
+      newItems[i] = { ...newItems[i], order: i };
+    }
+    setItems(newItems);
+    try {
+      for (const item of [newItems[index - 1], newItems[index]]) {
+        await adminUpdateDoc("banners", item.id || item.uid, { order: item.order });
+      }
+    } catch (e) { console.error(e); loadItems(); }
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index >= items.length - 1) return;
+    const newItems = [...items];
+    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+    for (let i = 0; i < newItems.length; i++) {
+      newItems[i] = { ...newItems[i], order: i };
+    }
+    setItems(newItems);
+    try {
+      for (const item of [newItems[index], newItems[index + 1]]) {
+        await adminUpdateDoc("banners", item.id || item.uid, { order: item.order });
+      }
+    } catch (e) { console.error(e); loadItems(); }
+  };
+
+  const filteredItems = items.filter(item =>
+    Object.values(item).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const gradientLabels: Record<string, string> = {
+    "from-ev-navy to-blue-800": "Navy Blue",
+    "from-ev-orange to-orange-700": "Orange",
+    "from-ev-gold to-yellow-600": "Gold",
+    "from-green-500 to-emerald-600": "Green",
+    "from-purple-500 to-purple-600": "Purple",
+    "from-cyan-500 to-blue-600": "Cyan",
+  };
+
   return (
-    <CrudAdminPanel
-      title="Banners"
-      subtitle="Manage home page banners"
-      icon={Image}
-      color="from-ev-orange to-red-500"
-      collectionName="banners"
-      fields={[
-        { key: "title", label: "Banner Title", type: "text", placeholder: "e.g. WBCS 2026 Preparation", required: true },
-        { key: "subtitle", label: "Subtitle", type: "text", placeholder: "Start your preparation now" },
-        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
-        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
-        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
-        { key: "linkText", label: "Button Text", type: "text", placeholder: "e.g. Explore Now, Learn More", dependsOn: { field: "linkType", value: ["internal", "external"] } },
-        { key: "gradient", label: "Gradient", type: "select", options: [
-          { label: "Navy Blue", value: "from-ev-navy to-blue-800" },
-          { label: "Orange", value: "from-ev-orange to-orange-700" },
-          { label: "Gold", value: "from-ev-gold to-yellow-600" },
-          { label: "Green", value: "from-green-500 to-emerald-600" },
-          { label: "Purple", value: "from-purple-500 to-purple-600" },
-          { label: "Cyan", value: "from-cyan-500 to-blue-600" },
-        ] },
-        { key: "order", label: "Display Order", type: "number" },
-        { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Banner Image", type: "image" },
-      ]}
-      fetchData={() => adminGetCollection("banners")}
-      onAdd={(data) => adminAddDoc("banners", data)}
-      onUpdate={(id, data) => adminUpdateDoc("banners", id, data)}
-      onDelete={(id) => adminDeleteDoc("banners", id)}
-    />
+    <div>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm flex items-center gap-2 ${toast.type === "success" ? "bg-gradient-to-r from-emerald-500 to-green-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
+            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-ev-orange to-red-500 flex items-center justify-center shadow-lg">
+            <Image className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-ev-navy">Top Banners</h2>
+            <p className="text-gray-500 text-sm">Manage home page banner carousel • {items.length} banners</p>
+          </div>
+        </div>
+        <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Banner
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
+            placeholder="Search banners..." />
+        </div>
+      </div>
+
+      {/* Banner Cards with Live Preview */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-ev-orange to-red-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Image className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-ev-navy mb-2">Top Banner Management</h3>
+          <p className="text-gray-500 text-sm max-w-md mx-auto mb-4">Create and manage the banner carousel that appears at the top of the home page. Banners auto-rotate every 3 seconds.</p>
+          <button onClick={openAddDialog} className="px-6 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg">
+            <Plus className="w-4 h-4 inline mr-1" /> Add Your First Banner
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredItems.map((item, idx) => (
+            <motion.div key={item.id || item.uid || idx}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Live Banner Preview */}
+              <div className={"bg-gradient-to-r " + (item.gradient || "from-ev-navy to-blue-800") + " p-5 flex items-center justify-between"}>
+                <div>
+                  <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
+                  <h3 className="text-lg font-bold text-white mt-1">{item.title || "Untitled Banner"}</h3>
+                  {item.subtitle && <p className="text-white/70 text-sm mt-1">{item.subtitle}</p>}
+                  <span className="mt-2 inline-block px-4 py-1.5 rounded-lg bg-white/20 text-white text-sm font-semibold">
+                    {item.linkText || "Explore →"}
+                  </span>
+                </div>
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.title} className="w-20 h-20 rounded-xl object-cover shadow-lg" />
+                ) : (
+                  <span className="text-5xl">🎯</span>
+                )}
+              </div>
+              {/* Controls Bar */}
+              <div className="px-5 py-3 flex items-center justify-between bg-gray-50/80">
+                <div className="flex items-center gap-3">
+                  {/* Reorder Buttons */}
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleMoveUp(items.indexOf(item))} disabled={items.indexOf(item) === 0}
+                      className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-ev-orange disabled:opacity-30 transition-colors">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-bold text-gray-500 min-w-[2rem] text-center">#{item.order ?? idx + 1}</span>
+                    <button onClick={() => handleMoveDown(items.indexOf(item))} disabled={items.indexOf(item) === items.length - 1}
+                      className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-ev-orange disabled:opacity-30 transition-colors">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Info Tags */}
+                  <span className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">{gradientLabels[item.gradient] || item.gradient || "Default"}</span>
+                  <span className="px-2 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-600">
+                    {item.linkType === "internal" ? `→ ${NAVIGATION_VIEWS.find(v => v.value === item.targetView)?.label || item.targetView}` :
+                     item.linkType === "external" ? "🌐 External" :
+                     item.linkType === "detail" ? "📄 Detail" : "🚫 No Action"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Active Toggle */}
+                  <button onClick={() => handleToggleActive(item)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${item.isActive !== false ? "bg-green-100 text-ev-green" : "bg-red-100 text-ev-red"}`}>
+                    {item.isActive !== false ? "● Active" : "○ Inactive"}
+                  </button>
+                  {/* Edit */}
+                  <button onClick={() => openEditDialog(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                  {/* Delete */}
+                  <button onClick={() => { setDeletingId(item.id || item.uid); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog with Live Preview */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Edit Banner" : "Add New Banner"}</DialogTitle>
+            <DialogDescription>Design your home page top banner with live preview</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+            {/* Form Side */}
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Banner Title <span className="text-red-500">*</span></Label>
+                <Input value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. WBCS 2026 Preparation" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Subtitle</Label>
+                <Input value={formData.subtitle || ""} onChange={e => setFormData({ ...formData, subtitle: e.target.value })} placeholder="Start your preparation now" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Gradient Color</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Navy Blue", value: "from-ev-navy to-blue-800", preview: "bg-gradient-to-r from-ev-navy to-blue-800" },
+                    { label: "Orange", value: "from-ev-orange to-orange-700", preview: "bg-gradient-to-r from-ev-orange to-orange-700" },
+                    { label: "Gold", value: "from-ev-gold to-yellow-600", preview: "bg-gradient-to-r from-ev-gold to-yellow-600" },
+                    { label: "Green", value: "from-green-500 to-emerald-600", preview: "bg-gradient-to-r from-green-500 to-emerald-600" },
+                    { label: "Purple", value: "from-purple-500 to-purple-600", preview: "bg-gradient-to-r from-purple-500 to-purple-600" },
+                    { label: "Cyan", value: "from-cyan-500 to-blue-600", preview: "bg-gradient-to-r from-cyan-500 to-blue-600" },
+                  ].map(g => (
+                    <button key={g.value} onClick={() => setFormData({ ...formData, gradient: g.value })}
+                      className={`p-2 rounded-xl border-2 transition-all text-white text-xs font-bold ${formData.gradient === g.value ? "border-ev-orange shadow-lg scale-105" : "border-transparent"}`}>
+                      <div className={`${g.preview} rounded-lg h-8 mb-1`} />
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Click Action</Label>
+                <Select value={formData.linkType || "internal"} onValueChange={v => setFormData({ ...formData, linkType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.linkType === "internal") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Navigate To</Label>
+                  <Select value={formData.targetView || ""} onValueChange={v => setFormData({ ...formData, targetView: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select page..." /></SelectTrigger>
+                    <SelectContent>
+                      {NAVIGATION_VIEWS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">External URL</Label>
+                  <Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://example.com" />
+                </div>
+              )}
+              {(formData.linkType === "internal" || formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Button Text</Label>
+                  <Input value={formData.linkText || ""} onChange={e => setFormData({ ...formData, linkText: e.target.value })} placeholder="e.g. Explore Now, Learn More" />
+                </div>
+              )}
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Display Order</Label>
+                <Input type="number" value={formData.order ?? 0} onChange={e => setFormData({ ...formData, order: Number(e.target.value) })} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium">Active</Label>
+                <Switch checked={formData.isActive ?? true} onCheckedChange={v => setFormData({ ...formData, isActive: v })} />
+                <span className="text-sm text-gray-600">{formData.isActive !== false ? "Active" : "Inactive"}</span>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Banner Image</Label>
+                {formData.imageUrl && (
+                  <img src={formData.imageUrl} alt="Preview" className="w-24 h-24 object-cover rounded-xl mb-2 border" />
+                )}
+                <Input type="file" accept="image/*" onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) { const url = await uploadImage(file, "banners"); if (url) setFormData({ ...formData, imageUrl: url }); }
+                }} />
+                <Input value={formData.imageUrl || ""} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="Or paste image URL" className="mt-2" />
+              </div>
+            </div>
+            {/* Live Preview Side */}
+            <div className="space-y-3">
+              <Label className="text-sm font-bold text-ev-navy">Live Preview</Label>
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">How it looks on the home page</p>
+                <div className={"rounded-2xl bg-gradient-to-r " + (formData.gradient || "from-ev-navy to-blue-800") + " p-5 flex items-center justify-between shadow-lg"}>
+                  <div>
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Featured</span>
+                    <h3 className="text-lg font-bold text-white mt-1">{formData.title || "Banner Title"}</h3>
+                    {formData.subtitle && <p className="text-white/70 text-sm mt-1">{formData.subtitle}</p>}
+                    <span className="mt-2 inline-block px-4 py-1.5 rounded-lg bg-white/20 text-white text-sm font-semibold">
+                      {formData.linkText || "Explore →"}
+                    </span>
+                  </div>
+                  {formData.imageUrl ? (
+                    <img src={formData.imageUrl} alt={formData.title} className="w-20 h-20 rounded-xl object-cover shadow-lg" />
+                  ) : (
+                    <span className="text-5xl">🎯</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p><b>Click:</b> {formData.linkType === "internal" ? `Navigate to ${NAVIGATION_VIEWS.find(v => v.value === formData.targetView)?.label || formData.targetView || "—"}` :
+                  formData.linkType === "external" ? `Open ${formData.link || "URL"}` :
+                  formData.linkType === "detail" ? "Show detail view" : "No action"}</p>
+                <p><b>Order:</b> #{formData.order ?? 0} • <b>Status:</b> {formData.isActive !== false ? "Active" : "Inactive"}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-ev-orange to-ev-gold text-white">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              {editingItem ? "Update Banner" : "Create Banner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Banner</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure? This banner will be permanently removed from the carousel.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
 // ==================== ANNOUNCEMENTS ADMIN ====================
 function AnnouncementsAdmin() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetCollection("announcements");
+      if (data) {
+        data.sort((a: any, b: any) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+        setItems(data);
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadItems(); }, [loadItems]);
+
+  const openAddDialog = () => {
+    setEditingItem(null);
+    setFormData({ title: "", description: "", type: "new", priority: "medium", linkType: "detail", targetView: "", link: "", linkText: "", isActive: true, imageUrl: "" });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: any) => {
+    setEditingItem(item);
+    setFormData({ ...item });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title?.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const { id, uid, createdAt, updatedAt, ...cleanData } = formData as any;
+      if (editingItem) {
+        await adminUpdateDoc("announcements", editingItem.id || editingItem.uid, cleanData);
+        showToast("Announcement updated successfully!", "success");
+      } else {
+        await adminAddDoc("announcements", cleanData);
+        showToast("Announcement created successfully!", "success");
+      }
+      setDialogOpen(false);
+      loadItems();
+    } catch (e) { console.error(e); showToast("Error saving announcement", "error"); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    setSaving(true);
+    try {
+      await adminDeleteDoc("announcements", deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      loadItems();
+      showToast("Announcement deleted successfully!", "success");
+    } catch (e) { console.error(e); showToast("Error deleting announcement", "error"); }
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (item: any) => {
+    try {
+      await adminUpdateDoc("announcements", item.id || item.uid, { isActive: !item.isActive });
+      loadItems();
+      showToast(`Announcement ${!item.isActive ? "activated" : "deactivated"}`, "success");
+    } catch (e) { showToast("Error updating announcement", "error"); }
+  };
+
+  const filteredItems = items.filter(item =>
+    Object.values(item).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const announcementTypeConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; label: string }> = {
+    new: { icon: <Sparkles className="w-4 h-4" />, color: "text-ev-green", bg: "bg-green-100", label: "New" },
+    alert: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-ev-orange", bg: "bg-orange-100", label: "Alert" },
+    offer: { icon: <Flame className="w-4 h-4" />, color: "text-ev-red", bg: "bg-red-100", label: "Offer" },
+    info: { icon: <Bell className="w-4 h-4" />, color: "text-blue-500", bg: "bg-blue-100", label: "Info" },
+    warning: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-yellow-500", bg: "bg-yellow-100", label: "Warning" },
+    urgent: { icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-100", label: "Urgent" },
+    update: { icon: <Sparkles className="w-4 h-4" />, color: "text-purple-500", bg: "bg-purple-100", label: "Update" },
+  };
+
+  const priorityConfig: Record<string, { color: string; label: string }> = {
+    low: { color: "bg-gray-100 text-gray-600", label: "Low" },
+    medium: { color: "bg-blue-100 text-blue-600", label: "Medium" },
+    high: { color: "bg-red-100 text-red-600", label: "High" },
+  };
+
   return (
-    <CrudAdminPanel
-      title="Announcements"
-      subtitle="Manage app announcements"
-      icon={Megaphone}
-      color="from-pink-500 to-rose-600"
-      collectionName="announcements"
-      fields={[
-        { key: "title", label: "Title", type: "text", placeholder: "Announcement title", required: true },
-        { key: "description", label: "Description", type: "textarea", placeholder: "Announcement details..." },
-        { key: "type", label: "Type", type: "select", options: [{ label: "New", value: "new" }, { label: "Alert", value: "alert" }, { label: "Offer", value: "offer" }, { label: "Info", value: "info" }, { label: "Warning", value: "warning" }, { label: "Urgent", value: "urgent" }, { label: "Update", value: "update" }] },
-        { key: "priority", label: "Priority", type: "select", options: [{ label: "Low", value: "low" }, { label: "Medium", value: "medium" }, { label: "High", value: "high" }] },
-        { key: "linkType", label: "Click Action", type: "select", options: LINK_ACTION_OPTIONS, required: true },
-        { key: "targetView", label: "Navigate To", type: "select", options: NAVIGATION_VIEWS, placeholder: "Select page...", dependsOn: { field: "linkType", value: "internal" } },
-        { key: "link", label: "External URL", type: "url", placeholder: "https://example.com", dependsOn: { field: "linkType", value: "external" } },
-        { key: "linkText", label: "Link Button Text", type: "text", placeholder: "e.g. Open Now, Check It", dependsOn: { field: "linkType", value: ["internal", "external"] } },
-        { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Image", type: "image" },
-      ]}
-      fetchData={() => adminGetCollection("announcements")}
-      onAdd={(data) => adminAddDoc("announcements", data)}
-      onUpdate={(id, data) => adminUpdateDoc("announcements", id, data)}
-      onDelete={(id) => adminDeleteDoc("announcements", id)}
-    />
+    <div>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm flex items-center gap-2 ${toast.type === "success" ? "bg-gradient-to-r from-emerald-500 to-green-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
+            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg">
+            <Megaphone className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-ev-navy">Announcements</h2>
+            <p className="text-gray-500 text-sm">Manage app announcement carousel • {items.length} announcements</p>
+          </div>
+        </div>
+        <button onClick={openAddDialog} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-sm shadow-lg flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Announcement
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-navy">{items.length}</p>
+          <p className="text-xs text-gray-500">Total</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-green">{items.filter(i => i.isActive !== false).length}</p>
+          <p className="text-xs text-gray-500">Active</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-orange">{items.filter(i => i.type === "alert" || i.type === "urgent" || i.type === "warning").length}</p>
+          <p className="text-xs text-gray-500">Alerts</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-black text-ev-red">{items.filter(i => i.type === "offer").length}</p>
+          <p className="text-xs text-gray-500">Offers</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-gray-200 focus:outline-none focus:border-pink-400 text-sm"
+            placeholder="Search announcements..." />
+        </div>
+      </div>
+
+      {/* Announcement Cards with Live Preview */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-pink-500" /></div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Megaphone className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-ev-navy mb-2">Announcement Management</h3>
+          <p className="text-gray-500 text-sm max-w-md mx-auto mb-4">Create and manage announcements that appear in the home page carousel. Announcements auto-scroll every 3 seconds.</p>
+          <button onClick={openAddDialog} className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold shadow-lg">
+            <Plus className="w-4 h-4 inline mr-1" /> Add Your First Announcement
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredItems.map((item, idx) => {
+            const typeConf = announcementTypeConfig[item.type] || announcementTypeConfig.info;
+            const prioConf = priorityConfig[item.priority] || priorityConfig.medium;
+            return (
+              <motion.div key={item.id || item.uid || idx}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Preview Row */}
+                <div className="px-5 py-4 flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* Type Badge */}
+                    <div className={`w-9 h-9 rounded-xl ${typeConf.bg} ${typeConf.color} flex items-center justify-center flex-shrink-0`}>
+                      {typeConf.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-ev-navy truncate">{item.title || "Untitled"}</h3>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${typeConf.bg} ${typeConf.color} flex-shrink-0`}>{typeConf.label}</span>
+                        {item.priority && <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${prioConf.color} flex-shrink-0`}>{prioConf.label}</span>}
+                      </div>
+                      {item.description && <p className="text-sm text-gray-500 line-clamp-2">{item.description}</p>}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-gray-400">
+                          {item.linkType === "internal" ? `→ ${NAVIGATION_VIEWS.find(v => v.value === item.targetView)?.label || item.targetView}` :
+                           item.linkType === "external" ? "🌐 External Link" :
+                           item.linkType === "detail" ? "📄 Detail View" : "🚫 No Action"}
+                        </span>
+                        {item.createdAt && <span className="text-xs text-gray-300">• {new Date(item.createdAt).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {item.imageUrl && <img src={item.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover" />}
+                    <button onClick={() => handleToggleActive(item)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${item.isActive !== false ? "bg-green-100 text-ev-green" : "bg-red-100 text-ev-red"}`}>
+                      {item.isActive !== false ? "● Active" : "○ Inactive"}
+                    </button>
+                    <button onClick={() => openEditDialog(item)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"><Edit className="w-4 h-4" /></button>
+                    <button onClick={() => { setDeletingId(item.id || item.uid); setDeleteDialogOpen(true); }} className="p-2 rounded-lg hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog with Live Preview */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Edit Announcement" : "Add New Announcement"}</DialogTitle>
+            <DialogDescription>Create announcements that appear in the home page carousel</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+            {/* Form Side */}
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Title <span className="text-red-500">*</span></Label>
+                <Input value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="Announcement title" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Description</Label>
+                <Textarea value={formData.description || ""} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Announcement details..." rows={3} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Type</Label>
+                  <Select value={formData.type || "new"} onValueChange={v => setFormData({ ...formData, type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(announcementTypeConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Priority</Label>
+                  <Select value={formData.priority || "medium"} onValueChange={v => setFormData({ ...formData, priority: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Click Action</Label>
+                <Select value={formData.linkType || "detail"} onValueChange={v => setFormData({ ...formData, linkType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.linkType === "internal") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Navigate To</Label>
+                  <Select value={formData.targetView || ""} onValueChange={v => setFormData({ ...formData, targetView: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select page..." /></SelectTrigger>
+                    <SelectContent>
+                      {NAVIGATION_VIEWS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">External URL</Label>
+                  <Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://example.com" />
+                </div>
+              )}
+              {(formData.linkType === "internal" || formData.linkType === "external") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Link Button Text</Label>
+                  <Input value={formData.linkText || ""} onChange={e => setFormData({ ...formData, linkText: e.target.value })} placeholder="e.g. Open Now, Check It" />
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium">Active</Label>
+                <Switch checked={formData.isActive ?? true} onCheckedChange={v => setFormData({ ...formData, isActive: v })} />
+                <span className="text-sm text-gray-600">{formData.isActive !== false ? "Active" : "Inactive"}</span>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium">Image</Label>
+                {formData.imageUrl && (
+                  <img src={formData.imageUrl} alt="Preview" className="w-24 h-24 object-cover rounded-xl mb-2 border" />
+                )}
+                <Input type="file" accept="image/*" onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) { const url = await uploadImage(file, "announcements"); if (url) setFormData({ ...formData, imageUrl: url }); }
+                }} />
+                <Input value={formData.imageUrl || ""} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="Or paste image URL" className="mt-2" />
+              </div>
+            </div>
+            {/* Live Preview Side */}
+            <div className="space-y-3">
+              <Label className="text-sm font-bold text-ev-navy">Live Preview</Label>
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">How it looks on the home page</p>
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  {/* Simulate the announcement carousel item */}
+                  <div className="flex items-center gap-2 mb-1">
+                    {(() => {
+                      const conf = announcementTypeConfig[formData.type] || announcementTypeConfig.info;
+                      return <span className={`${conf.bg} ${conf.color} p-1.5 rounded-lg`}>{conf.icon}</span>;
+                    })()}
+                    <span className="text-sm text-gray-700 truncate">{formData.title || "Announcement Title"}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" />
+                  </div>
+                  {formData.description && (
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-1 pl-8">{formData.description}</p>
+                  )}
+                </div>
+              </div>
+              {/* Expanded Preview */}
+              <div className="bg-gray-100 rounded-2xl p-4">
+                <p className="text-xs text-gray-400 mb-2 text-center">Expanded detail view</p>
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  {formData.imageUrl && <img src={formData.imageUrl} alt="" className="w-full h-32 object-cover rounded-lg mb-3" />}
+                  <div className="flex items-center gap-2 mb-2">
+                    {(() => {
+                      const conf = announcementTypeConfig[formData.type] || announcementTypeConfig.info;
+                      return <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${conf.bg} ${conf.color}`}>{conf.label}</span>;
+                    })()}
+                    {formData.priority && <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${priorityConfig[formData.priority]?.color || "bg-gray-100 text-gray-600"}`}>{priorityConfig[formData.priority]?.label || formData.priority}</span>}
+                  </div>
+                  <h3 className="font-bold text-ev-navy text-lg mb-1">{formData.title || "Announcement Title"}</h3>
+                  {formData.description && <p className="text-sm text-gray-600 whitespace-pre-line">{formData.description}</p>}
+                  {(formData.linkType === "internal" || formData.linkType === "external") && formData.linkText && (
+                    <button className="mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-ev-orange to-ev-gold text-white text-sm font-bold">
+                      {formData.linkText}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p><b>Type:</b> {formData.type || "new"} • <b>Priority:</b> {formData.priority || "medium"}</p>
+                <p><b>Click:</b> {formData.linkType === "internal" ? `Navigate to ${NAVIGATION_VIEWS.find(v => v.value === formData.targetView)?.label || "—"}` :
+                  formData.linkType === "external" ? `Open ${formData.link || "URL"}` :
+                  formData.linkType === "detail" ? "Show detail view" : "No action"}</p>
+                <p><b>Status:</b> {formData.isActive !== false ? "Active" : "Inactive"}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-pink-500 to-rose-600 text-white">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              {editingItem ? "Update Announcement" : "Create Announcement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Announcement</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure? This announcement will be permanently removed.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 

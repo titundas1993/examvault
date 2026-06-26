@@ -16,10 +16,15 @@ import {
   LogOut,
   Trash2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   Mail,
   Check,
   AlertTriangle,
+  Camera,
+  Crown,
+  CreditCard,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -49,6 +54,9 @@ import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { logout as authLogout, sendPasswordReset, getCurrentUser } from "@/lib/services/auth";
 import { updateUserProfile, getAppSettings } from "@/lib/services/firestore";
+import { db, storage } from "@/lib/firebase";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const languages = [
   { code: "en", label: "EN", native: "English" },
@@ -56,6 +64,16 @@ const languages = [
   { code: "bn", label: "বা", native: "বাংলা" },
   { code: "as", label: "অ", native: "অসমীয়া" },
 ];
+
+interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  method: string;
+  createdAt: string;
+  planName?: string;
+}
 
 export default function SettingsTab() {
   const {
@@ -74,7 +92,7 @@ export default function SettingsTab() {
   } = useAppStore();
 
   const [editName, setEditName] = useState(user?.name || "");
-  const [editPhone, setEditPhone] = useState("");
+  const [editPhone, setEditPhone] = useState(user?.phone || firebaseUser?.phoneNumber || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -84,6 +102,12 @@ export default function SettingsTab() {
   const [passwordError, setPasswordError] = useState("");
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Payment History
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
 
   // Load app settings on mount
   useEffect(() => {
@@ -100,7 +124,43 @@ export default function SettingsTab() {
     loadSettings();
   }, [setAppSettings]);
 
+  // Load payment history
+  useEffect(() => {
+    const loadPayments = async () => {
+      if (!firebaseUser?.uid) return;
+      setLoadingPayments(true);
+      try {
+        const q = query(
+          collection(db, "payments"),
+          where("uid", "==", firebaseUser.uid),
+          orderBy("createdAt", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const records: PaymentRecord[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          records.push({
+            id: doc.id,
+            amount: data.amount || 0,
+            currency: data.currency || "INR",
+            status: data.status || "unknown",
+            method: data.method || data.paymentMethod || "N/A",
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || "",
+            planName: data.planName || data.description || "",
+          });
+        });
+        setPayments(records);
+      } catch (err) {
+        console.error("Error loading payment history:", err);
+      } finally {
+        setLoadingPayments(false);
+      }
+    };
+    loadPayments();
+  }, [firebaseUser?.uid]);
+
   const isGuest = !user || user.role === "guest";
+  const isPremium = user?.role === "admin" || (appSettings as any)?.isPremium;
 
   const handleSaveProfile = async () => {
     if (!firebaseUser?.uid) return;
@@ -110,13 +170,30 @@ export default function SettingsTab() {
         name: editName,
         phone: editPhone,
       });
-      setUser({ ...user!, name: editName });
+      setUser({ ...user!, name: editName, phone: editPhone });
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (err) {
       console.error("Error saving profile:", err);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !firebaseUser?.uid) return;
+    setUploadingPhoto(true);
+    try {
+      const storageRef = ref(storage, `profile-photos/${firebaseUser.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoURL = await getDownloadURL(storageRef);
+      await updateUserProfile(firebaseUser.uid, { photoURL });
+      setUser({ ...user!, photoURL });
+    } catch (err) {
+      console.error("Error uploading photo:", err);
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -130,12 +207,11 @@ export default function SettingsTab() {
       return;
     }
     try {
-      const user = getCurrentUser();
-      if (user && user.email) {
-        // Send password reset email as a secure way to change password
-        await sendPasswordReset(user.email);
+      const currentUser = getCurrentUser();
+      if (currentUser && currentUser.email) {
+        await sendPasswordReset(currentUser.email);
         setShowPasswordDialog(false);
-        alert(`Password reset email sent to ${user.email}. Please check your inbox.`);
+        alert(`Password reset email sent to ${currentUser.email}. Please check your inbox.`);
       } else {
         setPasswordError("No email associated with this account");
       }
@@ -159,19 +235,29 @@ export default function SettingsTab() {
   };
 
   const handleDeleteAccount = async () => {
-    // Note: Full account deletion requires server-side Firebase Admin SDK.
-    // For now, we sign out the user and clear local data as a safety measure.
-    // A proper implementation would call a Cloud Function to delete the Firebase Auth user
-    // and all associated Firestore data.
     try {
       await authLogout();
       setUser(null);
       setFirebaseUser(null);
       setView("login");
-      // Clear all local data
       localStorage.clear();
     } catch (err) {
       console.error("Error deleting account:", err);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "N/A";
+    try {
+      return new Date(dateStr).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return dateStr;
     }
   };
 
@@ -217,7 +303,7 @@ export default function SettingsTab() {
           </p>
         </motion.div>
 
-        {/* Profile Section */}
+        {/* Profile Section with Photo Upload */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -227,8 +313,46 @@ export default function SettingsTab() {
           <h3 className="text-sm font-semibold text-ev-navy dark:text-white flex items-center gap-2">
             <User className="w-4 h-4 text-ev-orange" />
             Profile
+            {isPremium && (
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-bold bg-gradient-to-r from-ev-orange to-ev-gold text-white px-2 py-0.5 rounded-full">
+                <Crown className="w-3 h-3" /> PREMIUM
+              </span>
+            )}
           </h3>
           <Separator />
+
+          {/* Photo Upload */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full bg-ev-navy/10 dark:bg-white/10 flex items-center justify-center overflow-hidden">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-7 h-7 text-ev-navy/40 dark:text-white/40" />
+                )}
+              </div>
+              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-ev-orange text-white flex items-center justify-center cursor-pointer shadow-md hover:bg-ev-orange/90 transition">
+                <Camera className="w-3.5 h-3.5" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  disabled={uploadingPhoto}
+                />
+              </label>
+              {uploadingPhoto && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-ev-navy dark:text-white text-sm">{user?.name || "User"}</p>
+              <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div>
               <Label className="text-xs text-muted-foreground mb-1">{t("name", language)}</Label>
@@ -271,6 +395,80 @@ export default function SettingsTab() {
               )}
             </Button>
           </div>
+        </motion.section>
+
+        {/* Payment History */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="bg-white dark:bg-gray-900 rounded-xl border border-border"
+        >
+          <button
+            onClick={() => setShowPaymentHistory(!showPaymentHistory)}
+            className="w-full flex items-center justify-between p-4 hover:bg-ev-light dark:hover:bg-gray-800 transition-colors rounded-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-ev-green/10 flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-ev-green" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-ev-navy dark:text-white">Payment History</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {payments.length > 0 ? `${payments.length} transaction(s)` : "No transactions yet"}
+                </p>
+              </div>
+            </div>
+            {showPaymentHistory ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {showPaymentHistory && (
+            <div className="px-4 pb-4 space-y-2">
+              {loadingPayments ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : payments.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No payment history found</p>
+              ) : (
+                payments.map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between p-3 bg-ev-light dark:bg-gray-800 rounded-lg"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ev-navy dark:text-white">
+                        {payment.planName || "Subscription"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatDate(payment.createdAt)} | {payment.method}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-ev-navy dark:text-white">
+                        ₹{payment.amount}
+                      </p>
+                      <span
+                        className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          payment.status === "captured" || payment.status === "completed"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : payment.status === "failed"
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                        }`}
+                      >
+                        {payment.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </motion.section>
 
         {/* Change Password */}
