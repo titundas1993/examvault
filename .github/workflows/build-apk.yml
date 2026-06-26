@@ -47,7 +47,7 @@ jobs:
           echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
 
           # Create project directory structure
-          mkdir -p android-project/app/src/main/java/com/examvault/app
+          mkdir -p android-project/app/src/main/java/com/examvault/education
           mkdir -p android-project/app/src/main/res/values
           mkdir -p android-project/app/src/main/res/mipmap-hdpi
           mkdir -p android-project/app/src/main/res/mipmap-mdpi
@@ -96,14 +96,14 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.examvault.app'
+              namespace 'com.examvault.education'
               compileSdk 35
               defaultConfig {
-                  applicationId "com.examvault.app"
+                  applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 1
-                  versionName "1.0.0"
+                  versionCode 5
+                  versionName "1.1.0"
               }
               signingConfigs {
                   release {
@@ -193,9 +193,9 @@ jobs:
           </network-security-config>
           XMLEOF
 
-          # MainActivity.java
-          cat > android-project/app/src/main/java/com/examvault/app/MainActivity.java << JAVAEOF
-          package com.examvault.app;
+          # MainActivity.java — with AdMob Interstitial + Back button fix
+          cat > android-project/app/src/main/java/com/examvault/education/MainActivity.java << 'JAVAEOF'
+          package com.examvault.education;
 
           import android.app.Activity;
           import android.app.AlertDialog;
@@ -210,6 +210,7 @@ jobs:
           import android.webkit.ValueCallback;
           import android.webkit.WebResourceError;
           import android.webkit.WebResourceRequest;
+          import android.webkit.JavascriptInterface;
           import android.view.View;
           import android.view.Window;
           import android.view.WindowManager;
@@ -217,6 +218,15 @@ jobs:
           import android.net.Uri;
           import android.graphics.Color;
           import android.os.Build;
+          import android.util.Log;
+
+          import com.google.android.gms.ads.AdError;
+          import com.google.android.gms.ads.AdRequest;
+          import com.google.android.gms.ads.FullScreenContentCallback;
+          import com.google.android.gms.ads.LoadAdError;
+          import com.google.android.gms.ads.interstitial.InterstitialAd;
+          import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+          import com.google.android.gms.ads.MobileAds;
 
           public class MainActivity extends Activity {
               private WebView webView;
@@ -224,7 +234,12 @@ jobs:
               private static final String PREFS_NAME = "examvault_prefs";
               private static final String KEY_URL = "last_url";
               private String appUrl = "${APP_URL}";
+              private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
               private boolean webViewReady = false;
+              private InterstitialAd mInterstitialAd = null;
+              private boolean adShowing = false;
+              private String pendingBackAction = "none"; // "none", "go_back", "exit"
+              private static final String TAG = "ExamVault";
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -283,6 +298,9 @@ jobs:
                   cookieManager.setAcceptCookie(true);
                   cookieManager.setAcceptThirdPartyCookies(webView, true);
 
+                  // JS interface for ad control
+                  webView.addJavascriptInterface(this, "AndroidBridge");
+
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -292,7 +310,9 @@ jobs:
                                host.contains("vercel.app") ||
                                host.contains("firebaseio.com") ||
                                host.contains("googleapis.com") ||
-                               host.contains("firebaseapp.com"))) {
+                               host.contains("firebaseapp.com") ||
+                               host.contains("razorpay.com") ||
+                               host.contains("play.google.com"))) {
                               return false;
                           }
                           try {
@@ -333,6 +353,101 @@ jobs:
                       }
                   }
                   webView.loadUrl(urlToLoad);
+
+                  // === AdMob Init (deferred) ===
+                  new Thread(new Runnable() {
+                      @Override public void run() {
+                          try {
+                              MobileAds.initialize(getApplicationContext(), initializationStatus -> {
+                                  Log.d(TAG, "AdMob initialized");
+                                  loadInterstitialAd();
+                              });
+                          } catch (Exception e) {
+                              Log.e(TAG, "AdMob init failed: " + e.getMessage());
+                          }
+                      }
+                  }).start();
+              }
+
+              // === AdMob Interstitial ===
+              private void loadInterstitialAd() {
+                  if (isFinishing()) return;
+                  try {
+                      AdRequest adRequest = new AdRequest.Builder().build();
+                      InterstitialAd.load(getApplicationContext(), admobInterstitialId, adRequest,
+                          new InterstitialAdLoadCallback() {
+                              @Override public void onAdLoaded(InterstitialAd interstitialAd) {
+                                  mInterstitialAd = interstitialAd;
+                                  Log.d(TAG, "Interstitial ad loaded");
+                                  mInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                                      @Override public void onAdDismissedFullScreenContent() {
+                                          mInterstitialAd = null;
+                                          adShowing = false;
+                                          loadInterstitialAd(); // preload next
+                                          handlePendingBackAction();
+                                      }
+                                      @Override public void onAdFailedToShowFullScreenContent(AdError adError) {
+                                          mInterstitialAd = null;
+                                          adShowing = false;
+                                          loadInterstitialAd();
+                                          handlePendingBackAction();
+                                      }
+                                      @Override public void onAdShowedFullScreenContent() {
+                                          adShowing = true;
+                                      }
+                                  });
+                              }
+                              @Override public void onAdFailedToLoad(LoadAdError loadAdError) {
+                                  mInterstitialAd = null;
+                                  Log.d(TAG, "Ad failed to load: " + loadAdError.getMessage());
+                              }
+                          });
+                  } catch (Exception e) {
+                      Log.e(TAG, "Load ad error: " + e.getMessage());
+                  }
+              }
+
+              private void showInterstitialAd(String backAction) {
+                  pendingBackAction = backAction;
+                  if (mInterstitialAd != null && !adShowing) {
+                      try {
+                          mInterstitialAd.show(MainActivity.this);
+                      } catch (Exception e) {
+                          mInterstitialAd = null;
+                          adShowing = false;
+                          handlePendingBackAction();
+                      }
+                  } else {
+                      handlePendingBackAction();
+                  }
+              }
+
+              private void handlePendingBackAction() {
+                  String action = pendingBackAction;
+                  pendingBackAction = "none";
+                  if ("go_back".equals(action)) {
+                      webView.post(() -> {
+                          webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { s.getState().goBack(); } } catch(e) {} })()", null);
+                      });
+                  } else if ("exit".equals(action)) {
+                      showExitDialog();
+                  }
+              }
+
+              // JS interface: call from web to show ad
+              @JavascriptInterface
+              public void showAd() {
+                  runOnUiThread(() -> {
+                      if (mInterstitialAd != null && !adShowing) {
+                          try { mInterstitialAd.show(MainActivity.this); } catch (Exception e) {}
+                      }
+                  });
+              }
+
+              // JS interface: check if ad is ready
+              @JavascriptInterface
+              public boolean isAdReady() {
+                  return mInterstitialAd != null;
               }
 
               @Override
@@ -346,16 +461,16 @@ jobs:
               @Override
               public void onBackPressed() {
                   if (webView == null) { super.onBackPressed(); return; }
-                  webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { st.goBack(); return 'went_back'; } else if(st.currentView === 'home') { return 'at_home'; } else { st.goBack(); return 'went_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
+                  webView.evaluateJavascript("(function(){ try { var s = window.__ZUSTAND_STORE__; if(s && s.getState) { var st = s.getState(); if(st.examBackWarning !== undefined && st.currentView === 'exam') { st.setExamBackWarning(true); return 'exam_warning'; } else if(st.canGoBack && st.canGoBack()) { return 'can_go_back'; } else if(st.currentView === 'home' || st.currentView === 'login') { return 'at_home'; } else { return 'can_go_back'; } } return 'no_store'; } catch(e) { return 'error'; } })()", new ValueCallback<String>() {
                       @Override
                       public void onReceiveValue(String result) {
                           result = result != null ? result.replace("\"", "") : "";
                           if ("exam_warning".equals(result)) {
-                              // Warning dialog shown in JS
-                          } else if ("went_back".equals(result)) {
-                              // done
+                              // Warning dialog shown in JS, do nothing
+                          } else if ("can_go_back".equals(result)) {
+                              showInterstitialAd("go_back");
                           } else if ("at_home".equals(result)) {
-                              showExitDialog();
+                              showInterstitialAd("exit");
                           } else {
                               if (webView.canGoBack()) { webView.goBack(); }
                               else { showExitDialog(); }
