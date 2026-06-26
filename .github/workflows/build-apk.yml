@@ -9,11 +9,11 @@ on:
       admob_app_id:
         description: 'AdMob App ID (ca-app-pub-XXXXX~YYYYY, tilde not slash!)'
         required: false
-        default: 'ca-app-pub-3940256099942544~3347511713'
+        default: 'ca-app-pub-1742730064755213~4330255402'
       admob_interstitial_id:
         description: 'AdMob Interstitial Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
         required: false
-        default: 'ca-app-pub-3940256099942544/1033173712'
+        default: 'ca-app-pub-1742730064755213/5520307609'
       build_aab:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
@@ -118,8 +118,8 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 7
-                  versionName "1.2.1"
+                  versionCode 8
+                  versionName "1.3.0"
                   manifestPlaceholders = [admobAppId: "$ADMOB_APP_ID"]
               }
               signingConfigs {

@@ -55,7 +55,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="ExamVault" />
         {/* Google AdSense */}
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4856877072247042" crossOrigin="anonymous" data-ad-client="ca-pub-4856877072247042" />
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1742730064755213" crossOrigin="anonymous" data-ad-client="ca-pub-1742730064755213" />
         <style
           dangerouslySetInnerHTML={{
             __html: `
