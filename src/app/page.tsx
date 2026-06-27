@@ -2212,17 +2212,22 @@ function TestInfoScreen() {
     subscription.isPremium ||
     subscription.purchasedItemIds.includes(testId);
 
+  // Premium items must have a price — default to ₹49 if missing
+  const effectivePrice = !itemIsFree && (!testData.price || Number(testData.price) <= 0)
+    ? 49
+    : Number(testData.price || 0);
+
   const handleStartTest = () => {
     if (hasAccess) {
       setView("exam");
       return;
     }
-    // No access — open Buy modal or go to pricing
-    if (testData.price && Number(testData.price) > 0) {
+    // No access — open Buy modal (premium items always have a price now)
+    if (!itemIsFree && effectivePrice > 0) {
       setPaymentModalData({
         planId: testId,
         planName: testData.title || testData.name || "Premium Test",
-        amount: Number(testData.price),
+        amount: effectivePrice,
         type: "one_time",
       });
       setShowPaymentModal(true);
@@ -2376,19 +2381,12 @@ function TestInfoScreen() {
               >
                 <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
               </button>
-            ) : testData.price && Number(testData.price) > 0 ? (
-              <button
-                onClick={handleStartTest}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-              >
-                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
-              </button>
             ) : (
               <button
                 onClick={handleStartTest}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
-                <Crown className="w-5 h-5" /> {lang === "bn" ? "প্রিমিয়াম নিন" : "Get Premium"}
+                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${effectivePrice}` : `Buy — ₹${effectivePrice}`}
               </button>
             )}
           </div>
@@ -2399,19 +2397,12 @@ function TestInfoScreen() {
           >
             <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
           </button>
-        ) : testData.price && Number(testData.price) > 0 ? (
-          <button
-            onClick={handleStartTest}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-          >
-            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
-          </button>
         ) : (
           <button
             onClick={handleStartTest}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
-            <Crown className="w-5 h-5" /> {lang === "bn" ? "প্রিমিয়াম নিন" : "Get Premium"}
+            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${effectivePrice}` : `Buy — ₹${effectivePrice}`}
           </button>
         )}
         {!hasAccess && !user && (
