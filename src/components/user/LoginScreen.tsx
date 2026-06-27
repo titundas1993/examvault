@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   KeyRound,
   Loader2,
+  CheckCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,19 @@ export default function LoginScreen() {
         }
       } catch (e) { /* ignore */ }
     };
+  }, []);
+
+  // Show account deleted success message (set by SettingsTab before navigating here)
+  const [accountDeletedMsg, setAccountDeletedMsg] = useState("");
+  useEffect(() => {
+    try {
+      const flag = sessionStorage.getItem("account_deleted");
+      if (flag === "1") {
+        setAccountDeletedMsg("Your account has been deleted successfully.");
+        sessionStorage.removeItem("account_deleted");
+        setTimeout(() => setAccountDeletedMsg(""), 5000);
+      }
+    } catch (e) { /* ignore */ }
   }, []);
 
   const clearMessages = () => {
@@ -605,6 +619,17 @@ export default function LoginScreen() {
 
           {/* Error / Success Messages */}
           <AnimatePresence>
+            {accountDeletedMsg && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-green-50 border border-green-200 rounded-xl p-3 mt-3 flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <p className="text-green-700 text-xs font-medium">{accountDeletedMsg}</p>
+              </motion.div>
+            )}
             {error && (
               <motion.p
                 initial={{ opacity: 0, y: -5 }}

@@ -117,6 +117,13 @@ export default function SettingsTab() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // In-app toast notification (replaces alert() which shows ugly URL page in WebView)
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   // Payment History
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
@@ -217,7 +224,7 @@ export default function SettingsTab() {
       setTimeout(() => setProfileSaved(false), 1500);
     } catch (err) {
       console.error("Error uploading photo:", err);
-      alert("Failed to upload photo. Please try again.");
+      showToast("Failed to upload photo. Please try again.", "error");
     } finally {
       setUploadingPhoto(false);
     }
@@ -237,7 +244,7 @@ export default function SettingsTab() {
       if (currentUser && currentUser.email) {
         await sendPasswordReset(currentUser.email);
         setShowPasswordDialog(false);
-        alert(`Password reset email sent to ${currentUser.email}. Please check your inbox.`);
+        showToast(`Password reset email sent to ${currentUser.email}. Please check your inbox.`, "success");
       } else {
         setPasswordError("No email associated with this account");
       }
@@ -264,7 +271,7 @@ export default function SettingsTab() {
 
   const handleDeleteAccount = async () => {
     if (!firebaseUser?.uid) {
-      alert("No user found");
+      showToast("No user found", "error");
       return;
     }
     setDeletingAccount(true);
@@ -331,7 +338,7 @@ export default function SettingsTab() {
         console.error("Auth delete error:", authErr);
         // If requires recent login, show message
         if (authErr.code === "auth/requires-recent-login") {
-          alert("For security, please log out and log in again, then try deleting account.");
+          showToast("For security, please log out and log in again, then try deleting account.", "info");
           setDeletingAccount(false);
           return;
         }
@@ -342,12 +349,15 @@ export default function SettingsTab() {
       await authLogout();
       setUser(null);
       setFirebaseUser(null);
-      setView("login");
       localStorage.clear();
-      alert("Your account has been deleted successfully.");
+      // Set success flag so login screen can show message
+      try {
+        sessionStorage.setItem("account_deleted", "1");
+      } catch (e) { /* ignore */ }
+      setView("login");
     } catch (err: any) {
       console.error("Error deleting account:", err);
-      alert(`Failed to delete account: ${err.message || "Unknown error"}`);
+      showToast(`Failed to delete account: ${err.message || "Unknown error"}`, "error");
     } finally {
       setDeletingAccount(false);
     }
@@ -856,6 +866,31 @@ export default function SettingsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* In-app Toast Notification — replaces alert() which shows ugly URL page */}
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: 50, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 50, scale: 0.9 }}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-[90%] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : toast.type === "error"
+              ? "bg-red-600 text-white"
+              : "bg-ev-navy text-white"
+          }`}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+          ) : toast.type === "error" ? (
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          ) : (
+            <Info className="w-5 h-5 flex-shrink-0" />
+          )}
+          <p className="text-sm font-medium">{toast.message}</p>
+        </motion.div>
+      )}
     </div>
   );
 }
