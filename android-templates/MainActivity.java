@@ -141,11 +141,26 @@ public class MainActivity extends Activity {
         // Register JavaScript interface for ad bridge and back button
         webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
 
-        // WebViewClient with offline cache support
+        // WebViewClient with offline cache support + UPI intent handling
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+
+                // Handle UPI intent URLs — launch UPI apps (GPay, PhonePe, BHIM, Paytm)
+                // Razorpay may try to open UPI via "upi://" scheme
+                if (url.startsWith("upi://") || url.startsWith("intent://")) {
+                    try {
+                        Intent upiIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        upiIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(upiIntent);
+                        return true;
+                    } catch (Exception e) {
+                        Log.w(TAG, "Cannot open UPI intent: " + e.getMessage());
+                        // Fallback: let Razorpay handle it via collect flow
+                        return false;
+                    }
+                }
 
                 if (url.startsWith(appUrl) || url.contains("firebaseio.com") ||
                     url.contains("googleapis.com") || url.contains("google.com") ||

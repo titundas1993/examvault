@@ -102,9 +102,10 @@ export default function PaymentModal() {
           emi: false,          // EMI (disable for small amounts)
           paylater: false,     // PayLater (disable)
         },
-        // UPI intent flow — opens UPI apps directly on mobile
+        // UPI collect flow — user enters UPI ID, gets payment request on their UPI app
+        // "intent" flow doesn't work in Android WebView (can't launch external apps)
         upi: {
-          flow: "intent",      // "intent" opens UPI apps directly on mobile
+          flow: "collect",     // Shows UPI ID input → payment request sent to UPI app
         },
         // Configure which wallets to show
         wallets: [

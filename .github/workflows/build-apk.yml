@@ -118,8 +118,8 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 12
-                  versionName "1.5.0"
+                  versionCode 13
+                  versionName "1.5.1"
               }
               signingConfigs {
                   release {
@@ -194,6 +194,13 @@ jobs:
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <!-- Support UPI payment intents from WebView (Razorpay) -->
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="upi" />
                       </intent-filter>
                   </activity>
               </application>
