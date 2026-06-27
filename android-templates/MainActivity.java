@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -33,15 +32,19 @@ import com.google.android.gms.ads.RequestConfiguration;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 
+import com.razorpay.Checkout;
+import com.razorpay.PaymentResultListener;
+import com.razorpay.PaymentData;
+
+import org.json.JSONObject;
+
 import java.util.Arrays;
 import java.util.List;
 
-import androidx.browser.customtabs.CustomTabsIntent;
-import androidx.core.content.ContextCompat;
-
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements PaymentResultListener {
 
     private static final String TAG = "ExamVault";
+    private static final int RAZORPAY_REQUEST_CODE = 1001;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -51,12 +54,16 @@ public class MainActivity extends Activity {
     // Interstitial ad
     private InterstitialAd mInterstitialAd;
     private long lastAdShownTime = 0;
-    private static final long MIN_AD_INTERVAL_MS = 90_000; // Minimum 90 seconds between ads
+    private static final long MIN_AD_INTERVAL_MS = 90_000;
     private int actionCount = 0;
-    private static final int ACTION_COUNT_FOR_AD = 2; // Show ad after every 2 actions
+    private static final int ACTION_COUNT_FOR_AD = 2;
 
-    // Track if user went to Custom Tab for payment
-    private boolean waitingForPaymentReturn = false;
+    // Payment data (saved for verification after Razorpay returns)
+    private String pendingPaymentUserId = "";
+    private String pendingPaymentPlanId = "";
+    private String pendingPaymentPlanName = "";
+    private String pendingPaymentType = "";
+    private double pendingPaymentAmount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +71,9 @@ public class MainActivity extends Activity {
 
         // Keep screen on
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Initialize Razorpay
+        Checkout.preload(this);
 
         // Initialize layout
         setupUI();
@@ -140,16 +150,16 @@ public class MainActivity extends Activity {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
 
-        // Register JavaScript interface for ad bridge, back button, and payment
+        // Register JavaScript interface
         webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
 
-        // WebViewClient with offline cache support + payment URL handling
+        // WebViewClient
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
 
-                // Handle UPI intent URLs — launch UPI apps (GPay, PhonePe, BHIM, Paytm)
+                // Handle UPI intent URLs
                 if (url.startsWith("upi://") || url.startsWith("intent://")) {
                     try {
                         Intent upiIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -165,16 +175,6 @@ public class MainActivity extends Activity {
                 // Handle examvault:// deep link (payment return)
                 if (url.startsWith("examvault://")) {
                     Log.d(TAG, "Deep link received: " + url);
-                    waitingForPaymentReturn = false;
-                    checkPaymentStatusInWebView();
-                    return true;
-                }
-
-                // Payment page URLs — open in Chrome Custom Tab for UPI support
-                // Custom Tab looks like in-app, but uses Chrome underneath so UPI works
-                if (url.contains("/payment?") && url.contains("orderId=")) {
-                    openInCustomTab(url);
-                    waitingForPaymentReturn = true;
                     return true;
                 }
 
@@ -229,91 +229,127 @@ public class MainActivity extends Activity {
         });
     }
 
-    // ==================== Chrome Custom Tab for Payment ====================
-    // Custom Tab = app-এর মধ্যেই Chrome খোলে, পুরো browser নয়
-    // দেখতে app-এর মতো (toolbar আছে app-এর রঙে), কিন্তু ভিতরে Chrome
-    // তাই UPI Intent (GPay, PhonePe, BHIM) কাজ করে ✅
+    // ==================== Razorpay Native Payment ====================
+    // এটা সরাসরি app-এর মধ্যে Razorpay checkout খোলে
+    // UPI (GPay, PhonePe, BHIM), Card, NetBanking — সব কাজ করে
+    // Header-এ "ExamVault" দেখায়, কোনো URL বা browser নয়
 
-    private void openInCustomTab(String url) {
+    public void startRazorpayPayment(String keyId, String orderId, String amountStr,
+                                      String currency, String planName, String userName,
+                                      String userEmail, String userPhone,
+                                      String userId, String planId, String type) {
         try {
-            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
-            // App-এর theme color দিচ্ছি — দেখতে app-এর মতো লাগবে
-            builder.setToolbarColor(Color.parseColor("#1e3a5f"));
-            builder.setShowTitle(true);
-            // Close button icon — back arrow feel
-            builder.setCloseButtonIcon(Bitmap.createScaledBitmap(
-                getBitmapFromVectorDrawable(android.R.drawable.ic_menu_close_clear_cancel),
-                24, 24, true));
-            // Instant loading with white background
-            builder.setStartAnimations(this, android.R.anim.slide_in_left, android.R.anim.slide_out_right);
-            builder.setExitAnimations(this, android.R.anim.slide_in_left, android.R.anim.slide_out_right);
+            Checkout checkout = new Checkout();
+            checkout.setKeyID(keyId);
 
-            CustomTabsIntent customTabsIntent = builder.build();
-            // Force open in Chrome (best Razorpay compatibility)
-            customTabsIntent.intent.setPackage("com.android.chrome");
-            customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-            customTabsIntent.launchUrl(this, Uri.parse(url));
-            Log.d(TAG, "Opened payment in Chrome Custom Tab: " + url);
+            // Save payment data for verification after Razorpay returns
+            pendingPaymentUserId = userId;
+            pendingPaymentPlanId = planId;
+            pendingPaymentPlanName = planName;
+            pendingPaymentType = type;
+            pendingPaymentAmount = Double.parseDouble(amountStr) / 100.0; // paise to rupees
+
+            JSONObject options = new JSONObject();
+            options.put("name", "ExamVault");
+            options.put("description", planName);
+            options.put("image", appUrl + "/logo.png");
+            options.put("order_id", orderId);
+            options.put("currency", currency);
+            options.put("amount", amountStr); // in paise
+
+            // Prefill user details
+            JSONObject prefill = new JSONObject();
+            prefill.put("name", userName);
+            prefill.put("email", userEmail);
+            prefill.put("contact", userPhone);
+            options.put("prefill", prefill);
+
+            // Notes for reference
+            JSONObject notes = new JSONObject();
+            notes.put("userId", userId);
+            notes.put("planId", planId);
+            options.put("notes", notes);
+
+            // Theme color matching app
+            JSONObject theme = new JSONObject();
+            theme.put("color", "#1e3a5f");
+            options.put("theme", theme);
+
+            // UPI settings
+            JSONObject upi = new JSONObject();
+            upi.put("flow", "intent");
+            options.put("upi", upi);
+
+            Log.d(TAG, "Opening Razorpay native checkout — Order: " + orderId);
+            checkout.open(this, options);
+
         } catch (Exception e) {
-            Log.w(TAG, "Custom Tab failed, trying regular browser: " + e.getMessage());
-            // Fallback: open in any browser
-            openInExternalBrowser(url);
+            Log.e(TAG, "Razorpay checkout error: " + e.getMessage(), e);
+            // Notify WebView about the error
+            notifyWebViewPaymentError("Failed to open payment: " + e.getMessage());
         }
     }
 
-    private void openInExternalBrowser(String url) {
-        try {
-            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            browserIntent.setPackage("com.android.chrome");
-            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(browserIntent);
-            Log.d(TAG, "Opened payment URL in Chrome: " + url);
-        } catch (Exception e) {
-            Log.w(TAG, "Chrome not available, opening in default browser: " + e.getMessage());
-            try {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(browserIntent);
-            } catch (Exception e2) {
-                Log.e(TAG, "Cannot open browser: " + e2.getMessage());
-                Toast.makeText(this, "Please install Chrome browser to make payment", Toast.LENGTH_LONG).show();
-            }
-        }
-    }
+    @Override
+    public void onPaymentSuccess(String razorpayPaymentId, PaymentData paymentData) {
+        String orderId = paymentData.getOrderId();
+        String signature = paymentData.getPaymentId(); // This is actually payment_id
+        // PaymentData provides getPaymentId(), getOrderId(), getSignature()
 
-    private Bitmap getBitmapFromVectorDrawable(int drawableId) {
-        try {
-            android.graphics.drawable.Drawable drawable = ContextCompat.getDrawable(this, drawableId);
-            if (drawable == null) {
-                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-            }
-            Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth() > 0 ? drawable.getIntrinsicWidth() : 24,
-                drawable.getIntrinsicHeight() > 0 ? drawable.getIntrinsicHeight() : 24,
-                Bitmap.Config.ARGB_8888);
-            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            drawable.draw(canvas);
-            return bitmap;
-        } catch (Exception e) {
-            return Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888);
-        }
-    }
+        Log.d(TAG, "Payment SUCCESS! PaymentId: " + razorpayPaymentId + " OrderId: " + orderId);
 
-    private void checkPaymentStatusInWebView() {
-        // Inject JS to trigger payment status check in the web app
+        // Notify WebView — let JavaScript handle verification
         webView.post(() -> {
-            webView.evaluateJavascript(
-                "(function() {" +
-                "  if (window.__ZUSTAND_STORE__) {" +
-                "    var state = window.__ZUSTAND_STORE__.getState();" +
-                "    if (state.firebaseUser && state.firebaseUser.uid) {" +
-                "      console.log('Checking payment status after returning from Custom Tab...');" +
-                "    }" +
-                "  }" +
-                "  // Dispatch events that PaymentModal listens to" +
-                "  window.dispatchEvent(new Event('focus'));" +
-                "  window.dispatchEvent(new Event('visibilitychange'));" +
-                "})()", null);
+            String js = String.format(
+                "window.__EV_PAYMENT_SUCCESS && window.__EV_PAYMENT_SUCCESS(%s, %s, %s, %s, %s, %s, %s, %s);",
+                JSONObject.quote(razorpayPaymentId),
+                JSONObject.quote(orderId),
+                JSONObject.quote(paymentData.getSignature() != null ? paymentData.getSignature() : ""),
+                JSONObject.quote(pendingPaymentUserId),
+                JSONObject.quote(pendingPaymentPlanId),
+                JSONObject.quote(pendingPaymentPlanName),
+                String.valueOf(pendingPaymentAmount),
+                JSONObject.quote(pendingPaymentType)
+            );
+            webView.evaluateJavascript(js, result -> {
+                Log.d(TAG, "Payment success notification sent to WebView: " + result);
+            });
+        });
+    }
+
+    @Override
+    public void onPaymentError(int code, String response, PaymentData paymentData) {
+        Log.e(TAG, "Payment FAILED! Code: " + code + " Response: " + response);
+
+        String errorMsg = "Payment failed";
+        try {
+            if (response != null) {
+                JSONObject errorObj = new JSONObject(response);
+                JSONObject errorData = errorObj.optJSONObject("error");
+                if (errorData != null) {
+                    errorMsg = errorData.optString("description", errorMsg);
+                }
+            }
+        } catch (Exception e) {
+            errorMsg = "Payment cancelled or failed";
+        }
+
+        if (code == Checkout.PAYMENT_CANCELED) {
+            errorMsg = "Payment was cancelled";
+        }
+
+        notifyWebViewPaymentError(errorMsg);
+    }
+
+    private void notifyWebViewPaymentError(String errorMsg) {
+        webView.post(() -> {
+            String js = String.format(
+                "window.__EV_PAYMENT_ERROR && window.__EV_PAYMENT_ERROR(%s);",
+                JSONObject.quote(errorMsg)
+            );
+            webView.evaluateJavascript(js, result -> {
+                Log.d(TAG, "Payment error notification sent to WebView");
+            });
         });
     }
 
@@ -362,7 +398,6 @@ public class MainActivity extends Activity {
                     mInterstitialAd = null;
                     Log.w(TAG, "Ad failed to load: " + loadAdError.getMessage() +
                         " (code: " + loadAdError.getCode() + ")");
-                    // Retry after 60 seconds
                     if (webView != null) {
                         webView.postDelayed(() -> loadInterstitialAd(), 60000);
                     }
@@ -386,7 +421,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Called from JavaScript when user completes an action
     private void onActionComplete(String actionType) {
         actionCount++;
         Log.d(TAG, "Action complete: " + actionType + " (count: " + actionCount + "/" + ACTION_COUNT_FOR_AD + ")");
@@ -423,12 +457,24 @@ public class MainActivity extends Activity {
             return MainActivity.this.isNetworkAvailable();
         }
 
-        // Open payment URL in Chrome Custom Tab — looks like in-app, supports UPI
+        // Razorpay Native Payment — called from JavaScript
+        // This opens Razorpay's native checkout UI inside the app
+        // UPI (GPay, PhonePe, BHIM), Cards, NetBanking all work
+        @JavascriptInterface
+        public void startPayment(String keyId, String orderId, String amount,
+                                  String currency, String planName, String userName,
+                                  String userEmail, String userPhone,
+                                  String userId, String planId, String type) {
+            Log.d(TAG, "JS requested native Razorpay payment — Order: " + orderId);
+            MainActivity.this.startRazorpayPayment(keyId, orderId, amount, currency,
+                planName, userName, userEmail, userPhone, userId, planId, type);
+        }
+
+        // Legacy — kept for compatibility
         @JavascriptInterface
         public void openInBrowser(String url) {
-            Log.d(TAG, "JS requested to open payment in Custom Tab: " + url);
-            waitingForPaymentReturn = true;
-            openInCustomTab(url);
+            Log.d(TAG, "openInBrowser is deprecated — using native Razorpay SDK instead");
+            // No longer needed — native SDK handles payment directly
         }
     }
 
@@ -506,14 +552,6 @@ public class MainActivity extends Activity {
         if (webView != null) webView.onResume();
         if (mInterstitialAd == null && isNetworkAvailable()) {
             loadInterstitialAd();
-        }
-
-        // If returning from Custom Tab after payment, check payment status
-        if (waitingForPaymentReturn) {
-            Log.d(TAG, "Returning from Custom Tab — checking payment status");
-            waitingForPaymentReturn = false;
-            // Small delay to let the WebView regain focus and web app reconnect
-            webView.postDelayed(() -> checkPaymentStatusInWebView(), 1500);
         }
     }
 

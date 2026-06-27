@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
-import { createPaymentOrder, verifyPayment, checkSubscriptionStatus } from "@/lib/services/firestore";
+import { createPaymentOrder, verifyPayment } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lock, Shield, CreditCard, Loader2, CheckCircle, Crown, ExternalLink } from "lucide-react";
+import { X, Lock, Shield, CreditCard, Loader2, CheckCircle, Crown } from "lucide-react";
 
-// Extend Window interface for Razorpay + AndroidBridge
+// Extend Window interface
 declare global {
   interface Window {
     Razorpay: any;
@@ -16,10 +16,22 @@ declare global {
       onActionComplete: (actionType: string) => void;
       onNavigate: () => void;
       isNetworkAvailable: () => boolean;
+      startPayment?: (
+        keyId: string, orderId: string, amount: string,
+        currency: string, planName: string, userName: string,
+        userEmail: string, userPhone: string,
+        userId: string, planId: string, type: string
+      ) => void;
       openInBrowser?: (url: string) => void;
     };
     __EV_ANDROID_WEBVIEW?: boolean;
     __EV_WEBVIEW?: boolean;
+    __EV_PAYMENT_SUCCESS?: (
+      razorpayPaymentId: string, razorpayOrderId: string,
+      razorpaySignature: string, userId: string, planId: string,
+      planName: string, amount: number, type: string
+    ) => void;
+    __EV_PAYMENT_ERROR?: (errorMsg: string) => void;
   }
 }
 
@@ -40,18 +52,16 @@ export default function PaymentModal() {
     setSubscription,
     setView,
   } = useAppStore();
-  const lang = useAppStore((s) => s.language);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [waitingForExternalPayment, setWaitingForExternalPayment] = useState(false);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const inWebView = isAndroidWebView();
+  const hasNativeSDK = inWebView && typeof window !== "undefined" && !!window.AndroidBridge?.startPayment;
 
-  // Load Razorpay checkout script (only needed for non-WebView flow)
+  // Load Razorpay checkout script (only for browser flow, not native SDK)
   useEffect(() => {
     if (!inWebView && typeof window !== "undefined" && !window.Razorpay) {
       const script = document.createElement("script");
@@ -65,107 +75,139 @@ export default function PaymentModal() {
     }
   }, [inWebView]);
 
-  // Poll for payment status when waiting for external Chrome payment
+  // Register native payment callbacks (called from MainActivity.java)
   useEffect(() => {
-    if (waitingForExternalPayment && firebaseUser) {
-      // Poll every 3 seconds to check if payment was completed in Chrome
-      pollingRef.current = setInterval(async () => {
-        try {
-          const subStatus = await checkSubscriptionStatus(firebaseUser.uid);
-          if (subStatus.isPremium) {
-            // Payment was successful in Chrome!
-            setSuccess(true);
-            setWaitingForExternalPayment(false);
-            if (pollingRef.current) clearInterval(pollingRef.current);
+    if (!inWebView) return;
 
+    // Success callback — called by MainActivity.onPaymentSuccess()
+    window.__EV_PAYMENT_SUCCESS = async (
+      razorpayPaymentId: string,
+      razorpayOrderId: string,
+      razorpaySignature: string,
+      userId: string,
+      planId: string,
+      planName: string,
+      amount: number,
+      type: string
+    ) => {
+      console.log("Native payment success!", razorpayPaymentId);
+
+      try {
+        const verification = await verifyPayment({
+          razorpay_order_id: razorpayOrderId,
+          razorpay_payment_id: razorpayPaymentId,
+          razorpay_signature: razorpaySignature,
+          userId,
+          planId,
+          planName,
+          amount,
+          type,
+        });
+
+        if (verification.verified) {
+          setSuccess(true);
+          setLoading(false);
+
+          // Save to Firestore if server couldn't
+          if (verification._saveToFirestore && verification._paymentData) {
+            try {
+              const payRef = doc(collection(db, "payments"));
+              await setDoc(payRef, {
+                ...verification._paymentData,
+                id: payRef.id,
+                createdAt: serverTimestamp(),
+              });
+
+              if (verification._subscriptionData) {
+                const subRef = doc(collection(db, "subscriptions"));
+                await setDoc(subRef, {
+                  ...verification._subscriptionData,
+                  id: subRef.id,
+                  autoRenew: false,
+                  createdAt: serverTimestamp(),
+                });
+              }
+
+              if (type === "one_time") {
+                const purchaseRef = doc(collection(db, "purchases"));
+                await setDoc(purchaseRef, {
+                  id: purchaseRef.id,
+                  userId,
+                  itemId: planId,
+                  itemType: "test",
+                  itemName: planName,
+                  amount,
+                  status: "active",
+                  purchasedAt: serverTimestamp(),
+                });
+              }
+            } catch (fsErr) {
+              console.error("Client-side Firestore save error:", fsErr);
+            }
+          }
+
+          // Update subscription state
+          if (verification.premiumExpiry) {
             setSubscription({
               isPremium: true,
-              premiumExpiry: subStatus.premiumExpiry || "",
-              planName: subStatus.planName || paymentModalData?.planName || "",
+              premiumExpiry: verification.premiumExpiry,
+              planName: verification.planName || planName,
             });
-
-            if (paymentModalData?.type === "one_time") {
-              const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
-              setSubscription({
-                purchasedItemIds: [...currentPurchased, paymentModalData.planId],
-              });
-            }
-
-            setTimeout(() => {
-              handleClose();
-              setView("home");
-            }, 2000);
           }
-        } catch (err) {
-          console.error("Polling error:", err);
-        }
-      }, 3000);
-
-      return () => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-      };
-    }
-  }, [waitingForExternalPayment, firebaseUser]);
-
-  // Also check on window focus (user returns from Chrome)
-  useEffect(() => {
-    if (!waitingForExternalPayment || !firebaseUser) return;
-
-    const handleFocus = async () => {
-      try {
-        const subStatus = await checkSubscriptionStatus(firebaseUser.uid);
-        if (subStatus.isPremium) {
-          setSuccess(true);
-          setWaitingForExternalPayment(false);
-          setSubscription({
-            isPremium: true,
-            premiumExpiry: subStatus.premiumExpiry || "",
-            planName: subStatus.planName || paymentModalData?.planName || "",
-          });
-          if (paymentModalData?.type === "one_time") {
+          if (type === "one_time") {
             const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
             setSubscription({
-              purchasedItemIds: [...currentPurchased, paymentModalData!.planId],
+              purchasedItemIds: [...currentPurchased, planId],
             });
           }
+
           setTimeout(() => {
             handleClose();
             setView("home");
           }, 2000);
+        } else {
+          setError("Payment verification failed. Please contact support.");
+          setLoading(false);
         }
-      } catch (err) {
-        console.error("Focus check error:", err);
+      } catch (verifyErr: any) {
+        console.error("Verification error:", verifyErr);
+        setError("Payment verification failed. Please contact support.");
+        setLoading(false);
       }
     };
 
-    window.addEventListener("focus", handleFocus);
-    // Also listen for visibility change (mobile app switching)
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") handleFocus();
-    });
+    // Error callback — called by MainActivity.onPaymentError()
+    window.__EV_PAYMENT_ERROR = (errorMsg: string) => {
+      console.error("Native payment error:", errorMsg);
+      setError(errorMsg || "Payment failed");
+      setLoading(false);
+    };
 
     return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleFocus);
+      window.__EV_PAYMENT_SUCCESS = undefined as any;
+      window.__EV_PAYMENT_ERROR = undefined as any;
     };
-  }, [waitingForExternalPayment, firebaseUser]);
+  }, [inWebView]);
 
   const handleClose = () => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    if (!loading || waitingForExternalPayment) {
+    if (!loading) {
       setShowPaymentModal(false);
       setPaymentModalData(null);
       setError(null);
       setSuccess(false);
-      setWaitingForExternalPayment(false);
       setLoading(false);
     }
   };
 
-  // ==================== WebView: Open in Chrome Browser ====================
-  const handleWebViewPayment = async () => {
+  // ==================== Native SDK Payment (Android WebView) ====================
+  const handleNativePayment = async () => {
     if (!paymentModalData || !user || !firebaseUser) {
       setError("Please login first");
+      return;
+    }
+
+    if (!window.AndroidBridge?.startPayment) {
+      setError("Payment not available. Please update the app.");
       return;
     }
 
@@ -186,37 +228,27 @@ export default function PaymentModal() {
         throw new Error(order.error || "Failed to create order");
       }
 
-      console.log("WebView payment — opening in Chrome. Order:", order.orderId);
+      console.log("Native Razorpay payment — Order:", order.orderId, "Mode:", order._mode);
 
-      // Step 2: Build payment URL for standalone checkout page
-      const baseUrl = window.location.origin;
-      const paymentUrl = `${baseUrl}/payment?` + new URLSearchParams({
-        orderId: order.orderId,
-        keyId: order.keyId,
-        amount: order.amount.toString(),
-        currency: order.currency || "INR",
-        planName: encodeURIComponent(paymentModalData.planName),
-        planId: paymentModalData.planId,
-        type: paymentModalData.type,
-        userId: firebaseUser.uid,
-        userName: encodeURIComponent(user.name || ""),
-        userEmail: encodeURIComponent(user.email || ""),
-        userPhone: encodeURIComponent((user as any)?.phone || firebaseUser?.phoneNumber || ""),
-      }).toString();
+      // Step 2: Call native Razorpay SDK via JS Bridge
+      window.AndroidBridge.startPayment(
+        order.keyId,
+        order.orderId,
+        order.amount.toString(), // in paise
+        order.currency || "INR",
+        paymentModalData.planName,
+        user.name || "",
+        user.email || "",
+        (user as any)?.phone || firebaseUser?.phoneNumber || "",
+        firebaseUser.uid,
+        paymentModalData.planId,
+        paymentModalData.type
+      );
 
-      // Step 3: Open in external Chrome browser via AndroidBridge
-      if (window.AndroidBridge?.openInBrowser) {
-        window.AndroidBridge.openInBrowser(paymentUrl);
-      } else {
-        // Fallback: try to open in browser directly
-        window.open(paymentUrl, "_blank");
-      }
+      // Loading stays true — will be cleared by __EV_PAYMENT_SUCCESS or __EV_PAYMENT_ERROR callbacks
 
-      // Step 4: Start polling for payment completion
-      setWaitingForExternalPayment(true);
-      setLoading(false);
     } catch (err: any) {
-      console.error("WebView payment error:", err);
+      console.error("Native payment error:", err);
       setError(err.message || "Something went wrong");
       setLoading(false);
     }
@@ -238,7 +270,6 @@ export default function PaymentModal() {
     setError(null);
 
     try {
-      // Step 1: Create order on server
       const order = await createPaymentOrder({
         amount: paymentModalData.amount,
         userId: firebaseUser.uid,
@@ -251,9 +282,8 @@ export default function PaymentModal() {
         throw new Error(order.error || "Failed to create order");
       }
 
-      console.log("Razorpay mode:", order._mode, "Key:", order.keyId?.substring(0, 12) + "...");
+      console.log("Razorpay mode:", order._mode);
 
-      // Step 2: Open Razorpay checkout inline
       const options: any = {
         key: order.keyId,
         amount: order.amount,
@@ -293,7 +323,6 @@ export default function PaymentModal() {
             if (verification.verified) {
               setSuccess(true);
 
-              // Save to Firestore if server couldn't (no Admin SDK)
               if (verification._saveToFirestore && verification._paymentData) {
                 try {
                   const payRef = doc(collection(db, "payments"));
@@ -331,7 +360,6 @@ export default function PaymentModal() {
                 }
               }
 
-              // Update subscription state
               if (verification.premiumExpiry) {
                 setSubscription({
                   isPremium: true,
@@ -380,8 +408,8 @@ export default function PaymentModal() {
 
   // Unified payment handler
   const handlePayment = () => {
-    if (inWebView) {
-      handleWebViewPayment();
+    if (hasNativeSDK) {
+      handleNativePayment();
     } else {
       handleBrowserPayment();
     }
@@ -407,7 +435,7 @@ export default function PaymentModal() {
           <div className="bg-gradient-to-r from-ev-navy to-blue-800 p-5 relative">
             <button
               onClick={handleClose}
-              disabled={loading && !waitingForExternalPayment}
+              disabled={loading}
               className="absolute top-3 right-3 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
             >
               <X className="w-4 h-4 text-white" />
@@ -443,31 +471,6 @@ export default function PaymentModal() {
                   You now have premium access. Enjoy!
                 </p>
               </div>
-            ) : waitingForExternalPayment ? (
-              <div className="text-center py-4">
-                <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="w-10 h-10 text-blue-500" />
-                </div>
-                <h4 className="text-xl font-black text-ev-navy mb-2">
-                  Secure Payment
-                </h4>
-                <p className="text-gray-500 text-sm mb-3">
-                  Complete your payment securely. All methods including UPI (GPay, PhonePe, BHIM) are available.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-                  <p className="text-blue-700 text-sm">
-                    After completing payment, come back to this app. We&apos;ll automatically detect your premium access.
-                  </p>
-                </div>
-                <Loader2 className="w-6 h-6 text-ev-navy animate-spin mx-auto mb-2" />
-                <p className="text-gray-400 text-xs">Waiting for payment confirmation...</p>
-                <button
-                  onClick={handleClose}
-                  className="mt-4 text-gray-400 text-sm underline hover:text-gray-600"
-                >
-                  Cancel
-                </button>
-              </div>
             ) : (
               <>
                 {/* Plan Details */}
@@ -487,9 +490,7 @@ export default function PaymentModal() {
                       ₹{paymentModalData.amount}
                     </span>
                     {paymentModalData.type === "subscription" && (
-                      <span className="text-gray-400 text-sm">
-                        /period
-                      </span>
+                      <span className="text-gray-400 text-sm">/period</span>
                     )}
                   </div>
                 </div>
@@ -540,11 +541,6 @@ export default function PaymentModal() {
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">Net Banking</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">Wallet</span>
                   </div>
-                  {inWebView && (
-                    <p className="text-blue-600 text-[10px] mt-2 font-medium">
-                      UPI (GPay, PhonePe, BHIM), Cards, NetBanking & Wallets accepted
-                    </p>
-                  )}
                 </div>
 
                 {/* Error */}
@@ -565,11 +561,6 @@ export default function PaymentModal() {
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Processing...
                     </>
-                  ) : inWebView ? (
-                    <>
-                      <CreditCard className="w-5 h-5" />
-                      Pay ₹{paymentModalData.amount}
-                    </>
                   ) : (
                     <>
                       <CreditCard className="w-5 h-5" />
@@ -579,10 +570,7 @@ export default function PaymentModal() {
                 </button>
 
                 <p className="text-center text-[10px] text-gray-400 mt-3">
-                  {inWebView
-                    ? "UPI, Cards, NetBanking & Wallets accepted. After payment, return to this app."
-                    : "By proceeding, you agree to our Terms of Service. Payments are processed securely via Razorpay."
-                  }
+                  By proceeding, you agree to our Terms of Service. Payments are processed securely via Razorpay.
                 </p>
               </>
             )}
