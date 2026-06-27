@@ -97,12 +97,13 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
 
-        // Enable aggressive caching for offline support
+        // Enable caching for offline support
+        // LOAD_DEFAULT = use cache if available, fetch from network otherwise
+        // When offline, WebView will serve from cache automatically
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setAppCacheEnabled(true);
-        settings.setAppCachePath(getCacheDir().getAbsolutePath());
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
+
+        // Note: setAppCacheEnabled/setAppCachePath were removed in API 33.
+        // DOM storage + LOAD_DEFAULT cache mode is sufficient for offline.
 
         // Responsive
         settings.setUseWideViewPort(true);
