@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -35,6 +36,9 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import java.util.Arrays;
 import java.util.List;
 
+import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.core.content.ContextCompat;
+
 public class MainActivity extends Activity {
 
     private static final String TAG = "ExamVault";
@@ -51,7 +55,7 @@ public class MainActivity extends Activity {
     private int actionCount = 0;
     private static final int ACTION_COUNT_FOR_AD = 2; // Show ad after every 2 actions
 
-    // Track if user went to external browser for payment
+    // Track if user went to Custom Tab for payment
     private boolean waitingForPaymentReturn = false;
 
     @Override
@@ -161,17 +165,15 @@ public class MainActivity extends Activity {
                 // Handle examvault:// deep link (payment return)
                 if (url.startsWith("examvault://")) {
                     Log.d(TAG, "Deep link received: " + url);
-                    // User returning from Chrome after payment — check status
                     waitingForPaymentReturn = false;
                     checkPaymentStatusInWebView();
                     return true;
                 }
 
-                // Payment page URLs — open in external Chrome browser for UPI support
-                // This is the key fix: Razorpay checkout inside WebView doesn't support UPI
-                // because WebView cannot open external UPI apps (GPay, PhonePe, BHIM)
+                // Payment page URLs — open in Chrome Custom Tab for UPI support
+                // Custom Tab looks like in-app, but uses Chrome underneath so UPI works
                 if (url.contains("/payment?") && url.contains("orderId=")) {
-                    openInExternalBrowser(url);
+                    openInCustomTab(url);
                     waitingForPaymentReturn = true;
                     return true;
                 }
@@ -227,18 +229,46 @@ public class MainActivity extends Activity {
         });
     }
 
-    // ==================== External Browser for Payment ====================
+    // ==================== Chrome Custom Tab for Payment ====================
+    // Custom Tab = app-এর মধ্যেই Chrome খোলে, পুরো browser নয়
+    // দেখতে app-এর মতো (toolbar আছে app-এর রঙে), কিন্তু ভিতরে Chrome
+    // তাই UPI Intent (GPay, PhonePe, BHIM) কাজ করে ✅
+
+    private void openInCustomTab(String url) {
+        try {
+            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
+            // App-এর theme color দিচ্ছি — দেখতে app-এর মতো লাগবে
+            builder.setToolbarColor(Color.parseColor("#1e3a5f"));
+            builder.setShowTitle(true);
+            // Close button icon — back arrow feel
+            builder.setCloseButtonIcon(Bitmap.createScaledBitmap(
+                getBitmapFromVectorDrawable(android.R.drawable.ic_menu_close_clear_cancel),
+                24, 24, true));
+            // Instant loading with white background
+            builder.setStartAnimations(this, android.R.anim.slide_in_left, android.R.anim.slide_out_right);
+            builder.setExitAnimations(this, android.R.anim.slide_in_left, android.R.anim.slide_out_right);
+
+            CustomTabsIntent customTabsIntent = builder.build();
+            // Force open in Chrome (best Razorpay compatibility)
+            customTabsIntent.intent.setPackage("com.android.chrome");
+            customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+            customTabsIntent.launchUrl(this, Uri.parse(url));
+            Log.d(TAG, "Opened payment in Chrome Custom Tab: " + url);
+        } catch (Exception e) {
+            Log.w(TAG, "Custom Tab failed, trying regular browser: " + e.getMessage());
+            // Fallback: open in any browser
+            openInExternalBrowser(url);
+        }
+    }
 
     private void openInExternalBrowser(String url) {
         try {
             Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            // Try to open in Chrome specifically for best Razorpay compatibility
             browserIntent.setPackage("com.android.chrome");
             browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(browserIntent);
             Log.d(TAG, "Opened payment URL in Chrome: " + url);
         } catch (Exception e) {
-            // Chrome not installed — fallback to any browser
             Log.w(TAG, "Chrome not available, opening in default browser: " + e.getMessage());
             try {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -251,6 +281,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    private Bitmap getBitmapFromVectorDrawable(int drawableId) {
+        try {
+            android.graphics.drawable.Drawable drawable = ContextCompat.getDrawable(this, drawableId);
+            if (drawable == null) {
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+            }
+            Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth() > 0 ? drawable.getIntrinsicWidth() : 24,
+                drawable.getIntrinsicHeight() > 0 ? drawable.getIntrinsicHeight() : 24,
+                Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            return bitmap;
+        } catch (Exception e) {
+            return Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888);
+        }
+    }
+
     private void checkPaymentStatusInWebView() {
         // Inject JS to trigger payment status check in the web app
         webView.post(() -> {
@@ -259,11 +307,10 @@ public class MainActivity extends Activity {
                 "  if (window.__ZUSTAND_STORE__) {" +
                 "    var state = window.__ZUSTAND_STORE__.getState();" +
                 "    if (state.firebaseUser && state.firebaseUser.uid) {" +
-                "      // Trigger subscription check — the PaymentModal polls this" +
-                "      console.log('Checking payment status after returning from browser...');" +
+                "      console.log('Checking payment status after returning from Custom Tab...');" +
                 "    }" +
                 "  }" +
-                "  // Dispatch a custom event that the PaymentModal listens to" +
+                "  // Dispatch events that PaymentModal listens to" +
                 "  window.dispatchEvent(new Event('focus'));" +
                 "  window.dispatchEvent(new Event('visibilitychange'));" +
                 "})()", null);
@@ -376,13 +423,12 @@ public class MainActivity extends Activity {
             return MainActivity.this.isNetworkAvailable();
         }
 
-        // Open a URL in external Chrome browser — used for payment checkout
-        // Razorpay UPI (GPay/PhonePe/BHIM) only works in a real browser, not WebView
+        // Open payment URL in Chrome Custom Tab — looks like in-app, supports UPI
         @JavascriptInterface
         public void openInBrowser(String url) {
-            Log.d(TAG, "JS requested to open in browser: " + url);
+            Log.d(TAG, "JS requested to open payment in Custom Tab: " + url);
             waitingForPaymentReturn = true;
-            openInExternalBrowser(url);
+            openInCustomTab(url);
         }
     }
 
@@ -462,9 +508,9 @@ public class MainActivity extends Activity {
             loadInterstitialAd();
         }
 
-        // If returning from Chrome after payment, check payment status
+        // If returning from Custom Tab after payment, check payment status
         if (waitingForPaymentReturn) {
-            Log.d(TAG, "Returning from external browser — checking payment status");
+            Log.d(TAG, "Returning from Custom Tab — checking payment status");
             waitingForPaymentReturn = false;
             // Small delay to let the WebView regain focus and web app reconnect
             webView.postDelayed(() -> checkPaymentStatusInWebView(), 1500);

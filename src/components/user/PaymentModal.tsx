@@ -446,13 +446,13 @@ export default function PaymentModal() {
             ) : waitingForExternalPayment ? (
               <div className="text-center py-4">
                 <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                  <ExternalLink className="w-10 h-10 text-blue-500" />
+                  <CreditCard className="w-10 h-10 text-blue-500" />
                 </div>
                 <h4 className="text-xl font-black text-ev-navy mb-2">
-                  Payment in Chrome
+                  Secure Payment
                 </h4>
                 <p className="text-gray-500 text-sm mb-3">
-                  Complete your payment in the Chrome browser. All payment methods including UPI (GPay, PhonePe, BHIM) are available there.
+                  Complete your payment securely. All methods including UPI (GPay, PhonePe, BHIM) are available.
                 </p>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
                   <p className="text-blue-700 text-sm">
@@ -542,7 +542,7 @@ export default function PaymentModal() {
                   </div>
                   {inWebView && (
                     <p className="text-blue-600 text-[10px] mt-2 font-medium">
-                      Payment will open in Chrome browser for full UPI support (GPay, PhonePe, BHIM)
+                      UPI (GPay, PhonePe, BHIM), Cards, NetBanking & Wallets accepted
                     </p>
                   )}
                 </div>
@@ -567,8 +567,8 @@ export default function PaymentModal() {
                     </>
                   ) : inWebView ? (
                     <>
-                      <ExternalLink className="w-5 h-5" />
-                      Pay ₹{paymentModalData.amount} in Chrome
+                      <CreditCard className="w-5 h-5" />
+                      Pay ₹{paymentModalData.amount}
                     </>
                   ) : (
                     <>
@@ -580,7 +580,7 @@ export default function PaymentModal() {
 
                 <p className="text-center text-[10px] text-gray-400 mt-3">
                   {inWebView
-                    ? "Payment opens in Chrome for full UPI support. After payment, return to this app."
+                    ? "UPI, Cards, NetBanking & Wallets accepted. After payment, return to this app."
                     : "By proceeding, you agree to our Terms of Service. Payments are processed securely via Razorpay."
                   }
                 </p>
