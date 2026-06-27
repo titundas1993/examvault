@@ -190,7 +190,7 @@ export default function PaymentModal() {
 
           setTimeout(() => {
             handleClose();
-            setView("home");
+            // Stay on current page — don't redirect to home
           }, 2000);
         } else {
           setError("Payment verification failed. Please contact support.");
@@ -423,7 +423,7 @@ export default function PaymentModal() {
               }
               setTimeout(() => {
                 handleClose();
-                setView("home");
+                // Stay on current page — don't redirect to home
               }, 2000);
             } else {
               setError("Payment verification failed. Please contact support.");

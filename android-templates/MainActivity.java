@@ -20,6 +20,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -64,6 +65,10 @@ public class MainActivity extends Activity implements PaymentResultListener {
     private String pendingPaymentType = "";
     private double pendingPaymentAmount = 0;
     private String pendingPaymentOrderId = "";
+
+    // File chooser for <input type="file"> in WebView (profile photo upload)
+    private ValueCallback<Uri[]> fileUploadCallback;
+    private static final int FILE_CHOOSER_REQUEST = 1002;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -226,7 +231,59 @@ public class MainActivity extends Activity implements PaymentResultListener {
                 Log.d("ExamVault-Web", consoleMessage.message());
                 return true;
             }
+
+            // Handle <input type="file"> — needed for profile photo upload in WebView
+            @Override
+            public boolean onShowFileChooser(WebView webView,
+                                             ValueCallback<Uri[]> filePathCallback,
+                                             FileChooserParams fileChooserParams) {
+                // Cancel any previous callback
+                if (fileUploadCallback != null) {
+                    fileUploadCallback.onReceiveValue(null);
+                }
+                fileUploadCallback = filePathCallback;
+
+                // Create intent to pick an image
+                Intent intent = fileChooserParams.createIntent();
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+
+                try {
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                } catch (Exception e) {
+                    Log.e(TAG, "Cannot start file chooser: " + e.getMessage());
+                    fileUploadCallback = null;
+                    Toast.makeText(MainActivity.this, "Cannot open file picker", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                return true;
+            }
         });
+    }
+
+    // ==================== File Upload Result ====================
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            if (fileUploadCallback == null) return;
+
+            Uri[] results = null;
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                String dataString = data.getDataString();
+                if (dataString != null) {
+                    results = new Uri[]{Uri.parse(dataString)};
+                }
+            } else if (resultCode == Activity.RESULT_CANCELED) {
+                // User cancelled — pass null to clear the callback
+                results = null;
+            }
+
+            fileUploadCallback.onReceiveValue(results);
+            fileUploadCallback = null;
+        }
     }
 
     // ==================== Razorpay Native Payment ====================
