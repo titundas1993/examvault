@@ -1108,21 +1108,18 @@ function MockTestsTab() {
               </div>
             </div>
             {!isItemFree(test) && (
-              (() => {
-                const price = Number(test.price) > 0 ? Number(test.price) : 0;
-                return subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
-                  <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
-                    <CheckCircle className="w-3.5 h-3.5" /> Active
-                  </div>
-                ) : (
-                  <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                    <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{price}
-                  </button>
-                );
-              })()
+              subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
+                <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5" /> Active
+                </div>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: Number(test.price) > 0 ? Number(test.price) : 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                  <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{Number(test.price) > 0 ? Number(test.price) : 0}
+                </button>
+              )
             )}
           </div>
-        ))}
+        )))}
       </div>
     </div>
   );
