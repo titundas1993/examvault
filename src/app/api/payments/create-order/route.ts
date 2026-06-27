@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const razorpay = getRazorpay();
 
-    // Create Razorpay order
+    // Create Razorpay order with UPI enabled
     // Amount in Razorpay is in paise (1 INR = 100 paise)
     const order = await razorpay.orders.create({
       amount: Math.round(amount * 100), // Convert to paise
@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
         planName: planName || "",
         type: type || "one_time", // one_time or subscription
         ...notes,
+      },
+      // Explicitly enable all payment methods including UPI
+      method: {
+        upi: true,
+        card: true,
+        netbanking: true,
+        wallet: true,
+        emi: false,
+        paylater: false,
       },
     });
 

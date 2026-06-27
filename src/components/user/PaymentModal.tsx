@@ -84,8 +84,8 @@ export default function PaymentModal() {
         throw new Error("Failed to create order");
       }
 
-      // Step 2: Open Razorpay checkout with all payment methods enabled
-      const options = {
+      // Step 2: Open Razorpay checkout with FULL UPI support
+      const options: any = {
         key: order.keyId,
         amount: order.amount,
         currency: order.currency || "INR",
@@ -93,24 +93,33 @@ export default function PaymentModal() {
         description: paymentModalData.planName,
         image: "/logo.png",
         order_id: order.orderId,
-        // Enable all payment methods for Indian users
-        method: {
-          upi: true,           // UPI (GPay, PhonePe, Paytm, etc.)
-          card: true,          // Credit/Debit cards
-          netbanking: true,    // Net Banking
-          wallet: true,        // Paytm, Amazon Pay, etc.
-          emi: false,          // EMI (disable for small amounts)
-          paylater: false,     // PayLater (disable)
+        // Razorpay Checkout v1 — payment methods are controlled by Dashboard settings
+        // But we can force-show UPI via the "method" property (supported in newer v1 builds)
+        // Also adding "_[integrator]" for UPI apps
+        _: {
+          "integration": "custom_sdk",
+          "integration_version": "1.0.0",
         },
-        // UPI collect flow — user enters UPI ID, gets payment request on their UPI app
-        // "intent" flow doesn't work in Android WebView (can't launch external apps)
-        upi: {
-          flow: "collect",     // Shows UPI ID input → payment request sent to UPI app
-        },
-        // Configure which wallets to show
-        wallets: [
-          "paytm", "amazonpay", "phonepe", "freecharge", "mobikwik", "olamoney"
+        // This tells Razorpay to show UPI apps (GPay, PhonePe, BHIM, Paytm, etc.)
+        "external.upi.apps": [
+          "google_pay", "phonepe", "paytm", "bhim", "amazon_pay",
+          "mobikwik", "freecharge", "bhim_upi", "slice"
         ],
+        // Show all payment methods — UPI, Cards, Netbanking, Wallets
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: false,
+          paylater: false,
+        },
+        // UPI configuration — use "intent" on mobile, "collect" in WebView
+        upi: {
+          flow: typeof window !== "undefined" && /wv/.test(navigator.userAgent) ? "collect" : "intent",
+        },
+        // Wallets to show
+        wallets: ["paytm", "amazonpay", "phonepe", "freecharge", "mobikwik", "olamoney"],
         handler: async function (response: any) {
           // Step 3: Verify payment on server
           try {
@@ -351,6 +360,7 @@ export default function PaymentModal() {
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">UPI</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">GPay</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">PhonePe</span>
+                    <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">BHIM</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">Paytm</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">Card</span>
                     <span className="px-2 py-1 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">Net Banking</span>
@@ -386,7 +396,7 @@ export default function PaymentModal() {
 
                 <p className="text-center text-[10px] text-gray-400 mt-3">
                   By proceeding, you agree to our Terms of Service. Payments are
-                  processed securely via Razorpay.
+                  processed securely via Razorpay. UPI, Cards, NetBanking & Wallets accepted.
                 </p>
               </>
             )}
