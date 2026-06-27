@@ -44,8 +44,12 @@ export async function POST(req: NextRequest) {
 
     const razorpay = getRazorpay();
 
-    // Create Razorpay order with UPI enabled
+    // Create Razorpay order
     // Amount in Razorpay is in paise (1 INR = 100 paise)
+    // Note: 'method' property is NOT supported in orders.create() API.
+    // Payment methods are controlled by:
+    // 1. Razorpay Dashboard settings (enable/disable UPI, Cards, etc.)
+    // 2. Client-side config.display.blocks in checkout options
     const order = await razorpay.orders.create({
       amount: Math.round(amount * 100), // Convert to paise
       currency,
@@ -56,15 +60,6 @@ export async function POST(req: NextRequest) {
         planName: planName || "",
         type: type || "one_time", // one_time or subscription
         ...notes,
-      },
-      // Explicitly enable all payment methods including UPI
-      method: {
-        upi: true,
-        card: true,
-        netbanking: true,
-        wallet: true,
-        emi: false,
-        paylater: false,
       },
     });
 
