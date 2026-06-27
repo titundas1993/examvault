@@ -9,7 +9,7 @@ on:
       admob_app_id:
         description: 'AdMob App ID (ca-app-pub-XXXXX~YYYYY, tilde not slash!)'
         required: false
-        default: 'ca-app-pub-1742730064755213~4330255402'
+        default: 'ca-app-pub-1742730064755213~7890219994'
       admob_interstitial_id:
         description: 'AdMob Interstitial Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
         required: false
@@ -106,7 +106,7 @@ jobs:
           }
           EOF
 
-          # build.gradle (app) — with release signing config
+          # build.gradle (app) — with release signing config + AdMob
           cat > android-project/app/build.gradle << EOF
           plugins {
               id 'com.android.application'
@@ -118,9 +118,8 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 8
-                  versionName "1.3.0"
-                  manifestPlaceholders = [admobAppId: "$ADMOB_APP_ID"]
+                  versionCode 9
+                  versionName "1.3.1"
               }
               signingConfigs {
                   release {
@@ -166,11 +165,10 @@ jobs:
               implementation 'androidx.core:core:1.15.0'
               implementation 'androidx.webkit:webkit:1.12.1'
               implementation 'com.google.android.gms:play-services-ads:23.6.0'
-              implementation 'com.google.android.gms:play-services-auth:21.0.0'
           }
           EOF
 
-          # AndroidManifest.xml — with proper AdMob App ID
+          # AndroidManifest.xml — with AdMob App ID meta-data
           cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -185,6 +183,9 @@ jobs:
                   android:theme="@style/Theme.ExamVault"
                   android:usesCleartextTraffic="false"
                   android:networkSecurityConfig="@xml/network_security_config">
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="ADMOB_APP_ID_PLACEHOLDER" />
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -195,14 +196,11 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
-                  <meta-data
-                      android:name="com.google.android.gms.ads.APPLICATION_ID"
-                      android:value="ADMOB_APP_ID_PLACEHOLDER" />
               </application>
           </manifest>
           XMLEOF
 
-          # Replace AdMob App ID in manifest
+          # Replace AdMob App ID placeholder in manifest
           sed -i "s|ADMOB_APP_ID_PLACEHOLDER|$ADMOB_APP_ID|g" android-project/app/src/main/AndroidManifest.xml
 
           # Network security config — allow all HTTPS domains the web app needs
@@ -219,9 +217,18 @@ jobs:
           XMLEOF
 
           # MainActivity.java — copy from template and replace variables
+          mkdir -p android-project/app/src/main/java/com/examvault/education
           cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/education/MainActivity.java
           sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
           sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
+
+          echo "=== Verify AdMob App ID in manifest ==="
+          grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
+          echo "=== Verify APP_URL in MainActivity ==="
+          grep "appUrl" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
+          echo "=== Verify ADMOB ID in MainActivity ==="
+          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
+          echo "Android project created!"
 
           # strings.xml
           cat > android-project/app/src/main/res/values/strings.xml << 'EOF'
@@ -283,14 +290,6 @@ jobs:
           android.useAndroidX=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
-
-          echo "=== Verify AdMob App ID in manifest ==="
-          grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
-          echo "=== Verify APP_URL in MainActivity ==="
-          grep "appUrl" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
-          echo "=== Verify ADMOB ID in MainActivity ==="
-          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
-          echo "Android project created!"
 
       - name: Build Release APK
         working-directory: android-project
@@ -377,6 +376,7 @@ jobs:
             - Hardware back button support
             - Exam exit warning dialog
             - Content progress tracking
+            - AdMob Interstitial Ads
           files: |
             examvault.apk
             examvault.aab

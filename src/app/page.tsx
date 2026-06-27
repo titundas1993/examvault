@@ -103,53 +103,67 @@ function getProgressPercent(category: string, total: number): number {
 // __evPopstateDone guard could block re-registration after HMR.
 // Module-level code runs synchronously when the JS bundle loads, so the
 // sentinel entries and listener are always in place before any user interaction.
+
+// Detect if running inside Android WebView — back button is handled natively there
+const _isAndroidWebView = typeof window !== 'undefined' && /wv/.test(navigator.userAgent);
+
 if (typeof window !== 'undefined' && !(window as any).__evBackInit) {
   (window as any).__evBackInit = true;
 
   // Expose Zustand store globally so Android WebView can call goBack() via JS
   (window as any).__ZUSTAND_STORE__ = useAppStore;
 
-  // === ANDROID WEBVIEW: Let onBackPressed() handle back button ===
-  // In Android WebView, the native onBackPressed() calls our JS goBack().
-  // We do NOT want the popstate listener to also fire, as it would cause
-  // a double-back (user presses back once, both handlers fire).
-  // Detect WebView via user agent (wv flag) or our custom flag set by native code.
-  const isAndroidWebView = /wv/.test(navigator.userAgent) || /Android.*Version\/\d/.test(navigator.userAgent) || !!(window as any).__EV_WEBVIEW;
-
-  if (!isAndroidWebView) {
-    // Only register popstate handler for browser/PWA (not Android WebView)
+  // In Android WebView, the native back button calls __ZUSTAND_STORE__.goBack()
+  // via evaluateJavascript — no popstate listener needed (it caused double-back).
+  // We only register popstate for PWA / browser mode.
+  if (!_isAndroidWebView) {
     // Push TWO sentinel entries for buffer.
+    // On Android PWA, when the user presses back and there are zero history entries
+    // ahead of the current position, the system closes the app WITHOUT firing popstate.
+    // Two sentinels guarantee the browser always has at least one pushState entry to
+    // navigate back through, giving our handler a chance to re-push and intercept.
     window.history.pushState({ appState: true }, '');
     window.history.pushState({ appState: true }, '');
 
+    // Debounce flag — some mobile browsers fire popstate twice for a single back press.
     let _popstateDebounce = false;
 
     const handlePopstate = () => {
+      // Skip if this is a rapid double-fire
       if (_popstateDebounce) return;
       _popstateDebounce = true;
       setTimeout(() => { _popstateDebounce = false; }, 250);
 
       const store = useAppStore.getState();
 
+      // If the app is in the process of exiting, don't interfere
       if (store.isExitingApp) return;
 
+      // Re-push sentinel IMMEDIATELY so the browser can't run out of history entries.
       window.history.pushState({ appState: true }, '');
 
+      // Decide what to do based on app navigation state
       if (store.examBackWarning !== undefined && store.currentView === 'exam') {
+        // During exam, show warning dialog instead of going back
         store.setExamBackWarning(true);
         return;
       }
       if (store.canGoBack()) {
+        // There's a previous view in the app's history — go back
         store.goBack();
       } else if (store.currentView === 'home') {
+        // At home with no history — show exit confirmation dialog
         store.setExitConfirmVisible(true);
       } else {
+        // On a non-home root view (edge case) — go to home first
         store.setView('home');
       }
     };
 
     window.addEventListener('popstate', handlePopstate);
 
+    // Handle back-forward cache (bfcache) restore — when the browser restores
+    // the page from cache, the sentinel entries may be gone.
     window.addEventListener('pageshow', (e: PageTransitionEvent) => {
       if (e.persisted) {
         window.history.pushState({ appState: true }, '');
@@ -3071,6 +3085,24 @@ function ExamVaultAppInner() {
       setTimeout(go, 300);
     } else {
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [currentView]);
+
+  // ══════════════════════════════════════════════════════════
+  // Android WebView: Notify native side on navigation + set premium flag
+  // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    // Set premium flag for native ad logic
+    const sub = useAppStore.getState().subscription;
+    (window as any).__EV_PREMIUM = sub?.isPremium === true;
+
+    // Notify Android native side (for interstitial ad trigger)
+    if (_isAndroidWebView && (window as any).AndroidBridge?.onNavigate) {
+      try {
+        (window as any).AndroidBridge.onNavigate();
+      } catch (e) {
+        // Silently fail if bridge not available
+      }
     }
   }, [currentView]);
 
