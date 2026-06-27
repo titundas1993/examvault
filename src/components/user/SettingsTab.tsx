@@ -55,7 +55,7 @@ import { t } from "@/lib/i18n";
 import { logout as authLogout, sendPasswordReset, getCurrentUser } from "@/lib/services/auth";
 import { updateUserProfile, getAppSettings } from "@/lib/services/firestore";
 import { db, storage } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const languages = [
@@ -145,8 +145,7 @@ export default function SettingsTab() {
       try {
         const q = query(
           collection(db, "payments"),
-          where("userId", "==", firebaseUser.uid),
-          orderBy("createdAt", "desc")
+          where("userId", "==", firebaseUser.uid)
         );
         const snapshot = await getDocs(q);
         const records: PaymentRecord[] = [];
@@ -163,6 +162,8 @@ export default function SettingsTab() {
             type: data.type || "",
           });
         });
+        // Sort client-side (avoids needing Firestore composite index)
+        records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setPayments(records);
       } catch (err) {
         console.error("Error loading payment history:", err);

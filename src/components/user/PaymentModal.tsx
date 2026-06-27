@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
-import { createPaymentOrder, verifyPayment } from "@/lib/services/firestore";
+import { createPaymentOrder, verifyPayment, checkSubscriptionStatus } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -146,8 +146,7 @@ export default function PaymentModal() {
             }
           }
 
-          // Update subscription state — always set isPremium for subscription type
-          // For one_time purchases, add to purchasedItemIds
+          // Update subscription state
           const storeUpdates: any = {};
 
           if (verification.premiumExpiry) {
@@ -156,7 +155,6 @@ export default function PaymentModal() {
             storeUpdates.planName = verification.planName || planName;
           } else if (type === "subscription") {
             // Subscription verified but no premiumExpiry returned (native SDK flow)
-            // Still mark as premium — server saved the subscription data
             storeUpdates.isPremium = true;
             storeUpdates.planName = planName;
           }
@@ -164,6 +162,8 @@ export default function PaymentModal() {
           if (type === "one_time") {
             const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
             storeUpdates.purchasedItemIds = [...currentPurchased, planId];
+            // One-time purchase also means premium (no ads, premium badge)
+            storeUpdates.isPremium = true;
           }
 
           if (Object.keys(storeUpdates).length > 0) {
@@ -404,6 +404,7 @@ export default function PaymentModal() {
                 const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
                 setSubscription({
                   purchasedItemIds: [...currentPurchased, paymentModalData.planId],
+                  isPremium: true, // One-time purchase = premium (no ads, premium badge)
                 });
               }
 

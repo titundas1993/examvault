@@ -3107,7 +3107,7 @@ function ExamVaultAppInner() {
         } catch (e) { /* silently fail */ }
       }
     }
-  }, [currentView]);
+  }, [currentView, subscription.isPremium]);
 
   // Maps views to ad trigger actions — null means "don't trigger ad"
   function getAdTriggerAction(view: string): string | null {
@@ -3137,6 +3137,14 @@ function ExamVaultAppInner() {
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
         useAppStore.getState().setAppSettings(parsedSettings);
+      }
+      // Restore subscription state from localStorage — critical for:
+      // - Showing premium badge immediately (not "Buy" button)
+      // - Blocking ads for premium users (__EV_PREMIUM flag)
+      const savedSubscription = localStorage.getItem('ev_subscription');
+      if (savedSubscription) {
+        const parsedSub = JSON.parse(savedSubscription);
+        useAppStore.getState().setSubscription(parsedSub);
       }
     } catch (e) { /* ignore */ }
     const fetchSettings = async () => {
