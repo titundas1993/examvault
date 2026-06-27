@@ -492,12 +492,18 @@ export default function LoginScreen() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
+                className="space-y-5 pt-2"
               >
                 {!otpSent ? (
                   <>
+                    <div className="text-center mb-6">
+                      <div className="w-16 h-16 rounded-full bg-ev-orange-light dark:bg-ev-orange/15 flex items-center justify-center mx-auto mb-3">
+                        <Phone className="w-8 h-8 text-ev-orange" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">Enter your mobile number to receive OTP</p>
+                    </div>
                     <InputField
-                      icon={<Phone className="w-4 h-4 text-muted-foreground" />}
+                      icon={<Phone className="w-5 h-5 text-muted-foreground" />}
                       placeholder="9876543210"
                       type="tel"
                       value={phone}
@@ -533,20 +539,24 @@ export default function LoginScreen() {
                   </>
                 ) : (
                   <>
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Enter the 6-digit code sent to <span className="font-semibold text-ev-navy dark:text-white">{phone}</span>
+                    <div className="text-center mt-4 mb-8">
+                      <div className="w-16 h-16 rounded-full bg-ev-orange-light dark:bg-ev-orange/15 flex items-center justify-center mx-auto mb-4">
+                        <KeyRound className="w-8 h-8 text-ev-orange" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Enter the 6-digit code sent to
                       </p>
+                      <p className="text-base font-bold text-ev-navy dark:text-white">+91 {phone}</p>
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex justify-center mb-8 scale-110 origin-center">
                       <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                        <InputOTPGroup>
-                          <InputOTPSlot index={0} />
-                          <InputOTPSlot index={1} />
-                          <InputOTPSlot index={2} />
-                          <InputOTPSlot index={3} />
-                          <InputOTPSlot index={4} />
-                          <InputOTPSlot index={5} />
+                        <InputOTPGroup className="gap-2">
+                          <InputOTPSlot index={0} className="w-12 h-14 text-lg" />
+                          <InputOTPSlot index={1} className="w-12 h-14 text-lg" />
+                          <InputOTPSlot index={2} className="w-12 h-14 text-lg" />
+                          <InputOTPSlot index={3} className="w-12 h-14 text-lg" />
+                          <InputOTPSlot index={4} className="w-12 h-14 text-lg" />
+                          <InputOTPSlot index={5} className="w-12 h-14 text-lg" />
                         </InputOTPGroup>
                       </InputOTP>
                     </div>
@@ -556,7 +566,7 @@ export default function LoginScreen() {
                       text="Verify OTP"
                     />
                     {/* Resend OTP */}
-                    <div className="text-center">
+                    <div className="text-center mt-5">
                       {resendTimer > 0 ? (
                         <p className="text-xs text-muted-foreground">
                           Resend OTP in <span className="font-semibold text-ev-navy dark:text-white">{resendTimer}s</span>
@@ -573,7 +583,7 @@ export default function LoginScreen() {
                     </div>
                     <button
                       onClick={() => { setOtpSent(false); setOtp(""); setResendTimer(0); clearMessages(); }}
-                      className="w-full text-center text-xs text-ev-orange hover:underline"
+                      className="w-full text-center text-xs text-ev-orange hover:underline mt-4"
                     >
                       Change phone number
                     </button>
