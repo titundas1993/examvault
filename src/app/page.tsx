@@ -1879,7 +1879,7 @@ function NoteDetail() {
 
 // ==================== PROFILE TAB ====================
 function ProfileTab() {
-  const { goBack, user, userProfile, setUserProfile, firebaseUser } = useAppStore();
+  const { goBack, user, userProfile, setUserProfile, firebaseUser, setView } = useAppStore();
   const lang = useAppStore(s => s.language);
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
