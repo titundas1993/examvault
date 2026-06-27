@@ -53,14 +53,18 @@ import GuestLockModal from "@/components/shared/GuestLockModal";
 // 3. price field (if price > 0, it's premium)
 function isItemFree(item: any): boolean {
   if (item.accessType === "free") return true;
-  if (item.accessType === "premium") return false;
+  if (item.accessType === "premium") {
+    // Premium item — but if no price, treat as FREE (admin's responsibility)
+    const price = Number(item.price || 0);
+    return price <= 0;
+  }
   // Fallback for old data without accessType
   if (item.isFree === true) return true;
   if (item.isFree === false) return false;
   // Last resort: check price
   if (item.price && Number(item.price) > 0) return false;
-  // FAIL CLOSED — if no clear signal, treat as premium (safer)
-  return false;
+  // No accessType, no isFree, no price = FREE
+  return true;
 }
 
 // ==================== PROGRESS TRACKING ====================
@@ -1074,14 +1078,14 @@ function MockTestsTab() {
             </div>
             {!isItemFree(test) && (
               (() => {
-                const effPrice = Number(test.price) > 0 ? Number(test.price) : 49;
+                const price = Number(test.price) > 0 ? Number(test.price) : 0;
                 return subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
                   <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5" /> Active
                   </div>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: effPrice }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                    <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{effPrice}
+                  <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                    <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{price}
                   </button>
                 );
               })()
@@ -1168,17 +1172,17 @@ function TestSeriesTab() {
               </div>
               {!isItemFree(s) && (
                 (() => {
-                  const effPrice = Number(s.price) > 0 ? Number(s.price) : 49;
+                  const price = Number(s.price) > 0 ? Number(s.price) : 0;
                   return subscription.purchasedItemIds.includes(s.id) || subscription.isPremium ? (
                     <div className="mt-3 w-full py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-sm flex items-center justify-center gap-2">
                       <CheckCircle className="w-4 h-4" /> Active
                     </div>
                   ) : (
                     <button
-                      onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: effPrice }); }}
+                      onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price }); }}
                       className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
                     >
-                      <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{effPrice}
+                      <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{price}
                     </button>
                   );
                 })()
@@ -1398,14 +1402,14 @@ function PreviousPapersTab() {
               </div>
               {!isItemFree(p) && (
                 (() => {
-                  const effPrice = Number(p.price) > 0 ? Number(p.price) : 49;
+                  const price = Number(p.price) > 0 ? Number(p.price) : 0;
                   return subscription.purchasedItemIds.includes(p.id) || subscription.isPremium ? (
                     <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5" /> Active
                     </div>
                   ) : (
-                    <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: effPrice }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                      <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{effPrice}
+                    <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                      <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{price}
                     </button>
                   );
                 })()
@@ -1667,14 +1671,14 @@ function NotesTab() {
               </div>
               {!isItemFree(n) && (
                 (() => {
-                  const effPrice = Number(n.price) > 0 ? Number(n.price) : 49;
+                  const price = Number(n.price) > 0 ? Number(n.price) : 0;
                   return subscription.purchasedItemIds.includes(n.id) || subscription.isPremium ? (
                     <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5" /> Active
                     </div>
                   ) : (
-                    <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: effPrice }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                      <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{effPrice}
+                    <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                      <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{price}
                     </button>
                   );
                 })()
@@ -2198,29 +2202,24 @@ function TestInfoScreen() {
   }
 
   // PREMIUM GATE — verify access before allowing test start
-  // This prevents direct access via deep links, browser back, or stale state
   const itemIsFree = isItemFree(testData);
   const testId = useAppStore.getState().selectedTest;
   const hasAccess = itemIsFree ||
     subscription.isPremium ||
     subscription.purchasedItemIds.includes(testId);
 
-  // Premium items must have a price — default to ₹49 if missing
-  const effectivePrice = !itemIsFree && (!testData.price || Number(testData.price) <= 0)
-    ? 49
-    : Number(testData.price || 0);
-
   const handleStartTest = () => {
     if (hasAccess) {
       setView("exam");
       return;
     }
-    // No access — open Buy modal (premium items always have a price now)
-    if (!itemIsFree && effectivePrice > 0) {
+    // No access — open Buy modal
+    const price = Number(testData.price) > 0 ? Number(testData.price) : 0;
+    if (price > 0) {
       setPaymentModalData({
         planId: testId,
         planName: testData.title || testData.name || "Premium Test",
-        amount: effectivePrice,
+        amount: price,
         type: "one_time",
       });
       setShowPaymentModal(true);
@@ -2379,7 +2378,7 @@ function TestInfoScreen() {
                 onClick={handleStartTest}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
-                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${effectivePrice}` : `Buy — ₹${effectivePrice}`}
+                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
               </button>
             )}
           </div>
@@ -2395,7 +2394,7 @@ function TestInfoScreen() {
             onClick={handleStartTest}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
-            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${effectivePrice}` : `Buy — ₹${effectivePrice}`}
+            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
           </button>
         )}
         {!hasAccess && !user && (
