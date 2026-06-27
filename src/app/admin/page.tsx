@@ -2476,6 +2476,52 @@ function QuestionsAdmin() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Question Limit Info in Bulk Dialog */}
+            {(() => {
+              const targetTestId = activeSubTestId || activeTestId || "";
+              const test = getActiveTest();
+              const subTest = activeSubTestId ? test?.subTests?.find((st: any) => st.id === activeSubTestId) : null;
+              const currentTarget = subTest || test;
+              const limitQ = currentTarget?.totalQuestions || currentTarget?.questions || 0;
+              const currentCount = targetTestId ? getQuestionCountForTest(targetTestId) : 0;
+              const remaining = limitQ > 0 ? Math.max(0, limitQ - currentCount) : -1;
+              const isFull = limitQ > 0 && currentCount >= limitQ;
+              const accessType = (currentTarget as any)?.accessType || ((currentTarget as any)?.isFree ? "free" : "premium");
+
+              if (limitQ > 0) {
+                return (
+                  <div className={`rounded-xl p-3 border-2 ${isFull ? "border-red-300 bg-red-50" : "border-blue-200 bg-blue-50"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${accessType === "free" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                          {accessType === "free" ? "FREE" : "PREMIUM"}
+                        </span>
+                        <span className="text-sm font-bold text-ev-navy">Question Limit</span>
+                      </div>
+                      {isFull && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600">FULL — Cannot import more</span>}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center p-1.5 rounded-lg bg-white/70">
+                        <p className="text-lg font-black text-ev-navy">{currentCount}</p>
+                        <p className="text-[10px] text-gray-500">Uploaded</p>
+                      </div>
+                      <div className="text-center p-1.5 rounded-lg bg-white/70">
+                        <p className="text-lg font-black text-ev-navy">{limitQ}</p>
+                        <p className="text-[10px] text-gray-500">Limit</p>
+                      </div>
+                      <div className="text-center p-1.5 rounded-lg bg-white/70">
+                        <p className={`text-lg font-black ${remaining === 0 ? "text-red-600" : "text-green-600"}`}>{remaining}</p>
+                        <p className="text-[10px] text-gray-500">Remaining</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${isFull ? "bg-red-500" : "bg-gradient-to-r from-ev-orange to-ev-gold"}`} style={{ width: `${Math.min(100, (currentCount / limitQ) * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="grid grid-cols-2 gap-4">
               <div><Label className="font-medium">Category</Label><Select value={bulkCategory} onValueChange={v => { setBulkCategory(v); if (v !== "Others") setBulkCustomCategory(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EXAM_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
               <div><Label className="font-medium">Subject</Label><Select value={bulkSubject} onValueChange={v => { setBulkSubject(v); if (v !== "Others") setBulkCustomSubject(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SUBJECT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
