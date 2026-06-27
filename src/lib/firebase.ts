@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
+import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -15,12 +15,27 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Disable offline persistence so admin edits are always visible immediately.
-// Without this, the client SDK caches data in IndexedDB and may serve stale
-// documents after the admin panel writes via the Admin SDK.
+// Enable offline persistence so the app works without internet.
+// Firestore will cache documents in IndexedDB and serve them when offline,
+// then automatically sync when connectivity is restored.
 const db = getApps().length === 0
-  ? initializeFirestore(app, { persistence: false })
+  ? initializeFirestore(app, {
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+    })
   : getFirestore(app);
+
+// Enable IndexedDB persistence for offline access
+if (typeof window !== 'undefined') {
+  enableIndexedDbPersistence(db).catch((err: any) => {
+    if (err.code === 'failed-precondition') {
+      // Multiple tabs open — persistence only works in one tab
+      console.warn('Firestore offline: multiple tabs open');
+    } else if (err.code === 'unimplemented') {
+      // Browser doesn't support persistence
+      console.warn('Firestore offline: not supported');
+    }
+  });
+}
 
 export const auth = getAuth(app);
 export { db };

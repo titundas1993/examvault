@@ -38,8 +38,10 @@ public class MainActivity extends Activity {
 
     // Interstitial ad
     private InterstitialAd mInterstitialAd;
-    private int navigationCount = 0;
-    private static final int INTERSTITIAL_INTERVAL = 2; // Show ad every N navigations
+    private long lastAdShownTime = 0;
+    private static final long MIN_AD_INTERVAL_MS = 90_000; // Minimum 90 seconds between ads
+    private int actionCount = 0;
+    private static final int ACTION_COUNT_FOR_AD = 3; // Show ad after every 3 actions
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,27 +55,19 @@ public class MainActivity extends Activity {
 
         // Initialize AdMob
         MobileAds.initialize(this, initializationStatus -> {
-            // AdMob initialized, load first interstitial
             loadInterstitialAd();
         });
 
         // Setup WebView
         setupWebView();
 
-        // Load the app URL
-        if (isNetworkAvailable()) {
-            webView.loadUrl(appUrl);
-        } else {
-            showErrorDialog("No Internet Connection",
-                "Please check your internet connection and try again.");
-        }
+        // Load the app URL — works offline too via WebView cache
+        webView.loadUrl(appUrl);
     }
 
     private void setupUI() {
-        // Create a simple layout with progress bar and WebView
         android.widget.RelativeLayout layout = new android.widget.RelativeLayout(this);
 
-        // Progress bar
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setId(View.generateViewId());
         progressBar.setMax(100);
@@ -84,7 +78,6 @@ public class MainActivity extends Activity {
         pbParams.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
         layout.addView(progressBar, pbParams);
 
-        // WebView
         webView = new WebView(this);
         android.widget.RelativeLayout.LayoutParams wvParams =
             new android.widget.RelativeLayout.LayoutParams(
@@ -104,17 +97,19 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
 
-        // Enable caching
+        // Enable aggressive caching for offline support
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setAppCacheEnabled(true);
         settings.setAppCachePath(getCacheDir().getAbsolutePath());
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
 
         // Responsive
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         settings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING);
 
-        // Allow file access for service worker
+        // Allow file access
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
 
@@ -126,20 +121,18 @@ public class MainActivity extends Activity {
         // Register JavaScript interface for ad bridge and back button
         webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
 
-        // WebViewClient
+        // WebViewClient with offline cache support
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
 
-                // Only allow our app URLs
                 if (url.startsWith(appUrl) || url.contains("firebaseio.com") ||
                     url.contains("googleapis.com") || url.contains("google.com") ||
                     url.contains("razorpay.com")) {
-                    return false; // Load in WebView
+                    return false;
                 }
 
-                // Open external links in browser
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 startActivity(intent);
                 return true;
@@ -156,13 +149,19 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 progressBar.setVisibility(View.GONE);
 
-                // Inject a small JS to set a flag so the web app knows it's inside Android WebView
+                // Set WebView flag so web app knows it's inside Android
                 webView.evaluateJavascript(
-                    "window.__EV_ANDROID_WEBVIEW = true;", null);
+                    "window.__EV_ANDROID_WEBVIEW = true; window.__EV_WEBVIEW = true;", null);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                // Don't show error for offline — WebView cache will serve cached pages
+                super.onReceivedError(view, errorCode, description, failingUrl);
             }
         });
 
-        // WebChromeClient for progress and console
+        // WebChromeClient
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
@@ -174,7 +173,6 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                // Log console messages for debugging
                 android.util.Log.d("ExamVault-Web", consoleMessage.message());
                 return true;
             }
@@ -184,6 +182,10 @@ public class MainActivity extends Activity {
     // ==================== AdMob Interstitial ====================
 
     private void loadInterstitialAd() {
+        if (!isNetworkAvailable()) {
+            // Don't try to load ads when offline — will retry when back online
+            return;
+        }
         AdRequest adRequest = new AdRequest.Builder().build();
         InterstitialAd.load(this, admobInterstitialId, adRequest,
             new InterstitialAdLoadCallback() {
@@ -193,8 +195,8 @@ public class MainActivity extends Activity {
                     mInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                         @Override
                         public void onAdDismissedFullScreenContent() {
-                            // Ad dismissed, load the next one
                             mInterstitialAd = null;
+                            lastAdShownTime = System.currentTimeMillis();
                             loadInterstitialAd();
                         }
 
@@ -214,45 +216,67 @@ public class MainActivity extends Activity {
                 @Override
                 public void onAdFailedToLoad(LoadAdError loadAdError) {
                     mInterstitialAd = null;
-                    // Retry after a delay
-                    webView.postDelayed(() -> loadInterstitialAd(), 30000);
+                    // Retry after 60 seconds
+                    if (webView != null) {
+                        webView.postDelayed(() -> loadInterstitialAd(), 60000);
+                    }
                 }
             });
     }
 
     private void showInterstitialAd() {
+        long now = System.currentTimeMillis();
+        // Enforce minimum time gap between ads (90 seconds)
+        if (now - lastAdShownTime < MIN_AD_INTERVAL_MS) {
+            return; // Too soon to show another ad
+        }
+
         if (mInterstitialAd != null) {
             mInterstitialAd.show(this);
         } else {
-            // Ad not ready, try loading
             loadInterstitialAd();
         }
     }
 
-    // Called from JavaScript when user navigates between views
-    private void onNavigationEvent() {
-        navigationCount++;
-        if (navigationCount % INTERSTITIAL_INTERVAL == 0) {
-            // Check if user is premium before showing ad
-            webView.post(() -> {
-                webView.evaluateJavascript(
-                    "window.__EV_PREMIUM === true ? 'premium' : 'free'",
-                    result -> {
-                        String trimmed = result != null ? result.replace("\"", "").trim() : "free";
-                        if (!"premium".equals(trimmed)) {
-                            showInterstitialAd();
-                        }
-                    });
-            });
-        }
+    // Called from JavaScript when user completes an action (not on every navigation)
+    private void onActionComplete(String actionType) {
+        // Only count meaningful actions, not every view change
+        // actionType values: "exam_end", "result_view", "note_read", "paper_read", "back_to_home"
+        actionCount++;
+
+        // Check if user is premium
+        webView.post(() -> {
+            webView.evaluateJavascript(
+                "window.__EV_PREMIUM === true ? 'premium' : 'free'",
+                result -> {
+                    String trimmed = result != null ? result.replace("\"", "").trim() : "free";
+                    if (!"premium".equals(trimmed) && actionCount >= ACTION_COUNT_FOR_AD) {
+                        actionCount = 0; // Reset counter
+                        showInterstitialAd();
+                    }
+                });
+        });
     }
 
     // ==================== JavaScript Interface ====================
 
     public class AdWebInterface {
+        // Called when user completes an action — triggers ad check
+        @JavascriptInterface
+        public void onActionComplete(String actionType) {
+            onActionComplete(actionType);
+        }
+
+        // Legacy method — kept for backward compat but now no-ops
         @JavascriptInterface
         public void onNavigate() {
-            onNavigationEvent();
+            // No longer triggers ads on every navigation
+        }
+
+        // Check if network is available
+        @JavascriptInterface
+        public boolean isNetworkAvailable() {
+            return MainActivity.this.isNetworkAvailable();
         }
     }
 
@@ -268,7 +292,6 @@ public class MainActivity extends Activity {
     }
 
     private void handleBackPressed() {
-        // Use the Zustand store to handle back navigation
         webView.post(() -> {
             webView.evaluateJavascript(
                 "(function() {" +
@@ -293,7 +316,6 @@ public class MainActivity extends Activity {
                 result -> {
                     String trimmed = result != null ? result.replace("\"", "").trim() : "";
                     if ("no_store".equals(trimmed)) {
-                        // Store not available, use WebView history as fallback
                         if (webView.canGoBack()) {
                             webView.goBack();
                         } else {
@@ -308,9 +330,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle("Exit ExamVault?")
             .setMessage("Are you sure you want to exit?")
-            .setPositiveButton("Exit", (dialog, which) -> {
-                finish();
-            })
+            .setPositiveButton("Exit", (dialog, which) -> finish())
             .setNegativeButton("Cancel", null)
             .show();
     }
@@ -326,37 +346,22 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    private void showErrorDialog(String title, String message) {
-        new AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton("Retry", (dialog, which) -> {
-                if (isNetworkAvailable()) {
-                    webView.loadUrl(appUrl);
-                } else {
-                    showErrorDialog(title, message);
-                }
-            })
-            .setCancelable(false)
-            .show();
-    }
-
     // ==================== Lifecycle ====================
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (webView != null) {
-            webView.onResume();
+        if (webView != null) webView.onResume();
+        // Try loading ad if not already loaded
+        if (mInterstitialAd == null && isNetworkAvailable()) {
+            loadInterstitialAd();
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (webView != null) {
-            webView.onPause();
-        }
+        if (webView != null) webView.onPause();
     }
 
     @Override

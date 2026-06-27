@@ -3089,22 +3089,37 @@ function ExamVaultAppInner() {
   }, [currentView]);
 
   // ══════════════════════════════════════════════════════════
-  // Android WebView: Notify native side on navigation + set premium flag
+  // Android WebView: Set premium flag + Smart ad trigger
+  // Ads only show after meaningful actions, NOT on every navigation
   // ══════════════════════════════════════════════════════════
   useEffect(() => {
-    // Set premium flag for native ad logic
+    // Update premium flag for native ad logic
     const sub = useAppStore.getState().subscription;
     (window as any).__EV_PREMIUM = sub?.isPremium === true;
 
-    // Notify Android native side (for interstitial ad trigger)
-    if (_isAndroidWebView && (window as any).AndroidBridge?.onNavigate) {
-      try {
-        (window as any).AndroidBridge.onNavigate();
-      } catch (e) {
-        // Silently fail if bridge not available
+    // Smart ad trigger: only on action completion views
+    // These are views user reaches AFTER doing something meaningful
+    if (_isAndroidWebView && (window as any).AndroidBridge?.onActionComplete) {
+      const actionType = getAdTriggerAction(currentView);
+      if (actionType) {
+        try {
+          (window as any).AndroidBridge.onActionComplete(actionType);
+        } catch (e) { /* silently fail */ }
       }
     }
   }, [currentView]);
+
+  // Maps views to ad trigger actions — null means "don't trigger ad"
+  function getAdTriggerAction(view: string): string | null {
+    switch (view) {
+      case 'result':          return 'exam_end';      // Finished exam, viewing result
+      case 'home':            return 'back_to_home';   // Returned to home (after browsing)
+      case 'note-detail':     return 'note_read';      // Reading a note
+      case 'previous-paper-detail': return 'paper_read'; // Reading a paper
+      case 'test-info':       return 'test_selected';   // Selected a test to view
+      default:                return null;             // No ad for other views
+    }
+  }
 
   // ══════════════════════════════════════════════════════════
   // OTHER HOOKS
