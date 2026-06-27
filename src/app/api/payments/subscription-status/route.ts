@@ -111,6 +111,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // If user has any active purchase, they are premium too
+    // (one-time test purchases count as premium — no ads, full access)
+    if (purchasedItems.length > 0) {
+      isPremium = true;
+    }
+
     return NextResponse.json({
       isPremium,
       premiumExpiry,

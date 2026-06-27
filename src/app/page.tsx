@@ -1072,9 +1072,15 @@ function MockTestsTab() {
               </div>
             </div>
             {!isItemFree(test) && test.price > 0 && (
-              <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: test.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{test.price}
-              </button>
+              subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
+                <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5" /> Active
+                </div>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: test.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
+                  <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{test.price}
+                </button>
+              )
             )}
           </div>
         ))}
@@ -1156,12 +1162,18 @@ function TestSeriesTab() {
                 </div>
               </div>
               {!isItemFree(s) && (
+                subscription.purchasedItemIds.includes(s.id) || subscription.isPremium ? (
+                  <div className="mt-3 w-full py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-sm flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Active
+                  </div>
+                ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); requirePremium(s.id, false, () => {}, { name: s.title, price: s.price || 0 }); }}
                   className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
                 >
                   <ShoppingCart className="w-4 h-4" /> Buy Now — ₹{s.price || 0}
                 </button>
+                )
               )}
             </div>
           );
@@ -1376,9 +1388,15 @@ function PreviousPapersTab() {
                 <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
               </div>
               {!isItemFree(p) && p.price > 0 && (
+                subscription.purchasedItemIds.includes(p.id) || subscription.isPremium ? (
+                  <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" /> Active
+                  </div>
+                ) : (
                 <button onClick={(e) => { e.stopPropagation(); requirePremium(p.id, false, () => {}, { name: p.name || p.title, price: p.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
                   <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{p.price}
                 </button>
+                )
               )}
             </div>
           );
@@ -1635,9 +1653,15 @@ function NotesTab() {
                 <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
               </div>
               {!isItemFree(n) && n.price > 0 && (
+                subscription.purchasedItemIds.includes(n.id) || subscription.isPremium ? (
+                  <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" /> Active
+                  </div>
+                ) : (
                 <button onClick={(e) => { e.stopPropagation(); requirePremium(n.id, false, () => {}, { name: n.title, price: n.price || 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
                   <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{n.price}
                 </button>
+                )
               )}
             </div>
           );

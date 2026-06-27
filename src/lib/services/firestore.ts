@@ -2173,6 +2173,11 @@ async function checkSubscriptionClientSide(userId: string) {
       };
     });
 
+    // If user has any active purchase, they are premium too
+    if (purchasedItems.length > 0) {
+      isPremium = true;
+    }
+
     return { isPremium, premiumExpiry, planName, subscription, purchasedItems };
   } catch (error) {
     console.error("Client-side subscription check failed:", error);
