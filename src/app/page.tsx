@@ -59,7 +59,8 @@ function isItemFree(item: any): boolean {
   if (item.isFree === false) return false;
   // Last resort: check price
   if (item.price && Number(item.price) > 0) return false;
-  return true;
+  // FAIL CLOSED — if no clear signal, treat as premium (safer)
+  return false;
 }
 
 // ==================== PROGRESS TRACKING ====================
@@ -2153,6 +2154,10 @@ function TestInfoScreen() {
   const goBack = useAppStore(s => s.goBack);
   const setView = useAppStore(s => s.setView);
   const lang = useAppStore(s => s.language);
+  const subscription = useAppStore(s => s.subscription);
+  const user = useAppStore(s => s.user);
+  const setShowPaymentModal = useAppStore(s => s.setShowPaymentModal);
+  const setPaymentModalData = useAppStore(s => s.setPaymentModalData);
   const [testData, setTestData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSubTest, setSelectedSubTest] = useState<string | null>(null);
@@ -2198,6 +2203,33 @@ function TestInfoScreen() {
       </div>
     );
   }
+
+  // PREMIUM GATE — verify access before allowing test start
+  // This prevents direct access via deep links, browser back, or stale state
+  const itemIsFree = isItemFree(testData);
+  const testId = useAppStore.getState().selectedTest;
+  const hasAccess = itemIsFree ||
+    subscription.isPremium ||
+    subscription.purchasedItemIds.includes(testId);
+
+  const handleStartTest = () => {
+    if (hasAccess) {
+      setView("exam");
+      return;
+    }
+    // No access — open Buy modal or go to pricing
+    if (testData.price && Number(testData.price) > 0) {
+      setPaymentModalData({
+        planId: testId,
+        planName: testData.title || testData.name || "Premium Test",
+        amount: Number(testData.price),
+        type: "one_time",
+      });
+      setShowPaymentModal(true);
+    } else {
+      setView("pricing");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-6">
@@ -2297,7 +2329,7 @@ function TestInfoScreen() {
         )}
       </div>
 
-      {/* Sub-Tests List or Start Button */}
+      {/* Sub-Tests List or Start Button — premium gated */}
       <div className="px-4 mt-4">
         {testData.subTests && testData.subTests.length > 0 ? (
           <div className="space-y-3">
@@ -2331,26 +2363,61 @@ function TestInfoScreen() {
                 </button>
               );
             })}
-            <button
-              onClick={() => {
-                if (selectedSubTest) {
-                  useAppStore.getState().setSelectedTest(selectedSubTest);
-                  setView("exam");
-                }
-              }}
-              disabled={!selectedSubTest}
-              className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${selectedSubTest ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/30 active:scale-[0.98]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-            >
-              <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
-            </button>
+            {hasAccess ? (
+              <button
+                onClick={() => {
+                  if (selectedSubTest) {
+                    useAppStore.getState().setSelectedTest(selectedSubTest);
+                    setView("exam");
+                  }
+                }}
+                disabled={!selectedSubTest}
+                className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${selectedSubTest ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/30 active:scale-[0.98]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+              >
+                <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+              </button>
+            ) : testData.price && Number(testData.price) > 0 ? (
+              <button
+                onClick={handleStartTest}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartTest}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+              >
+                <Crown className="w-5 h-5" /> {lang === "bn" ? "প্রিমিয়াম নিন" : "Get Premium"}
+              </button>
+            )}
           </div>
-        ) : (
+        ) : hasAccess ? (
           <button
             onClick={() => setView("exam")}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
             <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
           </button>
+        ) : testData.price && Number(testData.price) > 0 ? (
+          <button
+            onClick={handleStartTest}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+          >
+            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
+          </button>
+        ) : (
+          <button
+            onClick={handleStartTest}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+          >
+            <Crown className="w-5 h-5" /> {lang === "bn" ? "প্রিমিয়াম নিন" : "Get Premium"}
+          </button>
+        )}
+        {!hasAccess && !user && (
+          <p className="text-center text-xs text-gray-500 mt-2">
+            {lang === "bn" ? "অ্যাক্সেস করতে লগইন করুন" : "Please login to access"}
+          </p>
         )}
       </div>
     </div>
