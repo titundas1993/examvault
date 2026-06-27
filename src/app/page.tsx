@@ -1123,6 +1123,7 @@ function MockTestsTab() {
             )}
           </div>
         ))}
+        )}
       </div>
     </div>
   );
