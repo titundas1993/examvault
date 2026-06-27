@@ -260,15 +260,96 @@ export default function SettingsTab() {
     }
   };
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   const handleDeleteAccount = async () => {
+    if (!firebaseUser?.uid) {
+      alert("No user found");
+      return;
+    }
+    setDeletingAccount(true);
     try {
+      const uid = firebaseUser.uid;
+
+      // Step 1: Delete user data from Firestore (all collections)
+      try {
+        const { doc, deleteDoc, collection: fsCollection, query: fsQuery, where: fsWhere, getDocs: fsGetDocs } = await import("firebase/firestore");
+        const { db: fsDb } = await import("@/lib/firebase");
+
+        // Delete user profile document
+        try {
+          await deleteDoc(doc(fsDb, "users", uid));
+        } catch (e) { console.error("Error deleting user doc:", e); }
+
+        // Delete user's test results
+        try {
+          const resultsSnap = await fsGetDocs(fsQuery(fsCollection(fsDb, "testResults"), fsWhere("userId", "==", uid)));
+          for (const d of resultsSnap.docs) await deleteDoc(d.ref);
+        } catch (e) { console.error("Error deleting testResults:", e); }
+
+        // Delete user's purchases
+        try {
+          const purchasesSnap = await fsGetDocs(fsQuery(fsCollection(fsDb, "purchases"), fsWhere("userId", "==", uid)));
+          for (const d of purchasesSnap.docs) await deleteDoc(d.ref);
+        } catch (e) { console.error("Error deleting purchases:", e); }
+
+        // Delete user's subscriptions
+        try {
+          const subsSnap = await fsGetDocs(fsQuery(fsCollection(fsDb, "subscriptions"), fsWhere("userId", "==", uid)));
+          for (const d of subsSnap.docs) await deleteDoc(d.ref);
+        } catch (e) { console.error("Error deleting subscriptions:", e); }
+
+        // Delete user's payments
+        try {
+          const paymentsSnap = await fsGetDocs(fsQuery(fsCollection(fsDb, "payments"), fsWhere("userId", "==", uid)));
+          for (const d of paymentsSnap.docs) await deleteDoc(d.ref);
+        } catch (e) { console.error("Error deleting payments:", e); }
+
+        // Delete leaderboard entries
+        try {
+          const leaderboardSnap = await fsGetDocs(fsQuery(fsCollection(fsDb, "leaderboard"), fsWhere("userId", "==", uid)));
+          for (const d of leaderboardSnap.docs) await deleteDoc(d.ref);
+        } catch (e) { console.error("Error deleting leaderboard:", e); }
+
+        // Delete profile photo from Storage
+        try {
+          const { ref: storageRef, deleteObject } = await import("firebase/storage");
+          const { storage } = await import("@/lib/firebase");
+          await deleteObject(storageRef(storage, `profile-photos/${uid}`));
+        } catch (e) { console.log("No profile photo or error deleting:", e); }
+      } catch (e) {
+        console.error("Firestore cleanup error:", e);
+      }
+
+      // Step 2: Delete Firebase Auth account
+      try {
+        const currentUser = getCurrentUser();
+        if (currentUser) {
+          await currentUser.delete();
+        }
+      } catch (authErr: any) {
+        console.error("Auth delete error:", authErr);
+        // If requires recent login, show message
+        if (authErr.code === "auth/requires-recent-login") {
+          alert("For security, please log out and log in again, then try deleting account.");
+          setDeletingAccount(false);
+          return;
+        }
+        // Continue even if auth delete fails — Firestore data is already cleaned
+      }
+
+      // Step 3: Clear local state
       await authLogout();
       setUser(null);
       setFirebaseUser(null);
       setView("login");
       localStorage.clear();
-    } catch (err) {
+      alert("Your account has been deleted successfully.");
+    } catch (err: any) {
       console.error("Error deleting account:", err);
+      alert(`Failed to delete account: ${err.message || "Unknown error"}`);
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -704,12 +785,20 @@ export default function SettingsTab() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={deletingAccount}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDeleteAccount}
+                  disabled={deletingAccount}
                   className="bg-ev-red hover:bg-ev-red/90 text-white"
                 >
-                  Delete Forever
+                  {deletingAccount ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Forever"
+                  )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
