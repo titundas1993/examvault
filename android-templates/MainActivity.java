@@ -37,7 +37,7 @@ import java.util.List;
 
 public class MainActivity extends Activity {
 
-    private static final String TAG = "ExamVault-Ad";
+    private static final String TAG = "ExamVault";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -50,6 +50,9 @@ public class MainActivity extends Activity {
     private static final long MIN_AD_INTERVAL_MS = 90_000; // Minimum 90 seconds between ads
     private int actionCount = 0;
     private static final int ACTION_COUNT_FOR_AD = 2; // Show ad after every 2 actions
+
+    // Track if user went to external browser for payment
+    private boolean waitingForPaymentReturn = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,11 +68,9 @@ public class MainActivity extends Activity {
         MobileAds.initialize(this, initializationStatus -> {
             Log.d(TAG, "AdMob initialized successfully");
 
-            // Add test device for testing — REMOVE before production release
-            // This allows real ads to show on your test device even before Play Store review
             List<String> testDeviceIds = Arrays.asList(
                 AdRequest.DEVICE_ID_EMULATOR,
-                "YOUR_TEST_DEVICE_ID"  // Replace with your device ID from logcat
+                "YOUR_TEST_DEVICE_ID"
             );
             RequestConfiguration requestConfiguration = new RequestConfiguration.Builder()
                 .setTestDeviceIds(testDeviceIds)
@@ -121,9 +122,6 @@ public class MainActivity extends Activity {
         // Enable caching for offline support
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Note: setAppCacheEnabled/setAppCachePath were removed in API 33.
-        // DOM storage + LOAD_DEFAULT cache mode is sufficient for offline.
-
         // Responsive
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
@@ -138,17 +136,16 @@ public class MainActivity extends Activity {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
 
-        // Register JavaScript interface for ad bridge and back button
+        // Register JavaScript interface for ad bridge, back button, and payment
         webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
 
-        // WebViewClient with offline cache support + UPI intent handling
+        // WebViewClient with offline cache support + payment URL handling
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
 
                 // Handle UPI intent URLs — launch UPI apps (GPay, PhonePe, BHIM, Paytm)
-                // Razorpay may try to open UPI via "upi://" scheme
                 if (url.startsWith("upi://") || url.startsWith("intent://")) {
                     try {
                         Intent upiIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -157,9 +154,26 @@ public class MainActivity extends Activity {
                         return true;
                     } catch (Exception e) {
                         Log.w(TAG, "Cannot open UPI intent: " + e.getMessage());
-                        // Fallback: let Razorpay handle it via collect flow
                         return false;
                     }
+                }
+
+                // Handle examvault:// deep link (payment return)
+                if (url.startsWith("examvault://")) {
+                    Log.d(TAG, "Deep link received: " + url);
+                    // User returning from Chrome after payment — check status
+                    waitingForPaymentReturn = false;
+                    checkPaymentStatusInWebView();
+                    return true;
+                }
+
+                // Payment page URLs — open in external Chrome browser for UPI support
+                // This is the key fix: Razorpay checkout inside WebView doesn't support UPI
+                // because WebView cannot open external UPI apps (GPay, PhonePe, BHIM)
+                if (url.contains("/payment?") && url.contains("orderId=")) {
+                    openInExternalBrowser(url);
+                    waitingForPaymentReturn = true;
+                    return true;
                 }
 
                 if (url.startsWith(appUrl) || url.contains("firebaseio.com") ||
@@ -210,6 +224,49 @@ public class MainActivity extends Activity {
                 Log.d("ExamVault-Web", consoleMessage.message());
                 return true;
             }
+        });
+    }
+
+    // ==================== External Browser for Payment ====================
+
+    private void openInExternalBrowser(String url) {
+        try {
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            // Try to open in Chrome specifically for best Razorpay compatibility
+            browserIntent.setPackage("com.android.chrome");
+            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(browserIntent);
+            Log.d(TAG, "Opened payment URL in Chrome: " + url);
+        } catch (Exception e) {
+            // Chrome not installed — fallback to any browser
+            Log.w(TAG, "Chrome not available, opening in default browser: " + e.getMessage());
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(browserIntent);
+            } catch (Exception e2) {
+                Log.e(TAG, "Cannot open browser: " + e2.getMessage());
+                Toast.makeText(this, "Please install Chrome browser to make payment", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void checkPaymentStatusInWebView() {
+        // Inject JS to trigger payment status check in the web app
+        webView.post(() -> {
+            webView.evaluateJavascript(
+                "(function() {" +
+                "  if (window.__ZUSTAND_STORE__) {" +
+                "    var state = window.__ZUSTAND_STORE__.getState();" +
+                "    if (state.firebaseUser && state.firebaseUser.uid) {" +
+                "      // Trigger subscription check — the PaymentModal polls this" +
+                "      console.log('Checking payment status after returning from browser...');" +
+                "    }" +
+                "  }" +
+                "  // Dispatch a custom event that the PaymentModal listens to" +
+                "  window.dispatchEvent(new Event('focus'));" +
+                "  window.dispatchEvent(new Event('visibilitychange'));" +
+                "})()", null);
         });
     }
 
@@ -318,6 +375,15 @@ public class MainActivity extends Activity {
         public boolean isNetworkAvailable() {
             return MainActivity.this.isNetworkAvailable();
         }
+
+        // Open a URL in external Chrome browser — used for payment checkout
+        // Razorpay UPI (GPay/PhonePe/BHIM) only works in a real browser, not WebView
+        @JavascriptInterface
+        public void openInBrowser(String url) {
+            Log.d(TAG, "JS requested to open in browser: " + url);
+            waitingForPaymentReturn = true;
+            openInExternalBrowser(url);
+        }
     }
 
     // ==================== Back Button Handling ====================
@@ -394,6 +460,14 @@ public class MainActivity extends Activity {
         if (webView != null) webView.onResume();
         if (mInterstitialAd == null && isNetworkAvailable()) {
             loadInterstitialAd();
+        }
+
+        // If returning from Chrome after payment, check payment status
+        if (waitingForPaymentReturn) {
+            Log.d(TAG, "Returning from external browser — checking payment status");
+            waitingForPaymentReturn = false;
+            // Small delay to let the WebView regain focus and web app reconnect
+            webView.postDelayed(() -> checkPaymentStatusInWebView(), 1500);
         }
     }
 

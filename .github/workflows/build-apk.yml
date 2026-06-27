@@ -118,8 +118,8 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 13
-                  versionName "1.5.1"
+                  versionCode 14
+                  versionName "1.6.0"
               }
               signingConfigs {
                   release {
@@ -201,6 +201,13 @@ jobs:
                           <category android:name="android.intent.category.DEFAULT" />
                           <category android:name="android.intent.category.BROWSABLE" />
                           <data android:scheme="upi" />
+                      </intent-filter>
+                      <!-- Deep link for payment return from Chrome browser -->
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="examvault" />
                       </intent-filter>
                   </activity>
               </application>
