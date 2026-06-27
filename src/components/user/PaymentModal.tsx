@@ -175,15 +175,14 @@ export default function PaymentModal() {
           if (firebaseUser) {
             try {
               const freshStatus = await checkSubscriptionStatus(firebaseUser.uid);
-              if (freshStatus.isPremium) {
-                setSubscription({
-                  isPremium: true,
-                  premiumExpiry: freshStatus.premiumExpiry,
-                  planName: freshStatus.planName,
-                  purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
-                    useAppStore.getState().subscription.purchasedItemIds,
-                });
-              }
+              // ALWAYS set from server — clears stale localStorage values
+              setSubscription({
+                isPremium: freshStatus.isPremium || false,
+                premiumExpiry: freshStatus.premiumExpiry || null,
+                planName: freshStatus.planName || null,
+                purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
+                  useAppStore.getState().subscription.purchasedItemIds,
+              });
             } catch (refreshErr) {
               console.error("Subscription refresh error:", refreshErr);
             }
@@ -412,15 +411,14 @@ export default function PaymentModal() {
               // Refresh subscription status from server for consistency
               if (firebaseUser) {
                 checkSubscriptionStatus(firebaseUser.uid).then((freshStatus) => {
-                  if (freshStatus.isPremium) {
-                    setSubscription({
-                      isPremium: true,
-                      premiumExpiry: freshStatus.premiumExpiry,
-                      planName: freshStatus.planName,
-                      purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
-                        useAppStore.getState().subscription.purchasedItemIds,
-                    });
-                  }
+                  // ALWAYS set from server — clears stale localStorage values
+                  setSubscription({
+                    isPremium: freshStatus.isPremium || false,
+                    premiumExpiry: freshStatus.premiumExpiry || null,
+                    planName: freshStatus.planName || null,
+                    purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
+                      useAppStore.getState().subscription.purchasedItemIds,
+                  });
                 }).catch(console.error);
               }
               setTimeout(() => {

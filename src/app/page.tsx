@@ -3227,20 +3227,13 @@ function ExamVaultAppInner() {
           }
         })();
         checkSubscriptionStatus(firebaseUser.uid).then((status) => {
-          const updates: any = {};
-          if (status.isPremium) {
-            updates.isPremium = true;
-            updates.premiumExpiry = status.premiumExpiry;
-            updates.planName = status.planName;
-          }
-          // Always update purchasedItemIds (even if not premium subscriber)
-          const items = status.purchasedItems?.map((p: any) => p.itemId) || [];
-          if (items.length > 0) {
-            updates.purchasedItemIds = items;
-          }
-          if (Object.keys(updates).length > 0) {
-            store.setSubscription(updates);
-          }
+          // ALWAYS set isPremium from server — clear stale localStorage value
+          store.setSubscription({
+            isPremium: status.isPremium || false,
+            premiumExpiry: status.premiumExpiry || null,
+            planName: status.planName || null,
+            purchasedItemIds: status.purchasedItems?.map((p: any) => p.itemId) || [],
+          });
         }).catch(console.error);
       } else {
         // No Firebase user — if user was logged in (not guest/null), clear and go home
