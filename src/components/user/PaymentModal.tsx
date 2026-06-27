@@ -81,14 +81,16 @@ export default function PaymentModal() {
       });
 
       if (!order.orderId) {
-        throw new Error("Failed to create order");
+        throw new Error(order.error || "Failed to create order");
       }
 
-      // Step 2: Open Razorpay checkout with FULL UPI support
-      // IMPORTANT: Razorpay Checkout v1 doesn't support 'method' in options.
-      // Payment methods are controlled by Razorpay Dashboard + order creation API.
-      // We pass 'method' in server-side razorpay.orders.create() instead.
-      // The checkout.js reads the order's allowed methods from the server.
+      // Log payment mode for debugging
+      console.log("Razorpay mode:", order._mode, "Key:", order.keyId?.substring(0, 12) + "...");
+
+      // Step 2: Open Razorpay checkout
+      // Payment methods shown are controlled by Razorpay Dashboard settings.
+      // UPI is already activated in Dashboard — it should show automatically.
+      // We just need to set UPI flow (collect for WebView, intent for browser).
       const options: any = {
         key: order.keyId,
         amount: order.amount,
@@ -110,44 +112,8 @@ export default function PaymentModal() {
         theme: {
           color: "#1e3a5f",
         },
-        // UPI configuration
-        // "collect" = user enters UPI ID, gets push notification on UPI app
-        // "intent" = opens UPI app directly (only works in browser, NOT WebView)
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: "Pay by UPI",
-                instruments: [
-                  { method: "upi", apps: ["google_pay", "phonepe", "paytm", "bhim", "amazon_pay"] },
-                ],
-              },
-              cards: {
-                name: "Cards",
-                instruments: [
-                  { method: "card", banks: [] },
-                ],
-              },
-              netbanking: {
-                name: "Net Banking",
-                instruments: [
-                  { method: "netbanking", banks: ["icici", "hdfc", "sbi", "axis", "kotak"] },
-                ],
-              },
-              wallets: {
-                name: "Wallets",
-                instruments: [
-                  { method: "wallet", wallets: ["paytm", "amazonpay", "phonepe", "freecharge", "mobikwik"] },
-                ],
-              },
-            },
-            sequence: ["block.upi", "block.cards", "block.netbanking", "block.wallets"],
-            preferences: {
-              show_default_blocks: false,
-            },
-          },
-        },
-        // UPI flow — use "intent" on mobile browser, "collect" in Android WebView
+        // UPI flow: "collect" = enter UPI ID (works in WebView)
+        //           "intent" = opens UPI app directly (only in browser)
         upi: {
           flow: typeof window !== "undefined" && /wv/.test(navigator.userAgent) ? "collect" : "intent",
         },

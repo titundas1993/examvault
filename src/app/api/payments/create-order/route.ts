@@ -69,7 +69,9 @@ export async function POST(req: NextRequest) {
       currency: order.currency,
       receipt: order.receipt,
       status: order.status,
-      keyId: process.env.RAZORPAY_KEY_ID, // Send key_id for client-side checkout
+      keyId: process.env.RAZORPAY_KEY_ID,
+      // Debug: show if test/live mode
+      _mode: (process.env.RAZORPAY_KEY_ID || "").startsWith("rzp_test_") ? "test" : "live",
     });
   } catch (error: any) {
     console.error("Create order error:", error);
