@@ -25,6 +25,7 @@ import {
   getNotifications,
   markAsRead,
   markAllAsRead,
+  getAppNotifications,
   NotificationData,
 } from "@/lib/services/firestore";
 
@@ -64,13 +65,25 @@ export default function NotificationPanel({ open, onClose }: NotificationPanelPr
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const data = await getNotifications();
-      if (data) {
-        setLocalNotifications(data);
-        setNotifications(data);
-        const unread = data.filter((n) => !n.isRead).length;
-        setUnreadNotificationCount(unread);
-      }
+      const [regularData, appNotifs] = await Promise.all([
+        getNotifications(),
+        getAppNotifications("all"),
+      ]);
+      // Convert app notifications to NotificationData format and merge
+      const adminNotifs: NotificationData[] = appNotifs.map(n => ({
+        id: n.id || "",
+        title: n.title,
+        message: n.message,
+        type: "promo",
+        isRead: false,
+        createdAt: n.createdAt,
+        isActive: true,
+      }));
+      const merged = [...adminNotifs, ...(regularData || [])];
+      setLocalNotifications(merged);
+      setNotifications(merged);
+      const unread = merged.filter((n) => !n.isRead).length;
+      setUnreadNotificationCount(unread);
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {

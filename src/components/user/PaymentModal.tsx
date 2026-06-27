@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { createPaymentOrder, verifyPayment, checkSubscriptionStatus } from "@/lib/services/firestore";
+import { createPaymentOrder, verifyPayment, checkSubscriptionStatus, validateCoupon, calculateDiscount, type CouponData } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,6 +57,11 @@ export default function PaymentModal() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [discount, setDiscount] = useState(0);
   const [success, setSuccess] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
@@ -246,7 +251,7 @@ export default function PaymentModal() {
     try {
       // Step 1: Create order on server
       const order = await createPaymentOrder({
-        amount: paymentModalData.amount,
+        amount: paymentModalData.amount - discount,
         userId: firebaseUser.uid,
         planId: paymentModalData.planId,
         planName: paymentModalData.planName,
@@ -300,7 +305,7 @@ export default function PaymentModal() {
 
     try {
       const order = await createPaymentOrder({
-        amount: paymentModalData.amount,
+        amount: paymentModalData.amount - discount,
         userId: firebaseUser.uid,
         planId: paymentModalData.planId,
         planName: paymentModalData.planName,
@@ -345,7 +350,7 @@ export default function PaymentModal() {
               userId: firebaseUser.uid,
               planId: paymentModalData.planId,
               planName: paymentModalData.planName,
-              amount: paymentModalData.amount,
+              amount: paymentModalData.amount - discount,
               type: paymentModalData.type,
             });
 
@@ -379,7 +384,7 @@ export default function PaymentModal() {
                       itemId: paymentModalData.planId,
                       itemType: "test",
                       itemName: paymentModalData.planName,
-                      amount: paymentModalData.amount,
+                      amount: paymentModalData.amount - discount,
                       status: "active",
                       purchasedAt: serverTimestamp(),
                     });
@@ -568,15 +573,75 @@ export default function PaymentModal() {
                 {/* Security badges */}
                 <div className="flex items-center justify-center gap-4 mb-4 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
-                    <Shield className="w-3 h-3" /> Secure Payment
+                    <Shield className="w-3 h-3" /> {t("securePayment", lang)}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> SSL Encrypted
+                    <Lock className="w-3 h-3" /> {t("sslEncrypted", lang)}
                   </span>
                   <span className="flex items-center gap-1">
                     <CreditCard className="w-3 h-3" /> Razorpay
                   </span>
                 </div>
+
+                {/* Coupon Code */}
+                {appliedCoupon ? (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-green-700">{appliedCoupon.code}</p>
+                      <p className="text-[10px] text-green-600">
+                        {appliedCoupon.discountType === "percentage"
+                          ? `${appliedCoupon.discountValue}% OFF`
+                          : `₹${appliedCoupon.discountValue} OFF`} • You saved ₹{discount}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { setAppliedCoupon(null); setCouponCode(""); setDiscount(0); setCouponError(null); }}
+                      className="text-xs text-red-500 font-semibold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                      placeholder="Enter coupon code"
+                      disabled={couponLoading}
+                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-ev-orange uppercase"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!couponCode) return;
+                        setCouponLoading(true);
+                        setCouponError(null);
+                        const coupon = await validateCoupon(couponCode);
+                        if (!coupon) {
+                          setCouponError("Invalid or expired coupon");
+                          setAppliedCoupon(null);
+                          setDiscount(0);
+                        } else {
+                          const disc = calculateDiscount(coupon, paymentModalData.amount);
+                          if (disc <= 0) {
+                            setCouponError(`Minimum amount ₹${coupon.minAmount} required`);
+                          } else {
+                            setAppliedCoupon(coupon);
+                            setDiscount(disc);
+                          }
+                        }
+                        setCouponLoading(false);
+                      }}
+                      disabled={couponLoading || !couponCode}
+                      className="px-4 py-2 text-sm font-bold bg-ev-navy text-white rounded-xl disabled:opacity-50"
+                    >
+                      {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                    </button>
+                  </div>
+                )}
+                {couponError && (
+                  <p className="text-xs text-red-500 mb-4 -mt-2">{couponError}</p>
+                )}
 
                 {/* Payment Methods */}
                 <div className="bg-gray-50 rounded-xl p-3 mb-4">
@@ -614,7 +679,14 @@ export default function PaymentModal() {
                   ) : (
                     <>
                       <CreditCard className="w-5 h-5" />
-                      Pay ₹{paymentModalData.amount}
+                      {discount > 0 ? (
+                        <span>
+                          <span className="line-through opacity-50 mr-1">₹{paymentModalData.amount}</span>
+                          Pay ₹{paymentModalData.amount - discount}
+                        </span>
+                      ) : (
+                        <span>Pay ₹{paymentModalData.amount}</span>
+                      )}
                     </>
                   )}
                 </button>

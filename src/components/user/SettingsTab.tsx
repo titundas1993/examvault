@@ -25,6 +25,7 @@ import {
   Camera,
   Crown,
   CreditCard,
+  Users,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ import {
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { logout as authLogout, sendPasswordReset, getCurrentUser } from "@/lib/services/auth";
-import { updateUserProfile, getAppSettings } from "@/lib/services/firestore";
+import { updateUserProfile, getAppSettings, getOrCreateReferral } from "@/lib/services/firestore";
 import { db, storage } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -119,6 +120,9 @@ export default function SettingsTab() {
 
   // In-app toast notification (replaces alert() which shows ugly URL page in WebView)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralCount, setReferralCount] = useState(0);
+  const [copied, setCopied] = useState(false);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -180,6 +184,17 @@ export default function SettingsTab() {
     };
     loadPayments();
   }, [firebaseUser?.uid]);
+
+  // Load referral code
+  useEffect(() => {
+    if (!firebaseUser?.uid || !user?.name) return;
+    getOrCreateReferral(firebaseUser.uid, user.name).then(ref => {
+      if (ref) {
+        setReferralCode(ref.referralCode);
+        setReferralCount(ref.referredUsers?.length || 0);
+      }
+    }).catch(console.error);
+  }, [firebaseUser?.uid, user?.name]);
 
   const subscription = useAppStore((s) => s.subscription);
   const isGuest = !user || user.role === "guest";
@@ -505,6 +520,61 @@ export default function SettingsTab() {
             </Button>
           </div>
         </motion.section>
+
+        {/* Referral System */}
+        {referralCode && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.07 }}
+            className="bg-white dark:bg-gray-900 rounded-xl border border-border p-4"
+          >
+            <h3 className="text-sm font-semibold text-ev-navy dark:text-white flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-ev-orange" />
+              Refer & Earn
+            </h3>
+            <div className="bg-gradient-to-r from-ev-orange/10 to-ev-gold/10 rounded-xl p-3 mb-3">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Your referral code</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-lg font-black text-ev-navy dark:text-white tracking-wider">{referralCode}</code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(referralCode).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }).catch(() => {
+                      showToast("Failed to copy", "error");
+                    });
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-ev-navy text-white rounded-lg"
+                >
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const shareText = `🎓 Join ExamVault for mock tests, previous papers & more!\n📲 Use my referral code: ${referralCode}\n🔗 https://examvault-theta.vercel.app`;
+                if (navigator.share) {
+                  navigator.share({ title: "ExamVault", text: shareText }).catch(() => {});
+                } else {
+                  navigator.clipboard?.writeText(shareText).then(() => {
+                    showToast("Referral message copied! Share with friends.", "success");
+                  }).catch(() => {
+                    showToast("Share not supported", "error");
+                  });
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Share with Friends
+            </button>
+            <p className="text-[11px] text-muted-foreground text-center mt-2">
+              {referralCount} {referralCount === 1 ? "friend joined" : "friends joined"}
+            </p>
+          </motion.section>
+        )}
 
         {/* Payment History */}
         <motion.section

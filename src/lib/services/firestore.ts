@@ -2261,3 +2261,194 @@ export async function getNavigationItems() {
     throw error;
   }
 }
+
+// ==================== COUPON CODES ====================
+
+export interface CouponData {
+  id?: string;
+  code: string;
+  description: string;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  minAmount: number;
+  maxDiscount: number;
+  isActive: boolean;
+  expiryDate: string;
+  usageLimit: number;
+  usedCount: number;
+  createdAt?: string;
+}
+
+export async function validateCoupon(code: string): Promise<CouponData | null> {
+  try {
+    const q = query(
+      collection(db, "coupons"),
+      where("code", "==", code.toUpperCase()),
+      where("isActive", "==", true)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+
+    const data = snapshot.docs[0].data() as any;
+    const coupon: CouponData = {
+      id: snapshot.docs[0].id,
+      code: data.code,
+      description: data.description || "",
+      discountType: data.discountType || "percentage",
+      discountValue: data.discountValue || 0,
+      minAmount: data.minAmount || 0,
+      maxDiscount: data.maxDiscount || 0,
+      isActive: data.isActive,
+      expiryDate: data.expiryDate || "",
+      usageLimit: data.usageLimit || 0,
+      usedCount: data.usedCount || 0,
+      createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+    };
+
+    // Check expiry
+    if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
+      return null;
+    }
+    // Check usage limit
+    if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) {
+      return null;
+    }
+    return coupon;
+  } catch (error) {
+    console.error("Error validating coupon:", error);
+    return null;
+  }
+}
+
+export function calculateDiscount(coupon: CouponData, amount: number): number {
+  if (amount < coupon.minAmount) return 0;
+  let discount = 0;
+  if (coupon.discountType === "percentage") {
+    discount = (amount * coupon.discountValue) / 100;
+    if (coupon.maxDiscount > 0) {
+      discount = Math.min(discount, coupon.maxDiscount);
+    }
+  } else {
+    discount = coupon.discountValue;
+  }
+  return Math.min(discount, amount);
+}
+
+// ==================== REFERRAL SYSTEM ====================
+
+export interface ReferralData {
+  id?: string;
+  referralCode: string;
+  userId: string;
+  userName: string;
+  referredUsers: { uid: string; name: string; joinedAt: string }[];
+  rewardCount: number;
+  createdAt?: string;
+}
+
+export function generateReferralCode(userId: string): string {
+  // Generate code like "EV" + last 6 chars of userId (uppercase)
+  const suffix = userId.replace(/[^a-zA-Z0-9]/g, "").substring(0, 6).toUpperCase();
+  return `EV${suffix}`;
+}
+
+export async function getOrCreateReferral(userId: string, userName: string): Promise<ReferralData | null> {
+  try {
+    const q = query(collection(db, "referrals"), where("userId", "==", userId));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const data = snapshot.docs[0].data() as any;
+      return {
+        id: snapshot.docs[0].id,
+        referralCode: data.referralCode,
+        userId: data.userId,
+        userName: data.userName,
+        referredUsers: data.referredUsers || [],
+        rewardCount: data.rewardCount || 0,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+      };
+    }
+    // Create new
+    const referralCode = generateReferralCode(userId);
+    const newRef: ReferralData = {
+      referralCode,
+      userId,
+      userName,
+      referredUsers: [],
+      rewardCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    const docRef = await addDoc(collection(db, "referrals"), newRef);
+    return { ...newRef, id: docRef.id };
+  } catch (error) {
+    console.error("Error getting/creating referral:", error);
+    return null;
+  }
+}
+
+export async function applyReferralCode(referralCode: string, newUserId: string, newUserName: string): Promise<boolean> {
+  try {
+    const q = query(collection(db, "referrals"), where("referralCode", "==", referralCode.toUpperCase()));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return false;
+
+    const docRef = snapshot.docs[0].ref;
+    const data = snapshot.docs[0].data() as any;
+    const referredUsers = data.referredUsers || [];
+    // Check if already referred
+    if (referredUsers.some((u: any) => u.uid === newUserId)) return false;
+    referredUsers.push({ uid: newUserId, name: newUserName, joinedAt: new Date().toISOString() });
+    await updateDoc(docRef, {
+      referredUsers,
+      rewardCount: (data.rewardCount || 0) + 1,
+    });
+    return true;
+  } catch (error) {
+    console.error("Error applying referral:", error);
+    return false;
+  }
+}
+
+// ==================== IN-APP NOTIFICATIONS (Admin Sender) ====================
+
+export interface AppNotification {
+  id?: string;
+  title: string;
+  message: string;
+  targetUsers: "all" | "premium" | "free";
+  createdAt: string;
+  isActive: boolean;
+}
+
+export async function getAppNotifications(userType: "all" | "premium" | "free"): Promise<AppNotification[]> {
+  try {
+    const q = query(collection(db, "appNotifications"), where("isActive", "==", true));
+    const snapshot = await getDocs(q);
+    const now = new Date();
+    return snapshot.docs
+      .map(d => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          title: data.title || "",
+          message: data.message || "",
+          targetUsers: data.targetUsers || "all",
+          createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+          isActive: data.isActive,
+        } as AppNotification;
+      })
+      .filter(n => n.targetUsers === "all" || n.targetUsers === userType)
+      .filter(n => {
+        // Show notifications from last 30 days
+        if (!n.createdAt) return true;
+        const created = new Date(n.createdAt);
+        const diff = (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+        return diff < 30;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.error("Error getting notifications:", error);
+    return [];
+  }
+}
+

@@ -150,6 +150,8 @@ const ADMIN_SIDEBAR_ITEMS: { icon: React.ComponentType<{ className?: string }>; 
   { icon: CreditCard, label: "Payments", view: "payments", color: "from-green-500 to-emerald-600" },
   { icon: Trash2, label: "Data Mgmt", view: "bulk-import", color: "from-red-500 to-rose-600" },
   { icon: Compass, label: "Navigation", view: "navigation", color: "from-cyan-600 to-blue-700" },
+  { icon: Tag, label: "Coupons", view: "coupons", color: "from-amber-500 to-orange-600" },
+  { icon: Bell, label: "Push Notify", view: "push-notifications", color: "from-violet-500 to-purple-600" },
 ];
 
 // ==================== UPLOAD HELPER ====================
@@ -421,6 +423,8 @@ export default function AdminPage() {
               {currentView === "plans" && <PlansAdmin />}
               {currentView === "payments" && <PaymentsAdmin />}
               {currentView === "navigation" && <NavigationAdmin />}
+              {currentView === "coupons" && <CouponsAdmin />}
+              {currentView === "push-notifications" && <PushNotificationsAdmin />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -5504,3 +5508,63 @@ function NavigationAdmin() {
   );
 }
 
+
+// ==================== COUPONS ADMIN ====================
+function CouponsAdmin() {
+  const fields = [
+    { key: "code", label: "Coupon Code", type: "text", placeholder: "FREEDOM50" },
+    { key: "description", label: "Description", type: "text", placeholder: "50% off for Independence Day" },
+    {
+      key: "discountType", label: "Discount Type", type: "select",
+      options: [
+        { value: "percentage", label: "Percentage (%)" },
+        { value: "fixed", label: "Fixed Amount" },
+      ],
+    },
+    { key: "discountValue", label: "Discount Value", type: "number", placeholder: "50" },
+    { key: "minAmount", label: "Minimum Amount", type: "number", placeholder: "0" },
+    { key: "maxDiscount", label: "Max Discount (0=unlimited)", type: "number", placeholder: "0" },
+    { key: "usageLimit", label: "Usage Limit (0=unlimited)", type: "number", placeholder: "100" },
+    { key: "expiryDate", label: "Expiry Date", type: "date" },
+    { key: "isActive", label: "Active", type: "switch" },
+  ];
+  return (
+    <CrudAdminPanel
+      title="Coupon Codes"
+      subtitle="Create discount coupons for users"
+      fields={fields}
+      fetchData={() => adminGetCollection("coupons")}
+      onAdd={(data) => adminAddDoc("coupons", { ...data, code: (data.code || "").toUpperCase(), usedCount: 0 })}
+      onUpdate={(id, data) => adminUpdateDoc("coupons", id, { ...data, code: (data.code || "").toUpperCase() })}
+      onDelete={(id) => adminDeleteDoc("coupons", id)}
+    />
+  );
+}
+
+// ==================== PUSH NOTIFICATIONS ADMIN ====================
+function PushNotificationsAdmin() {
+  const fields = [
+    { key: "title", label: "Title", type: "text", placeholder: "New Test Added!" },
+    { key: "message", label: "Message", type: "textarea", placeholder: "Check out the new SSC CGL mock test" },
+    {
+      key: "targetUsers", label: "Target Users", type: "select",
+      options: [
+        { value: "all", label: "All Users" },
+        { value: "premium", label: "Premium Users Only" },
+        { value: "free", label: "Free Users Only" },
+      ],
+    },
+    { key: "isActive", label: "Active", type: "switch" },
+  ];
+  return (
+    <CrudAdminPanel
+      title="Push Notifications"
+      subtitle="Send in-app notifications to users"
+      fields={fields}
+      fetchData={() => adminGetCollection("appNotifications")}
+      onAdd={(data) => adminAddDoc("appNotifications", { ...data })}
+      onUpdate={(id, data) => adminUpdateDoc("appNotifications", id, data)}
+      onDelete={(id) => adminDeleteDoc("appNotifications", id)}
+    />
+  );
+}
