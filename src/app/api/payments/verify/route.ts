@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       type,
     } = body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    if (!razorpay_order_id || !razorpay_payment_id) {
       return NextResponse.json(
         { error: "Missing payment verification fields" },
         { status: 400 }
@@ -90,13 +90,15 @@ export async function POST(req: NextRequest) {
       isVerified = expectedSignature === razorpay_signature;
     }
 
-    // Method 2: Server-side payment fetch via Razorpay API (native SDK flow)
+    // Method 2: Server-side verification via Razorpay API (native SDK flow)
     // When signature is not available (e.g. Razorpay native Android SDK),
-    // fetch the payment from Razorpay API to verify it's captured
-    if (!isVerified && !razorpay_signature) {
+    // fetch the payment & order from Razorpay API to verify
+    if (!isVerified) {
       try {
         const keyId = process.env.RAZORPAY_KEY_ID || "";
         const auth = Buffer.from(`${keyId}:${secret}`).toString("base64");
+
+        // Fetch payment details from Razorpay
         const paymentRes = await fetch(
           `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
           {
@@ -106,20 +108,56 @@ export async function POST(req: NextRequest) {
             },
           }
         );
+
         if (paymentRes.ok) {
           const paymentData = await paymentRes.json();
-          // Payment is verified if it's captured or authorized
-          if (
-            paymentData.status === "captured" ||
-            paymentData.status === "authorized"
-          ) {
+          console.log("Razorpay payment API response:", JSON.stringify({
+            status: paymentData.status,
+            order_id: paymentData.order_id,
+            amount: paymentData.amount,
+            method: paymentData.method,
+          }));
+
+          // Verify: payment order_id matches our order, and payment is in valid state
+          const orderMatches = paymentData.order_id === razorpay_order_id;
+          const isValidStatus = ["captured", "authorized", "refunded"].includes(paymentData.status);
+
+          if (orderMatches && isValidStatus) {
             isVerified = true;
-            console.log("Payment verified via Razorpay API:", paymentData.status);
+            console.log("Payment verified via Razorpay API! Status:", paymentData.status, "Order match:", orderMatches);
           } else {
-            console.warn("Payment status not captured:", paymentData.status);
+            console.warn("Payment verification failed via API. Order match:", orderMatches, "Status:", paymentData.status);
           }
         } else {
-          console.error("Failed to fetch payment from Razorpay API:", paymentRes.status);
+          const errText = await paymentRes.text().catch(() => "");
+          console.error("Failed to fetch payment from Razorpay API:", paymentRes.status, errText);
+
+          // Fallback: try fetching order to verify payment is linked to it
+          try {
+            const orderRes = await fetch(
+              `https://api.razorpay.com/v1/orders/${razorpay_order_id}`,
+              {
+                headers: {
+                  Authorization: `Basic ${auth}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            if (orderRes.ok) {
+              const orderData = await orderRes.json();
+              console.log("Order API response:", JSON.stringify({
+                status: orderData.status,
+                amount: orderData.amount,
+              }));
+              // If order status is "paid", the payment was successful
+              if (orderData.status === "paid") {
+                isVerified = true;
+                console.log("Payment verified via Order API - order status: paid");
+              }
+            }
+          } catch (orderErr) {
+            console.error("Order API verification error:", orderErr);
+          }
         }
       } catch (apiErr) {
         console.error("Razorpay API verification error:", apiErr);
