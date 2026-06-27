@@ -165,7 +165,7 @@ jobs:
               implementation 'androidx.core:core:1.15.0'
               implementation 'androidx.webkit:webkit:1.12.1'
               implementation 'com.google.android.gms:play-services-ads:23.6.0'
-              implementation 'com.razorpay:checkout:1.6.40'
+              implementation 'com.razorpay:checkout:1.6.36'
           }
           EOF
 

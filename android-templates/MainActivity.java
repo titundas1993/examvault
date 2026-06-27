@@ -34,7 +34,6 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 
 import com.razorpay.Checkout;
 import com.razorpay.PaymentResultListener;
-import com.razorpay.PaymentData;
 
 import org.json.JSONObject;
 
@@ -64,6 +63,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
     private String pendingPaymentPlanName = "";
     private String pendingPaymentType = "";
     private double pendingPaymentAmount = 0;
+    private String pendingPaymentOrderId = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -248,6 +248,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
             pendingPaymentPlanName = planName;
             pendingPaymentType = type;
             pendingPaymentAmount = Double.parseDouble(amountStr) / 100.0; // paise to rupees
+            pendingPaymentOrderId = orderId;
 
             JSONObject options = new JSONObject();
             options.put("name", "ExamVault");
@@ -291,20 +292,16 @@ public class MainActivity extends Activity implements PaymentResultListener {
     }
 
     @Override
-    public void onPaymentSuccess(String razorpayPaymentId, PaymentData paymentData) {
-        String orderId = paymentData.getOrderId();
-        String signature = paymentData.getPaymentId(); // This is actually payment_id
-        // PaymentData provides getPaymentId(), getOrderId(), getSignature()
-
-        Log.d(TAG, "Payment SUCCESS! PaymentId: " + razorpayPaymentId + " OrderId: " + orderId);
+    public void onPaymentSuccess(String razorpayPaymentId) {
+        Log.d(TAG, "Payment SUCCESS! PaymentId: " + razorpayPaymentId + " OrderId: " + pendingPaymentOrderId);
 
         // Notify WebView — let JavaScript handle verification
         webView.post(() -> {
             String js = String.format(
                 "window.__EV_PAYMENT_SUCCESS && window.__EV_PAYMENT_SUCCESS(%s, %s, %s, %s, %s, %s, %s, %s);",
                 JSONObject.quote(razorpayPaymentId),
-                JSONObject.quote(orderId),
-                JSONObject.quote(paymentData.getSignature() != null ? paymentData.getSignature() : ""),
+                JSONObject.quote(pendingPaymentOrderId),
+                JSONObject.quote(""), // signature not available in this API, server will verify
                 JSONObject.quote(pendingPaymentUserId),
                 JSONObject.quote(pendingPaymentPlanId),
                 JSONObject.quote(pendingPaymentPlanName),
@@ -318,7 +315,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
     }
 
     @Override
-    public void onPaymentError(int code, String response, PaymentData paymentData) {
+    public void onPaymentError(int code, String response) {
         Log.e(TAG, "Payment FAILED! Code: " + code + " Response: " + response);
 
         String errorMsg = "Payment failed";

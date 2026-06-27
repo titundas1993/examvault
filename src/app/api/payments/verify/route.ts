@@ -78,12 +78,53 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-    const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest("hex");
 
-    const isVerified = expectedSignature === razorpay_signature;
+    let isVerified = false;
+
+    // Method 1: Signature verification (web checkout flow)
+    if (razorpay_signature) {
+      const expectedSignature = crypto
+        .createHmac("sha256", secret)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+      isVerified = expectedSignature === razorpay_signature;
+    }
+
+    // Method 2: Server-side payment fetch via Razorpay API (native SDK flow)
+    // When signature is not available (e.g. Razorpay native Android SDK),
+    // fetch the payment from Razorpay API to verify it's captured
+    if (!isVerified && !razorpay_signature) {
+      try {
+        const keyId = process.env.RAZORPAY_KEY_ID || "";
+        const auth = Buffer.from(`${keyId}:${secret}`).toString("base64");
+        const paymentRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
+          {
+            headers: {
+              Authorization: `Basic ${auth}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        if (paymentRes.ok) {
+          const paymentData = await paymentRes.json();
+          // Payment is verified if it's captured or authorized
+          if (
+            paymentData.status === "captured" ||
+            paymentData.status === "authorized"
+          ) {
+            isVerified = true;
+            console.log("Payment verified via Razorpay API:", paymentData.status);
+          } else {
+            console.warn("Payment status not captured:", paymentData.status);
+          }
+        } else {
+          console.error("Failed to fetch payment from Razorpay API:", paymentRes.status);
+        }
+      } catch (apiErr) {
+        console.error("Razorpay API verification error:", apiErr);
+      }
+    }
 
     if (!isVerified) {
       return NextResponse.json(
