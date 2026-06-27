@@ -1926,6 +1926,24 @@ function QuestionsAdmin() {
 
   // Save question
   const handleSave = async () => {
+    // Check question count limit before adding new question
+    if (!editingItem) {
+      const targetTestId = formData.testId || activeSubTestId || activeTestId || "";
+      if (targetTestId) {
+        const test = getActiveTest();
+        const subTest = activeSubTestId ? test?.subTests?.find((st: any) => st.id === activeSubTestId) : null;
+        const currentTarget = subTest || test;
+        const limitQ = currentTarget?.totalQuestions || currentTarget?.questions || 0;
+        if (limitQ > 0) {
+          const currentCount = getQuestionCountForTest(targetTestId);
+          if (currentCount >= limitQ) {
+            showToast(`Cannot add more questions! Limit reached (${currentCount}/${limitQ}). Upgrade to Premium to add more.`, "error");
+            return;
+          }
+        }
+      }
+    }
+
     setSaving(true);
     try {
       let saveData = { ...formData };
@@ -2273,8 +2291,15 @@ function QuestionsAdmin() {
 
         return (
           <div>
-            {currentTarget && (
-              <div className={`rounded-xl p-4 border-2 mb-4 ${isFull ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+            {currentTarget && (() => {
+              const accessType = (currentTarget as any).accessType || ((currentTarget as any).isFree ? "free" : "premium");
+              const price = (currentTarget as any).price;
+              const duration = activeSubTestId ? getActiveSubTest()?.duration : (currentTarget as any).duration;
+              const subject = activeSubTestId ? getActiveSubTest()?.subject : (currentTarget as any).subject;
+              const remaining = limitQ > 0 ? Math.max(0, limitQ - currentQCount) : -1;
+
+              return (
+              <div className={`rounded-xl p-4 border-2 mb-4 ${isFull ? "border-red-300 bg-red-50" : currentQCount > 0 ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <h4 className="font-bold text-ev-navy text-sm">
@@ -2282,19 +2307,55 @@ function QuestionsAdmin() {
                     </h4>
                     <p className="text-xs text-gray-500">
                       {currentQCount}{limitQ > 0 ? `/${limitQ}` : ""} questions uploaded
-                      {activeSubTestId && getActiveSubTest()?.duration ? ` • ⏱️ ${getActiveSubTest()!.duration} min` : ""}
-                      {activeSubTestId && getActiveSubTest()?.subject ? ` • 📖 ${getActiveSubTest()!.subject}` : ""}
+                      {duration ? ` | ${duration} min` : ""}
+                      {subject ? ` | ${subject}` : ""}
                     </p>
                   </div>
-                  {isFull && <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-bold">⚠️ FULL</span>}
+                  <div className="flex items-center gap-2">
+                    {/* Access Type Badge */}
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                      accessType === "free" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {accessType === "free" ? "FREE" : "PREMIUM"}
+                    </span>
+                    {price && Number(price) > 0 && (
+                      <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-700 text-xs font-bold">
+                        ₹{price}
+                      </span>
+                    )}
+                    {isFull && <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-bold">FULL</span>}
+                  </div>
                 </div>
+
+                {/* Details Row */}
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="text-center p-2 rounded-lg bg-white/60">
+                    <p className="text-lg font-black text-ev-navy">{currentQCount}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">Uploaded</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-white/60">
+                    <p className="text-lg font-black text-ev-navy">{limitQ > 0 ? limitQ : "Unlimited"}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">Limit</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-white/60">
+                    <p className={`text-lg font-black ${remaining === 0 ? "text-red-600" : remaining > 0 ? "text-green-600" : "text-gray-400"}`}>
+                      {remaining >= 0 ? remaining : "--"}
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-medium">Remaining</p>
+                  </div>
+                </div>
+
                 {limitQ > 0 && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className={`h-2 rounded-full transition-all ${isFull ? "bg-red-500" : currentQCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                  <div className="mt-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div className={`h-2.5 rounded-full transition-all ${isFull ? "bg-red-500" : currentQCount > 0 ? "bg-gradient-to-r from-ev-orange to-ev-gold" : "bg-gray-300"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 text-right">{pct.toFixed(0)}% complete</p>
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             <div className="relative mb-4">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />

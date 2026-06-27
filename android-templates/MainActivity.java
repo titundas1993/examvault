@@ -9,6 +9,7 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -20,16 +21,23 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.RequestConfiguration;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class MainActivity extends Activity {
+
+    private static final String TAG = "ExamVault-Ad";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -41,7 +49,7 @@ public class MainActivity extends Activity {
     private long lastAdShownTime = 0;
     private static final long MIN_AD_INTERVAL_MS = 90_000; // Minimum 90 seconds between ads
     private int actionCount = 0;
-    private static final int ACTION_COUNT_FOR_AD = 3; // Show ad after every 3 actions
+    private static final int ACTION_COUNT_FOR_AD = 2; // Show ad after every 2 actions
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +63,19 @@ public class MainActivity extends Activity {
 
         // Initialize AdMob
         MobileAds.initialize(this, initializationStatus -> {
+            Log.d(TAG, "AdMob initialized successfully");
+
+            // Add test device for testing — REMOVE before production release
+            // This allows real ads to show on your test device even before Play Store review
+            List<String> testDeviceIds = Arrays.asList(
+                AdRequest.DEVICE_ID_EMULATOR,
+                "YOUR_TEST_DEVICE_ID"  // Replace with your device ID from logcat
+            );
+            RequestConfiguration requestConfiguration = new RequestConfiguration.Builder()
+                .setTestDeviceIds(testDeviceIds)
+                .build();
+            MobileAds.setRequestConfiguration(requestConfiguration);
+
             loadInterstitialAd();
         });
 
@@ -98,8 +119,6 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
 
         // Enable caching for offline support
-        // LOAD_DEFAULT = use cache if available, fetch from network otherwise
-        // When offline, WebView will serve from cache automatically
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         // Note: setAppCacheEnabled/setAppCachePath were removed in API 33.
@@ -150,14 +169,13 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 progressBar.setVisibility(View.GONE);
 
-                // Set WebView flag so web app knows it's inside Android
+                // Set WebView flags so web app knows it's inside Android
                 webView.evaluateJavascript(
                     "window.__EV_ANDROID_WEBVIEW = true; window.__EV_WEBVIEW = true;", null);
             }
 
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                // Don't show error for offline — WebView cache will serve cached pages
                 super.onReceivedError(view, errorCode, description, failingUrl);
             }
         });
@@ -174,7 +192,7 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                android.util.Log.d("ExamVault-Web", consoleMessage.message());
+                Log.d("ExamVault-Web", consoleMessage.message());
                 return true;
             }
         });
@@ -184,32 +202,38 @@ public class MainActivity extends Activity {
 
     private void loadInterstitialAd() {
         if (!isNetworkAvailable()) {
-            // Don't try to load ads when offline — will retry when back online
+            Log.w(TAG, "No network — skipping ad load");
             return;
         }
+
+        Log.d(TAG, "Loading interstitial ad: " + admobInterstitialId);
+
         AdRequest adRequest = new AdRequest.Builder().build();
         InterstitialAd.load(this, admobInterstitialId, adRequest,
             new InterstitialAdLoadCallback() {
                 @Override
                 public void onAdLoaded(InterstitialAd interstitialAd) {
                     mInterstitialAd = interstitialAd;
+                    Log.d(TAG, "Interstitial ad loaded successfully!");
                     mInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                         @Override
                         public void onAdDismissedFullScreenContent() {
                             mInterstitialAd = null;
                             lastAdShownTime = System.currentTimeMillis();
+                            Log.d(TAG, "Ad dismissed — loading next ad");
                             loadInterstitialAd();
                         }
 
                         @Override
                         public void onAdFailedToShowFullScreenContent(AdError adError) {
                             mInterstitialAd = null;
+                            Log.e(TAG, "Ad failed to show: " + adError.getMessage());
                             loadInterstitialAd();
                         }
 
                         @Override
                         public void onAdShowedFullScreenContent() {
-                            // Ad shown
+                            Log.d(TAG, "Ad shown successfully!");
                         }
                     });
                 }
@@ -217,6 +241,8 @@ public class MainActivity extends Activity {
                 @Override
                 public void onAdFailedToLoad(LoadAdError loadAdError) {
                     mInterstitialAd = null;
+                    Log.w(TAG, "Ad failed to load: " + loadAdError.getMessage() +
+                        " (code: " + loadAdError.getCode() + ")");
                     // Retry after 60 seconds
                     if (webView != null) {
                         webView.postDelayed(() -> loadInterstitialAd(), 60000);
@@ -227,32 +253,33 @@ public class MainActivity extends Activity {
 
     private void showInterstitialAd() {
         long now = System.currentTimeMillis();
-        // Enforce minimum time gap between ads (90 seconds)
         if (now - lastAdShownTime < MIN_AD_INTERVAL_MS) {
-            return; // Too soon to show another ad
+            Log.d(TAG, "Too soon for ad — " + ((MIN_AD_INTERVAL_MS - (now - lastAdShownTime)) / 1000) + "s remaining");
+            return;
         }
 
         if (mInterstitialAd != null) {
+            Log.d(TAG, "Showing interstitial ad NOW");
             mInterstitialAd.show(this);
         } else {
+            Log.w(TAG, "Ad not ready — loading...");
             loadInterstitialAd();
         }
     }
 
-    // Called from JavaScript when user completes an action (not on every navigation)
+    // Called from JavaScript when user completes an action
     private void onActionComplete(String actionType) {
-        // Only count meaningful actions, not every view change
-        // actionType values: "exam_end", "result_view", "note_read", "paper_read", "back_to_home"
         actionCount++;
+        Log.d(TAG, "Action complete: " + actionType + " (count: " + actionCount + "/" + ACTION_COUNT_FOR_AD + ")");
 
-        // Check if user is premium
         webView.post(() -> {
             webView.evaluateJavascript(
                 "window.__EV_PREMIUM === true ? 'premium' : 'free'",
                 result -> {
                     String trimmed = result != null ? result.replace("\"", "").trim() : "free";
+                    Log.d(TAG, "User type: " + trimmed);
                     if (!"premium".equals(trimmed) && actionCount >= ACTION_COUNT_FOR_AD) {
-                        actionCount = 0; // Reset counter
+                        actionCount = 0;
                         showInterstitialAd();
                     }
                 });
@@ -262,19 +289,16 @@ public class MainActivity extends Activity {
     // ==================== JavaScript Interface ====================
 
     public class AdWebInterface {
-        // Called when user completes an action — triggers ad check
         @JavascriptInterface
         public void onActionComplete(String actionType) {
-            onActionComplete(actionType);
+            MainActivity.this.onActionComplete(actionType);
         }
 
-        // Legacy method — kept for backward compat but now no-ops
         @JavascriptInterface
         public void onNavigate() {
-            // No longer triggers ads on every navigation
+            // Legacy — no longer triggers ads on every navigation
         }
 
-        // Check if network is available
         @JavascriptInterface
         public boolean isNetworkAvailable() {
             return MainActivity.this.isNetworkAvailable();
@@ -353,7 +377,6 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
-        // Try loading ad if not already loaded
         if (mInterstitialAd == null && isNetworkAvailable()) {
             loadInterstitialAd();
         }
