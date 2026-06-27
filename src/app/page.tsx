@@ -1019,6 +1019,7 @@ function MockTestsTab() {
   const lang = useAppStore(s => s.language);
   const subscription = useAppStore(s => s.subscription);
   const [filter, setFilter] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
   const [tests, setTests] = useState<any[]>([]);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
@@ -1036,13 +1037,36 @@ function MockTestsTab() {
   // Extract unique categories from test data for dynamic filters
   const categories = ["All", ...Array.from(new Set(tests.map((t: any) => t.category).filter(Boolean)))];
 
+  // Filter tests by category + search term
+  const filteredTests = tests.filter((t: any) => {
+    const matchesCategory = filter === "All" || t.category === filter;
+    const matchesSearch = !searchTerm ||
+      (t.title || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.subject || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.category || "").toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   return (
     <div className="pb-6">
       <div className="px-4 pt-4">
         <h2 className="text-xl font-bold text-ev-navy mb-3">{t("mockTests", lang)}</h2>
         <div className="relative mb-3">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
-          <input className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm" placeholder={t("searchTests", lang)} />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
+            placeholder={t("searchTests", lang)}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-3">
           {categories.map(f => (
@@ -1053,7 +1077,14 @@ function MockTestsTab() {
         </div>
       </div>
       <div className="px-4 space-y-3">
-        {tests.filter((t: any) => filter === "All" || t.category === filter).map((test: any) => (
+        {filteredTests.length === 0 ? (
+          <div className="text-center py-10">
+            <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 text-sm">No tests found</p>
+            <p className="text-gray-400 text-xs mt-1">Try a different search or category</p>
+          </div>
+        ) : (
+        filteredTests.map((test: any) => (
           <div key={test.id} onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
             <div className="flex items-center gap-3">
               {test.imageUrl ? (
@@ -1092,6 +1123,7 @@ function MockTestsTab() {
             )}
           </div>
         ))}
+        )}
       </div>
     </div>
   );

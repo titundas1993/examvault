@@ -231,14 +231,6 @@ export default function SettingsTab() {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword) {
-      setPasswordError("Please fill in both password fields");
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
-      return;
-    }
     try {
       const currentUser = getCurrentUser();
       if (currentUser && currentUser.email) {
@@ -605,8 +597,8 @@ export default function SettingsTab() {
                   <KeyRound className="w-4 h-4 text-ev-orange" />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-medium text-ev-navy dark:text-white">Change Password</p>
-                  <p className="text-[11px] text-muted-foreground">Update your account password</p>
+                  <p className="text-sm font-medium text-ev-navy dark:text-white">Reset Password</p>
+                  <p className="text-[11px] text-muted-foreground">Get a password reset link on your email</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -816,52 +808,40 @@ export default function SettingsTab() {
         </motion.section>
       </div>
 
-      {/* Change Password Dialog */}
+      {/* Change Password Dialog — sends reset email */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="w-5 h-5 text-ev-orange" />
-              Change Password
+              Reset Password
             </DialogTitle>
             <DialogDescription>
-              Enter your current password and choose a new one
+              We will send a password reset link to your registered email address. Click the link in the email to set a new password.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1">Current Password</Label>
-              <Input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="h-10 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1">New Password</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="h-10 rounded-xl"
-              />
-            </div>
+          <div className="bg-ev-orange/5 border border-ev-orange/20 rounded-xl p-3 my-2">
+            <p className="text-xs text-ev-navy">
+              📧 Reset email will be sent to: <span className="font-semibold">{user?.email || "your email"}</span>
+            </p>
           </div>
+          {passwordError && (
+            <p className="text-xs text-ev-red bg-ev-red/10 rounded-lg p-2">{passwordError}</p>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowPasswordDialog(false)}
+              onClick={() => { setShowPasswordDialog(false); setPasswordError(""); }}
               className="rounded-xl"
             >
               {t("cancel", language)}
             </Button>
             <Button
-              onClick={handleChangePassword}
+              onClick={() => { setPasswordError(""); handleChangePassword(); }}
               disabled={passwordLoading}
               className="bg-ev-navy hover:bg-ev-dark text-white rounded-xl"
             >
-              {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
+              {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Reset Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

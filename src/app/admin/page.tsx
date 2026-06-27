@@ -3848,7 +3848,11 @@ function PreviousPapersAdmin() {
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
         return adminAddDoc("previousPapers", { ...data, isFree, price });
       }}
-      onUpdate={(id, data) => adminUpdateDoc("previousPapers", id, data)}
+      onUpdate={(id, data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminUpdateDoc("previousPapers", id, { ...data, isFree, price });
+      }}
       onDelete={(id) => adminDeleteDoc("previousPapers", id)}
     />
   );
@@ -3889,7 +3893,11 @@ function NotesAdmin() {
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
         return adminAddDoc("notes", { ...data, isFree, price });
       }}
-      onUpdate={(id, data) => adminUpdateDoc("notes", id, data)}
+      onUpdate={(id, data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminUpdateDoc("notes", id, { ...data, isFree, price });
+      }}
       onDelete={(id) => adminDeleteDoc("notes", id)}
     />
   );
