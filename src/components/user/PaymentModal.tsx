@@ -85,6 +85,10 @@ export default function PaymentModal() {
       }
 
       // Step 2: Open Razorpay checkout with FULL UPI support
+      // IMPORTANT: Razorpay Checkout v1 doesn't support 'method' in options.
+      // Payment methods are controlled by Razorpay Dashboard + order creation API.
+      // We pass 'method' in server-side razorpay.orders.create() instead.
+      // The checkout.js reads the order's allowed methods from the server.
       const options: any = {
         key: order.keyId,
         amount: order.amount,
@@ -93,33 +97,60 @@ export default function PaymentModal() {
         description: paymentModalData.planName,
         image: "/logo.png",
         order_id: order.orderId,
-        // Razorpay Checkout v1 — payment methods are controlled by Dashboard settings
-        // But we can force-show UPI via the "method" property (supported in newer v1 builds)
-        // Also adding "_[integrator]" for UPI apps
-        _: {
-          "integration": "custom_sdk",
-          "integration_version": "1.0.0",
+        // Prefill user details
+        prefill: {
+          name: user.name || "",
+          email: user.email || "",
+          contact: (user as any)?.phone || firebaseUser?.phoneNumber || "",
         },
-        // This tells Razorpay to show UPI apps (GPay, PhonePe, BHIM, Paytm, etc.)
-        "external.upi.apps": [
-          "google_pay", "phonepe", "paytm", "bhim", "amazon_pay",
-          "mobikwik", "freecharge", "bhim_upi", "slice"
-        ],
-        // Show all payment methods — UPI, Cards, Netbanking, Wallets
-        method: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-          emi: false,
-          paylater: false,
+        notes: {
+          userId: firebaseUser.uid,
+          planId: paymentModalData.planId,
         },
-        // UPI configuration — use "intent" on mobile, "collect" in WebView
+        theme: {
+          color: "#1e3a5f",
+        },
+        // UPI configuration
+        // "collect" = user enters UPI ID, gets push notification on UPI app
+        // "intent" = opens UPI app directly (only works in browser, NOT WebView)
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay by UPI",
+                instruments: [
+                  { method: "upi", apps: ["google_pay", "phonepe", "paytm", "bhim", "amazon_pay"] },
+                ],
+              },
+              cards: {
+                name: "Cards",
+                instruments: [
+                  { method: "card", banks: [] },
+                ],
+              },
+              netbanking: {
+                name: "Net Banking",
+                instruments: [
+                  { method: "netbanking", banks: ["icici", "hdfc", "sbi", "axis", "kotak"] },
+                ],
+              },
+              wallets: {
+                name: "Wallets",
+                instruments: [
+                  { method: "wallet", wallets: ["paytm", "amazonpay", "phonepe", "freecharge", "mobikwik"] },
+                ],
+              },
+            },
+            sequence: ["block.upi", "block.cards", "block.netbanking", "block.wallets"],
+            preferences: {
+              show_default_blocks: false,
+            },
+          },
+        },
+        // UPI flow — use "intent" on mobile browser, "collect" in Android WebView
         upi: {
           flow: typeof window !== "undefined" && /wv/.test(navigator.userAgent) ? "collect" : "intent",
         },
-        // Wallets to show
-        wallets: ["paytm", "amazonpay", "phonepe", "freecharge", "mobikwik", "olamoney"],
         handler: async function (response: any) {
           // Step 3: Verify payment on server
           try {
