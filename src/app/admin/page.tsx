@@ -1641,8 +1641,19 @@ function MockTestsAdmin() {
         { key: "imageUrl", label: "Thumbnail Image", type: "image" },
       ]}
       fetchData={() => adminGetCollection("mockTests")}
-      onAdd={async (data) => adminAddDoc("mockTests", { ...data, attempts: 0, rating: 0 })}
-      onUpdate={(id, data) => adminUpdateDoc("mockTests", id, data)}
+      onAdd={async (data) => {
+        // Derive isFree from accessType so legacy code works
+        const isFree = data.accessType !== "premium";
+        // Premium items must have a price — default to ₹49 if not set
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminAddDoc("mockTests", { ...data, isFree, price, attempts: 0, rating: 0 });
+      }}
+      onUpdate={(id, data) => {
+        // Derive isFree from accessType on update too
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminUpdateDoc("mockTests", id, { ...data, isFree, price });
+      }}
       onDelete={(id) => adminDeleteDoc("mockTests", id)}
     />
   );
@@ -2623,8 +2634,16 @@ function TestSeriesAdmin() {
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("testSeries")}
-      onAdd={(data) => adminAddDoc("testSeries", data)}
-      onUpdate={(id, data) => adminUpdateDoc("testSeries", id, data)}
+      onAdd={(data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminAddDoc("testSeries", { ...data, isFree, price });
+      }}
+      onUpdate={(id, data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminUpdateDoc("testSeries", id, { ...data, isFree, price });
+      }}
       onDelete={(id) => adminDeleteDoc("testSeries", id)}
     />
   );
@@ -3824,7 +3843,11 @@ function PreviousPapersAdmin() {
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("previousPapers")}
-      onAdd={(data) => adminAddDoc("previousPapers", data)}
+      onAdd={(data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminAddDoc("previousPapers", { ...data, isFree, price });
+      }}
       onUpdate={(id, data) => adminUpdateDoc("previousPapers", id, data)}
       onDelete={(id) => adminDeleteDoc("previousPapers", id)}
     />
@@ -3861,7 +3884,11 @@ function NotesAdmin() {
         { key: "imageUrl", label: "Thumbnail", type: "image" },
       ]}
       fetchData={() => adminGetCollection("notes")}
-      onAdd={(data) => adminAddDoc("notes", data)}
+      onAdd={(data) => {
+        const isFree = data.accessType !== "premium";
+        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        return adminAddDoc("notes", { ...data, isFree, price });
+      }}
       onUpdate={(id, data) => adminUpdateDoc("notes", id, data)}
       onDelete={(id) => adminDeleteDoc("notes", id)}
     />
