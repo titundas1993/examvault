@@ -5533,6 +5533,9 @@ function CouponsAdmin() {
     <CrudAdminPanel
       title="Coupon Codes"
       subtitle="Create discount coupons for users"
+      icon={Tag}
+      color="from-amber-500 to-orange-600"
+      collectionName="coupons"
       fields={fields}
       fetchData={() => adminGetCollection("coupons")}
       onAdd={(data) => adminAddDoc("coupons", { ...data, code: (data.code || "").toUpperCase(), usedCount: 0 })}
@@ -5561,6 +5564,9 @@ function PushNotificationsAdmin() {
     <CrudAdminPanel
       title="Push Notifications"
       subtitle="Send in-app notifications to users"
+      icon={Bell}
+      color="from-violet-500 to-purple-600"
+      collectionName="appNotifications"
       fields={fields}
       fetchData={() => adminGetCollection("appNotifications")}
       onAdd={(data) => adminAddDoc("appNotifications", { ...data })}
