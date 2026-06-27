@@ -293,16 +293,15 @@ function Header() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {subscription.isPremium && (
+            {(subscription.isPremium || (subscription.purchasedItemIds?.length > 0)) ? (
               <button onClick={() => setView("pricing")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ev-gold-light text-ev-gold text-xs font-bold">
                 <Crown className="w-3 h-3" /> PRO
               </button>
-            )}
-            {!subscription.isPremium && user?.role !== "guest" && (
+            ) : user?.role !== "guest" ? (
               <button onClick={() => setView("pricing")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ev-gold-light text-ev-gold text-xs font-bold animate-pulse">
                 <Crown className="w-3 h-3" /> Upgrade
               </button>
-            )}
+            ) : null}
             <select value={language} onChange={e => setLanguage(e.target.value)} className="text-xs bg-gray-100 rounded-lg px-2 py-1.5 border-0 focus:outline-none font-medium text-ev-navy">
               <option value="en">EN</option>
               <option value="hi">हि</option>
@@ -3126,10 +3125,10 @@ function ExamVaultAppInner() {
   useEffect(() => {
     // Update premium flag for native ad logic
     const sub = useAppStore.getState().subscription;
-    (window as any).__EV_PREMIUM = sub?.isPremium === true;
+    // No ads for: subscription users OR anyone who bought something
+    (window as any).__EV_PREMIUM = sub?.isPremium === true || (sub?.purchasedItemIds?.length > 0);
 
     // Smart ad trigger: only on action completion views
-    // These are views user reaches AFTER doing something meaningful
     if (_isAndroidWebView && (window as any).AndroidBridge?.onActionComplete) {
       const actionType = getAdTriggerAction(currentView);
       if (actionType) {
@@ -3138,7 +3137,7 @@ function ExamVaultAppInner() {
         } catch (e) { /* silently fail */ }
       }
     }
-  }, [currentView, subscription.isPremium]);
+  }, [currentView, subscription.isPremium, subscription.purchasedItemIds]);
 
   // Maps views to ad trigger actions — null means "don't trigger ad"
   function getAdTriggerAction(view: string): string | null {

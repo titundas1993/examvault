@@ -94,22 +94,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get purchased items
+    // Get purchased items — only filter by userId (avoids composite index requirement)
     const purchaseSnapshot = await db
       .collection("purchases")
       .where("userId", "==", userId)
-      .where("status", "==", "active")
       .get();
 
-    const purchasedItems = purchaseSnapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: data.id,
-        itemId: data.itemId,
-        itemType: data.itemType,
-        itemName: data.itemName,
-      };
-    });
+    const purchasedItems = purchaseSnapshot.docs
+      .map((doc: any) => {
+        const data = doc.data();
+        return {
+          id: data.id,
+          itemId: data.itemId,
+          itemType: data.itemType,
+          itemName: data.itemName,
+          status: data.status,
+        };
+      })
+      .filter((item: any) => item.status === "active");
 
     // isPremium is ONLY true for subscription users (access to ALL content)
     // One-time purchase = access to THAT specific item only

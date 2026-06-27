@@ -2156,22 +2156,24 @@ async function checkSubscriptionClientSide(userId: string) {
       }
     }
 
-    // Check purchased items
+    // Check purchased items — only filter by userId (avoids composite index)
     const purchaseQ = query(
       collection(db, "purchases"),
-      where("userId", "==", userId),
-      where("status", "==", "active")
+      where("userId", "==", userId)
     );
     const purchaseSnap = await getDocs(purchaseQ);
-    const purchasedItems = purchaseSnap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        itemId: data.itemId,
-        itemType: data.itemType,
-        itemName: data.itemName,
-      };
-    });
+    const purchasedItems = purchaseSnap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          itemId: data.itemId,
+          itemType: data.itemType,
+          itemName: data.itemName,
+          status: data.status,
+        };
+      })
+      .filter((item: any) => item.status === "active");
 
     // isPremium is ONLY true for subscription users (access to ALL content)
     // One-time purchase = access to THAT specific item only

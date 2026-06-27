@@ -176,7 +176,8 @@ export default function SettingsTab() {
 
   const subscription = useAppStore((s) => s.subscription);
   const isGuest = !user || user.role === "guest";
-  const isPremium = user?.role === "admin" || subscription.isPremium;
+  // PRO badge: subscription OR any purchase = no ads, premium experience
+  const isPremium = user?.role === "admin" || subscription.isPremium || (subscription.purchasedItemIds?.length > 0);
 
   const handleSaveProfile = async () => {
     if (!firebaseUser?.uid) return;
