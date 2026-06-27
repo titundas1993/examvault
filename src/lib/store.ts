@@ -7,7 +7,8 @@ export type AppView =
   | "previous-papers" | "notes" | "profile" | "settings" | "support"
   | "test-info" | "exam" | "result" | "leaderboard" | "pricing"
   | "upcoming-exams" | "upcoming-exam-detail" | "daily-tips" | "daily-tip-detail"
-  | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail";
+  | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail"
+  | "my-purchases";
 
 // Test source collection type — tells ExamPage which collection to query
 export type TestSourceType = "mockTest" | "freeTest" | "dailyQuiz" | "testSeries" | "popularTest";
