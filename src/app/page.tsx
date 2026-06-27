@@ -2057,6 +2057,25 @@ function ProfileTab() {
           </button>
         )}
 
+        {/* Performance Analytics Button */}
+        {user?.role !== "guest" && (
+          <button
+            onClick={() => setView("performance")}
+            className="w-full mt-4 p-4 bg-gradient-to-r from-ev-navy to-blue-800 rounded-2xl text-white text-left shadow-lg active:scale-[0.98] transition-transform"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-ev-gold" />
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm">{t("performanceAnalytics", lang)}</p>
+                <p className="text-xs text-white/60">{t("viewDetailedStats", lang)}</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-white/60" />
+            </div>
+          </button>
+        )}
+
         {/* Test History Section */}
         {user?.role !== "guest" && (
           <div className="mt-6">
@@ -2064,8 +2083,8 @@ function ProfileTab() {
               <div className="w-8 h-8 rounded-lg bg-ev-orange/10 flex items-center justify-center">
                 <Trophy className="w-4 h-4 text-ev-orange" />
               </div>
-              <h3 className="text-sm font-bold text-ev-navy">Test History</h3>
-              <span className="text-xs text-gray-400 ml-auto">{testHistory.length} tests</span>
+              <h3 className="text-sm font-bold text-ev-navy">{t("testHistory", lang)}</h3>
+              <span className="text-xs text-gray-400 ml-auto">{testHistory.length} {t("tests", lang)}</span>
             </div>
             {loadingHistory ? (
               <div className="flex items-center justify-center py-6">
@@ -3233,6 +3252,268 @@ function MyPurchasesScreen() {
   );
 }
 
+// ==================== PERFORMANCE ANALYTICS SCREEN ====================
+// Shows topic-wise strength/weakness, test history, progress charts
+function PerformanceAnalyticsScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const lang = useAppStore(s => s.language);
+  const firebaseUser = useAppStore(s => s.firebaseUser);
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchResults() {
+      if (!firebaseUser?.uid) { setLoading(false); return; }
+      try {
+        const data = await getUserTestResults(firebaseUser.uid);
+        setResults(data as any[]);
+      } catch (e) {
+        console.error("Error fetching test results:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchResults();
+  }, [firebaseUser?.uid]);
+
+  // Calculate stats
+  const totalTests = results.length;
+  const avgScore = totalTests > 0
+    ? Math.round(results.reduce((sum, r) => sum + (r.scoredMarks || 0), 0) / totalTests)
+    : 0;
+  const avgAccuracy = totalTests > 0
+    ? Math.round(results.reduce((sum, r) => sum + (r.accuracy || 0), 0) / totalTests)
+    : 0;
+  const bestScore = totalTests > 0
+    ? Math.max(...results.map(r => r.scoredMarks || 0))
+    : 0;
+  const totalCorrect = results.reduce((sum, r) => sum + (r.correctAnswers || 0), 0);
+  const totalWrong = results.reduce((sum, r) => sum + (r.wrongAnswers || 0), 0);
+  const totalSkipped = results.reduce((sum, r) => sum + (r.skipped || 0), 0);
+  const totalTime = results.reduce((sum, r) => sum + (r.timeUsedSeconds || 0), 0);
+
+  // Category-wise analysis
+  const categoryStats: Record<string, { tests: number; totalAccuracy: number; totalScore: number; count: number }> = {};
+  results.forEach(r => {
+    const cat = r.testCategory || "Uncategorized";
+    if (!categoryStats[cat]) {
+      categoryStats[cat] = { tests: 0, totalAccuracy: 0, totalScore: 0, count: 0 };
+    }
+    categoryStats[cat].tests++;
+    categoryStats[cat].totalAccuracy += r.accuracy || 0;
+    categoryStats[cat].totalScore += r.scoredMarks || 0;
+    categoryStats[cat].count++;
+  });
+
+  const categoryList = Object.entries(categoryStats).map(([cat, stats]) => ({
+    category: cat,
+    tests: stats.tests,
+    avgAccuracy: Math.round(stats.totalAccuracy / stats.count),
+    avgScore: Math.round(stats.totalScore / stats.count),
+  })).sort((a, b) => b.avgAccuracy - a.avgAccuracy);
+
+  // Strengths (top 3 categories by accuracy)
+  const strengths = categoryList.slice(0, 3);
+  // Weaknesses (bottom 3 categories by accuracy)
+  const weaknesses = categoryList.slice(-3).reverse();
+
+  // Format time
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    return `${mins}m`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-ev-orange" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-ev-navy to-blue-800 p-5 pt-6">
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10">
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-white font-bold text-lg flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-ev-gold" />
+              {t("performanceAnalytics", lang)}
+            </h1>
+            <p className="text-white/60 text-xs">{t("yourProgress", lang)}</p>
+          </div>
+        </div>
+      </div>
+
+      {totalTests === 0 ? (
+        <div className="p-6 text-center">
+          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <TrendingUp className="w-10 h-10 text-gray-300" />
+          </div>
+          <h3 className="font-bold text-ev-navy mb-2">{t("noDataYet", lang)}</h3>
+          <p className="text-gray-500 text-sm mb-4">{t("takeFirstTest", lang)}</p>
+          <button
+            onClick={() => setView("mocktests")}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-sm shadow-lg"
+          >
+            {t("browseMockTests", lang)}
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 space-y-4">
+          {/* Overview Stats */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Award className="w-4 h-4 text-ev-orange" />
+                <p className="text-xs text-gray-500">{t("totalTests", lang)}</p>
+              </div>
+              <p className="text-2xl font-black text-ev-navy">{totalTests}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="w-4 h-4 text-ev-green" />
+                <p className="text-xs text-gray-500">{t("avgAccuracy", lang)}</p>
+              </div>
+              <p className="text-2xl font-black text-ev-navy">{avgAccuracy}%</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Star className="w-4 h-4 text-ev-gold" />
+                <p className="text-xs text-gray-500">{t("bestScore", lang)}</p>
+              </div>
+              <p className="text-2xl font-black text-ev-navy">{bestScore}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-blue-500" />
+                <p className="text-xs text-gray-500">{t("totalTime", lang)}</p>
+              </div>
+              <p className="text-2xl font-black text-ev-navy">{formatTime(totalTime)}</p>
+            </div>
+          </div>
+
+          {/* Answer Distribution */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-ev-navy text-sm mb-3 flex items-center gap-2">
+              <Brain className="w-4 h-4 text-ev-orange" />
+              {t("answerDistribution", lang)}
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-ev-green" /> {t("correct", lang)}
+                </span>
+                <span className="text-xs font-bold text-ev-navy">{totalCorrect}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-ev-green h-2 rounded-full" style={{ width: `${(totalCorrect / (totalCorrect + totalWrong + totalSkipped)) * 100}%` }} />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <X className="w-3 h-3 text-ev-red" /> {t("wrong", lang)}
+                </span>
+                <span className="text-xs font-bold text-ev-navy">{totalWrong}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-ev-red h-2 rounded-full" style={{ width: `${(totalWrong / (totalCorrect + totalWrong + totalSkipped)) * 100}%` }} />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <SkipForward className="w-3 h-3 text-gray-400" /> {t("skipped", lang)}
+                </span>
+                <span className="text-xs font-bold text-ev-navy">{totalSkipped}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-gray-400 h-2 rounded-full" style={{ width: `${(totalSkipped / (totalCorrect + totalWrong + totalSkipped)) * 100}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Strengths */}
+          {strengths.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <h3 className="font-bold text-ev-navy text-sm mb-3 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-ev-green" />
+                {t("yourStrengths", lang)}
+              </h3>
+              <div className="space-y-2">
+                {strengths.map((s, idx) => (
+                  <div key={s.category} className="flex items-center justify-between p-2 bg-ev-green/5 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-ev-green text-white text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                      <span className="text-sm font-medium text-ev-navy">{s.category}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-ev-green">{s.avgAccuracy}%</span>
+                      <p className="text-[10px] text-gray-500">{s.tests} {t("tests", lang)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Weaknesses */}
+          {weaknesses.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <h3 className="font-bold text-ev-navy text-sm mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-ev-orange" />
+                {t("needsImprovement", lang)}
+              </h3>
+              <div className="space-y-2">
+                {weaknesses.map((w, idx) => (
+                  <div key={w.category} className="flex items-center justify-between p-2 bg-ev-orange/5 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-ev-orange text-white text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                      <span className="text-sm font-medium text-ev-navy">{w.category}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-ev-orange">{w.avgAccuracy}%</span>
+                      <p className="text-[10px] text-gray-500">{w.tests} {t("tests", lang)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Tests */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-ev-navy text-sm mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-ev-navy" />
+              {t("recentTests", lang)}
+            </h3>
+            <div className="space-y-2">
+              {results.slice(0, 5).map((r: any) => (
+                <div key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-xl">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ev-navy truncate">{r.testTitle}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {r.testCategory} • {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "N/A"}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-ev-navy">{r.scoredMarks}/{r.totalMarks}</p>
+                    <p className="text-[10px] text-gray-500">{r.accuracy}% {t("accuracy", lang)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==================== BOTTOM NAV ====================
 function BottomNav() {
   const { currentView, setView, navigationItems, user } = useAppStore();
@@ -3650,6 +3931,7 @@ function ExamVaultAppInner() {
           {currentView === "notifications" && <NotificationPanel open={true} onClose={() => useAppStore.getState().setView("home")} />}
           {currentView === "pricing" && <PricingPage />}
           {currentView === "my-purchases" && <MyPurchasesScreen />}
+          {currentView === "performance" && <PerformanceAnalyticsScreen />}
         </motion.div>
       </AnimatePresence>
       <BottomNav />
