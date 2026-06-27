@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
+import { t } from "@/lib/i18n";
 import { createPaymentOrder, verifyPayment, checkSubscriptionStatus } from "@/lib/services/firestore";
 import { db } from "@/lib/firebase";
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
@@ -52,6 +53,7 @@ export default function PaymentModal() {
     setSubscription,
     setView,
   } = useAppStore();
+  const lang = useAppStore((s) => s.language);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -493,8 +495,8 @@ export default function PaymentModal() {
                 <Crown className="w-6 h-6 text-ev-gold" />
               </div>
               <div>
-                <h3 className="text-white font-bold text-lg">Premium Access</h3>
-                <p className="text-white/60 text-xs">Unlock all features</p>
+                <h3 className="text-white font-bold text-lg">{t("premiumAccess", lang)}</h3>
+                <p className="text-white/60 text-xs">{t("unlockAllFeatures", lang)}</p>
               </div>
             </div>
           </div>
@@ -513,7 +515,7 @@ export default function PaymentModal() {
                   </div>
                 </motion.div>
                 <h4 className="text-xl font-black text-ev-navy mb-2">
-                  Payment Successful!
+                  {t("paymentSuccessful", lang)}
                 </h4>
                 <p className="text-gray-500 text-sm">
                   You now have premium access. Enjoy!

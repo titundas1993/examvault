@@ -186,8 +186,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     }
   },
-  language: "en",
-  setLanguage: (lang) => set({ language: lang }),
+  language: typeof window !== "undefined" ? (localStorage.getItem("ev_language") || "en") : "en",
+  setLanguage: (lang) => {
+    set({ language: lang });
+    try { localStorage.setItem("ev_language", lang); } catch (e) { /* ignore */ }
+  },
   selectedTest: null,
   setSelectedTest: (id) => set({ selectedTest: id }),
   selectedTestType: null,

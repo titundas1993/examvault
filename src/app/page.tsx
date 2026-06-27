@@ -2403,14 +2403,14 @@ function TestInfoScreen() {
                 disabled={!selectedSubTest}
                 className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${selectedSubTest ? "bg-gradient-to-r from-ev-orange to-ev-gold text-white shadow-ev-orange/30 active:scale-[0.98]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
               >
-                <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+                <Zap className="w-5 h-5" /> {t("startTestBtn", lang)}
               </button>
             ) : (
               <button
                 onClick={handleStartTest}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
-                <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
+                <ShoppingCart className="w-5 h-5" /> {t("buy", lang)} — ₹{testData.price}
               </button>
             )}
           </div>
@@ -2419,19 +2419,19 @@ function TestInfoScreen() {
             onClick={() => setView("exam")}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
-            <Zap className="w-5 h-5" /> {lang === "bn" ? "টেস্ট শুরু করুন" : "Start Test"}
+            <Zap className="w-5 h-5" /> {t("startTestBtn", lang)}
           </button>
         ) : (
           <button
             onClick={handleStartTest}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-lg shadow-lg shadow-ev-orange/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
-            <ShoppingCart className="w-5 h-5" /> {lang === "bn" ? `কিনুন — ₹${testData.price}` : `Buy — ₹${testData.price}`}
+            <ShoppingCart className="w-5 h-5" /> {t("buy", lang)} — ₹{testData.price}
           </button>
         )}
         {!hasAccess && !user && (
           <p className="text-center text-xs text-gray-500 mt-2">
-            {lang === "bn" ? "অ্যাক্সেস করতে লগইন করুন" : "Please login to access"}
+            {t("pleaseLoginToAccess", lang)}
           </p>
         )}
       </div>
@@ -2940,8 +2940,8 @@ function ExamPage() {
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-4">
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3"><AlertTriangle className="w-8 h-8 text-red-500" /></div>
-              <h3 className="text-xl font-black text-ev-navy">{lang === "bn" ? "টেস্ট ছেড়ে যাবেন?" : "Leave Test?"}</h3>
-              <p className="text-gray-500 text-sm mt-1">{lang === "bn" ? "আপনার প্রগ্রেস হারিয়ে যাবে!" : "Your progress will be lost!"}</p>
+              <h3 className="text-xl font-black text-ev-navy">{t("examOver", lang)}</h3>
+              <p className="text-gray-500 text-sm mt-1">{t("examWarning", lang)}</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-3 mb-4">
               <p className="text-xs text-amber-700 font-medium text-center">
@@ -2951,8 +2951,8 @@ function ExamPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setExamBackWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{lang === "bn" ? "টেস্ট চালিয়ে যান" : "Continue Test"}</button>
-              <button onClick={() => { setExamBackWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{lang === "bn" ? "হ্যাঁ, যান" : "Yes, Leave"}</button>
+              <button onClick={() => setExamBackWarning(false)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold shadow-lg text-sm">{t("continueTest", lang)}</button>
+              <button onClick={() => { setExamBackWarning(false); goBack(); }} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm">{t("leave", lang)}</button>
             </div>
           </div>
         </div>

@@ -522,9 +522,9 @@ export default function SettingsTab() {
                 <CreditCard className="w-4 h-4 text-ev-green" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium text-ev-navy dark:text-white">Payment History</p>
+                <p className="text-sm font-medium text-ev-navy dark:text-white">{t("paymentHistory", language)}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {payments.length > 0 ? `${payments.length} transaction(s)` : "No transactions yet"}
+                  {payments.length > 0 ? `${payments.length} ${t("transaction", language)}` : t("noTransactions", language)}
                 </p>
               </div>
             </div>
@@ -542,7 +542,7 @@ export default function SettingsTab() {
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : payments.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No payment history found</p>
+                <p className="text-xs text-muted-foreground text-center py-4">{t("noPaymentHistory", language)}</p>
               ) : (
                 payments.map((payment) => (
                   <div
@@ -597,8 +597,8 @@ export default function SettingsTab() {
                   <KeyRound className="w-4 h-4 text-ev-orange" />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-medium text-ev-navy dark:text-white">Reset Password</p>
-                  <p className="text-[11px] text-muted-foreground">Get a password reset link on your email</p>
+                  <p className="text-sm font-medium text-ev-navy dark:text-white">{t("resetPassword", language)}</p>
+                  <p className="text-[11px] text-muted-foreground">{t("getResetLink", language)}</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -773,17 +773,17 @@ export default function SettingsTab() {
                 className="w-full h-11 text-ev-red/70 hover:text-ev-red hover:bg-ev-red/10 rounded-xl"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Account
+                {t("deleteAccount", language)}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-ev-red" />
-                  Delete Account?
+                  {t("deleteAccountTitle", language)}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+                  {t("deleteAccountWarning", language)}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -796,10 +796,10 @@ export default function SettingsTab() {
                   {deletingAccount ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Deleting...
+                      {t("deleting", language)}
                     </>
                   ) : (
-                    "Delete Forever"
+                    t("deleteForever", language)
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -814,15 +814,15 @@ export default function SettingsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="w-5 h-5 text-ev-orange" />
-              Reset Password
+              {t("resetPassword", language)}
             </DialogTitle>
             <DialogDescription>
-              We will send a password reset link to your registered email address. Click the link in the email to set a new password.
+              {t("resetPasswordDesc", language)}
             </DialogDescription>
           </DialogHeader>
           <div className="bg-ev-orange/5 border border-ev-orange/20 rounded-xl p-3 my-2">
             <p className="text-xs text-ev-navy">
-              📧 Reset email will be sent to: <span className="font-semibold">{user?.email || "your email"}</span>
+              📧 {t("resetEmailWillBeSent", language)}: <span className="font-semibold">{user?.email || "your email"}</span>
             </p>
           </div>
           {passwordError && (
@@ -841,7 +841,7 @@ export default function SettingsTab() {
               disabled={passwordLoading}
               className="bg-ev-navy hover:bg-ev-dark text-white rounded-xl"
             >
-              {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Reset Email"}
+              {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("sendResetEmail", language)}
             </Button>
           </DialogFooter>
         </DialogContent>

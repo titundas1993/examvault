@@ -366,17 +366,17 @@ export default function LoginScreen() {
                 : mode === "register"
                 ? t("welcome", language)
                 : mode === "forgot"
-                ? "Reset Password"
-                : "Phone Login"}
+                ? t("resetPassword", language)
+                : t("phoneLogin", language)}
             </h1>
             <p className="text-white/60 text-sm">
               {mode === "login"
                 ? t("startLearning", language)
                 : mode === "register"
-                ? "Create your account to get started"
+                ? t("createAccount", language)
                 : mode === "forgot"
-                ? "Enter your email to reset password"
-                : "Login with your phone number"}
+                ? t("enterEmailToReset", language)
+                : t("loginWithPhone", language)}
             </p>
           </motion.div>
         </div>
@@ -500,7 +500,7 @@ export default function LoginScreen() {
                       <div className="w-16 h-16 rounded-full bg-ev-orange-light dark:bg-ev-orange/15 flex items-center justify-center mx-auto mb-3">
                         <Phone className="w-8 h-8 text-ev-orange" />
                       </div>
-                      <p className="text-sm text-muted-foreground">Enter your mobile number to receive OTP</p>
+                      <p className="text-sm text-muted-foreground">{t("enterMobileNumber", language)}</p>
                     </div>
                     <InputField
                       icon={<Phone className="w-5 h-5 text-muted-foreground" />}
@@ -512,7 +512,7 @@ export default function LoginScreen() {
                     <SubmitButton
                       onClick={handleSendOTP}
                       loading={loading}
-                      text="Send OTP"
+                      text={t("sendOTP", language)}
                     />
                   </>
                 ) : showNameStep ? (
@@ -544,7 +544,7 @@ export default function LoginScreen() {
                         <KeyRound className="w-8 h-8 text-ev-orange" />
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Enter the 6-digit code sent to
+                        {t("enterOTPCode", language)}
                       </p>
                       <p className="text-base font-bold text-ev-navy dark:text-white">+91 {phone}</p>
                     </div>
@@ -563,7 +563,7 @@ export default function LoginScreen() {
                     <SubmitButton
                       onClick={handleVerifyOTP}
                       loading={loading}
-                      text="Verify OTP"
+                      text={t("verifyOTP", language)}
                     />
                     {/* Resend OTP */}
                     <div className="text-center mt-5">
