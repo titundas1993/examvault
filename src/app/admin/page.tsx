@@ -70,7 +70,8 @@ type AdminView =
   | "banners" | "announcements" | "upcoming-exams" | "daily-tips"
   | "notifications" | "previous-papers" | "notes" | "free-tests"
   | "daily-quiz" | "popular-tests" | "support" | "users" | "settings"
-  | "bulk-import" | "categories" | "plans" | "payments" | "navigation";
+  | "bulk-import" | "categories" | "plans" | "payments" | "navigation"
+  | "coupons" | "push-notifications";
 
 // Dynamic categories — loaded from Firestore, with defaults as fallback
 // These are mutable so all admin components see updated categories

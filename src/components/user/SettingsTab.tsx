@@ -187,13 +187,23 @@ export default function SettingsTab() {
 
   // Load referral code
   useEffect(() => {
-    if (!firebaseUser?.uid || !user?.name) return;
-    getOrCreateReferral(firebaseUser.uid, user.name).then(ref => {
+    if (!firebaseUser?.uid) return;
+    const userName = user?.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User";
+    getOrCreateReferral(firebaseUser.uid, userName).then(ref => {
       if (ref) {
         setReferralCode(ref.referralCode);
         setReferralCount(ref.referredUsers?.length || 0);
+      } else {
+        // Fallback: generate code locally if Firestore write fails
+        const suffix = firebaseUser.uid.replace(/[^a-zA-Z0-9]/g, "").substring(0, 6).toUpperCase();
+        setReferralCode(`EV${suffix}`);
       }
-    }).catch(console.error);
+    }).catch((err) => {
+      console.error("Referral error:", err);
+      // Fallback: generate code locally
+      const suffix = firebaseUser.uid.replace(/[^a-zA-Z0-9]/g, "").substring(0, 6).toUpperCase();
+      setReferralCode(`EV${suffix}`);
+    });
   }, [firebaseUser?.uid, user?.name]);
 
   const subscription = useAppStore((s) => s.subscription);
