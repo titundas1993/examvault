@@ -104,6 +104,17 @@ jobs:
           plugins {
               id 'com.android.application' version '8.7.3' apply false
           }
+          // Force consistent Kotlin stdlib version to avoid duplicate class errors
+          // Razorpay brings kotlin-stdlib-jdk7 which conflicts with kotlin-stdlib from AdMob
+          subprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+                  }
+              }
+          }
           EOF
 
           # build.gradle (app) — with release signing config + AdMob
