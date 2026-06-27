@@ -1013,6 +1013,7 @@ function HomeTab() {
 function MockTestsTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
+  const subscription = useAppStore(s => s.subscription);
   const [filter, setFilter] = useState("All");
   const [tests, setTests] = useState<any[]>([]);
   const requireAuth = useRequireAuth();
@@ -1093,6 +1094,7 @@ function MockTestsTab() {
 function TestSeriesTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
+  const subscription = useAppStore(s => s.subscription);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [series, setSeries] = useState<any[]>([]);
@@ -1328,6 +1330,7 @@ function FreeQuizzesTab() {
 function PreviousPapersTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
+  const subscription = useAppStore(s => s.subscription);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [papers, setPapers] = useState<any[]>([]);
@@ -1593,6 +1596,7 @@ function PreviousPaperDetail() {
 function NotesTab() {
   const { setView } = useAppStore();
   const lang = useAppStore(s => s.language);
+  const subscription = useAppStore(s => s.subscription);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
   const [notesData, setNotesData] = useState<any[]>([]);
