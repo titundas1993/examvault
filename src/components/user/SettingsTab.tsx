@@ -73,6 +73,19 @@ interface PaymentRecord {
   method: string;
   createdAt: string;
   planName?: string;
+  type?: string;
+}
+
+function formatPaymentMethod(method: string): string {
+  const methods: Record<string, string> = {
+    upi: "UPI",
+    card: "Card",
+    netbanking: "Net Banking",
+    wallet: "Wallet",
+    emi: "EMI",
+    cardless_emi: "Cardless EMI",
+  };
+  return methods[method?.toLowerCase()] || method || "N/A";
 }
 
 export default function SettingsTab() {
@@ -132,7 +145,7 @@ export default function SettingsTab() {
       try {
         const q = query(
           collection(db, "payments"),
-          where("uid", "==", firebaseUser.uid),
+          where("userId", "==", firebaseUser.uid),
           orderBy("createdAt", "desc")
         );
         const snapshot = await getDocs(q);
@@ -147,6 +160,7 @@ export default function SettingsTab() {
             method: data.method || data.paymentMethod || "N/A",
             createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || "",
             planName: data.planName || data.description || "",
+            type: data.type || "",
           });
         });
         setPayments(records);
@@ -159,8 +173,9 @@ export default function SettingsTab() {
     loadPayments();
   }, [firebaseUser?.uid]);
 
+  const subscription = useAppStore((s) => s.subscription);
   const isGuest = !user || user.role === "guest";
-  const isPremium = user?.role === "admin" || (appSettings as any)?.isPremium;
+  const isPremium = user?.role === "admin" || subscription.isPremium;
 
   const handleSaveProfile = async () => {
     if (!firebaseUser?.uid) return;
@@ -445,7 +460,7 @@ export default function SettingsTab() {
                         {payment.planName || "Subscription"}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {formatDate(payment.createdAt)} | {payment.method}
+                        {formatDate(payment.createdAt)} | {formatPaymentMethod(payment.method)}
                       </p>
                     </div>
                     <div className="text-right">

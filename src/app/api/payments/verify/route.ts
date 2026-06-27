@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
     // Method 2: Server-side verification via Razorpay API (native SDK flow)
     // When signature is not available (e.g. Razorpay native Android SDK),
     // fetch the payment & order from Razorpay API to verify
+    let paymentMethod = ""; // Store payment method from API
     if (!isVerified) {
       try {
         const keyId = process.env.RAZORPAY_KEY_ID || "";
@@ -110,23 +111,24 @@ export async function POST(req: NextRequest) {
         );
 
         if (paymentRes.ok) {
-          const paymentData = await paymentRes.json();
+          const paymentApiData = await paymentRes.json();
+          paymentMethod = paymentApiData.method || ""; // e.g. "upi", "card", "netbanking"
           console.log("Razorpay payment API response:", JSON.stringify({
-            status: paymentData.status,
-            order_id: paymentData.order_id,
-            amount: paymentData.amount,
-            method: paymentData.method,
+            status: paymentApiData.status,
+            order_id: paymentApiData.order_id,
+            amount: paymentApiData.amount,
+            method: paymentApiData.method,
           }));
 
           // Verify: payment order_id matches our order, and payment is in valid state
-          const orderMatches = paymentData.order_id === razorpay_order_id;
-          const isValidStatus = ["captured", "authorized", "refunded"].includes(paymentData.status);
+          const orderMatches = paymentApiData.order_id === razorpay_order_id;
+          const isValidStatus = ["captured", "authorized", "refunded"].includes(paymentApiData.status);
 
           if (orderMatches && isValidStatus) {
             isVerified = true;
-            console.log("Payment verified via Razorpay API! Status:", paymentData.status, "Order match:", orderMatches);
+            console.log("Payment verified via Razorpay API! Status:", paymentApiData.status, "Method:", paymentMethod);
           } else {
-            console.warn("Payment verification failed via API. Order match:", orderMatches, "Status:", paymentData.status);
+            console.warn("Payment verification failed via API. Order match:", orderMatches, "Status:", paymentApiData.status);
           }
         } else {
           const errText = await paymentRes.text().catch(() => "");
@@ -187,6 +189,7 @@ export async function POST(req: NextRequest) {
         amount,
         currency: "INR",
         type: type || "one_time",
+        method: paymentMethod || "N/A",
         status: "captured",
         verified: true,
         createdAt: new Date().toISOString(),
