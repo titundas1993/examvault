@@ -146,19 +146,46 @@ export default function PaymentModal() {
             }
           }
 
-          // Update subscription state
+          // Update subscription state — always set isPremium for subscription type
+          // For one_time purchases, add to purchasedItemIds
+          const storeUpdates: any = {};
+
           if (verification.premiumExpiry) {
-            setSubscription({
-              isPremium: true,
-              premiumExpiry: verification.premiumExpiry,
-              planName: verification.planName || planName,
-            });
+            storeUpdates.isPremium = true;
+            storeUpdates.premiumExpiry = verification.premiumExpiry;
+            storeUpdates.planName = verification.planName || planName;
+          } else if (type === "subscription") {
+            // Subscription verified but no premiumExpiry returned (native SDK flow)
+            // Still mark as premium — server saved the subscription data
+            storeUpdates.isPremium = true;
+            storeUpdates.planName = planName;
           }
+
           if (type === "one_time") {
             const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
-            setSubscription({
-              purchasedItemIds: [...currentPurchased, planId],
-            });
+            storeUpdates.purchasedItemIds = [...currentPurchased, planId];
+          }
+
+          if (Object.keys(storeUpdates).length > 0) {
+            setSubscription(storeUpdates);
+          }
+
+          // Also refresh subscription status from server to ensure consistency
+          if (firebaseUser) {
+            try {
+              const freshStatus = await checkSubscriptionStatus(firebaseUser.uid);
+              if (freshStatus.isPremium) {
+                setSubscription({
+                  isPremium: true,
+                  premiumExpiry: freshStatus.premiumExpiry,
+                  planName: freshStatus.planName,
+                  purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
+                    useAppStore.getState().subscription.purchasedItemIds,
+                });
+              }
+            } catch (refreshErr) {
+              console.error("Subscription refresh error:", refreshErr);
+            }
           }
 
           setTimeout(() => {
@@ -366,12 +393,33 @@ export default function PaymentModal() {
                   premiumExpiry: verification.premiumExpiry,
                   planName: verification.planName || paymentModalData.planName,
                 });
+              } else if (paymentModalData.type === "subscription") {
+                // Subscription verified but no premiumExpiry — still mark as premium
+                setSubscription({
+                  isPremium: true,
+                  planName: paymentModalData.planName,
+                });
               }
               if (paymentModalData.type === "one_time") {
                 const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
                 setSubscription({
                   purchasedItemIds: [...currentPurchased, paymentModalData.planId],
                 });
+              }
+
+              // Refresh subscription status from server for consistency
+              if (firebaseUser) {
+                checkSubscriptionStatus(firebaseUser.uid).then((freshStatus) => {
+                  if (freshStatus.isPremium) {
+                    setSubscription({
+                      isPremium: true,
+                      premiumExpiry: freshStatus.premiumExpiry,
+                      planName: freshStatus.planName,
+                      purchasedItemIds: freshStatus.purchasedItems?.map((p: any) => p.itemId) ||
+                        useAppStore.getState().subscription.purchasedItemIds,
+                    });
+                  }
+                }).catch(console.error);
               }
               setTimeout(() => {
                 handleClose();
