@@ -3488,6 +3488,7 @@ function ExamVaultAppInner() {
                   role: profileData.role || "user",
                   uid: firebaseUser.uid,
                   phone: profileData.phone || firebaseUser.phoneNumber || "",
+                  photoURL: profileData.photoURL || firebaseUser.photoURL || "",
                 });
               }
             }

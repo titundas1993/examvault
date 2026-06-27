@@ -206,9 +206,18 @@ export default function SettingsTab() {
       await uploadBytes(storageRef, file);
       const photoURL = await getDownloadURL(storageRef);
       await updateUserProfile(firebaseUser.uid, { photoURL });
+      // Update both user (for Settings display) and userProfile (for Profile tab)
       setUser({ ...user!, photoURL });
+      useAppStore.getState().setUserProfile({
+        ...useAppStore.getState().userProfile,
+        photoUrl: photoURL,
+      });
+      // Force a small re-render by updating a state
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 1500);
     } catch (err) {
       console.error("Error uploading photo:", err);
+      alert("Failed to upload photo. Please try again.");
     } finally {
       setUploadingPhoto(false);
     }
