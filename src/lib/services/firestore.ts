@@ -2173,12 +2173,12 @@ async function checkSubscriptionClientSide(userId: string) {
       };
     });
 
-    // If user has any active purchase, they are premium too
-    if (purchasedItems.length > 0) {
-      isPremium = true;
-    }
+    // isPremium is ONLY true for subscription users (access to ALL content)
+    // One-time purchase = access to THAT specific item only
+    // hasAnyPurchase is for ad suppression (no ads for paying users)
+    const hasAnyPurchase = purchasedItems.length > 0;
 
-    return { isPremium, premiumExpiry, planName, subscription, purchasedItems };
+    return { isPremium, premiumExpiry, planName, subscription, purchasedItems, hasAnyPurchase };
   } catch (error) {
     console.error("Client-side subscription check failed:", error);
     return { isPremium: false, premiumExpiry: null, planName: null, subscription: null, purchasedItems: [] };

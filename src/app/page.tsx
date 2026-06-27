@@ -3054,13 +3054,16 @@ function ExamVaultAppInner() {
 
   // ══════════════════════════════════════════════════════════
   // PREMIUM STATUS — communicate to Android WebView for AdMob
-  // If user is premium or has purchased items, hide ads
+  // If user is premium OR has any purchase, hide ads
   // ══════════════════════════════════════════════════════════
   useEffect(() => {
     try {
-      (window as any).__EV_PREMIUM = subscription.isPremium;
+      // Premium = subscription user (full access)
+      // hasAnyPurchase = one-time buyer (specific items only)
+      // Both should NOT see ads
+      (window as any).__EV_PREMIUM = subscription.isPremium || (subscription.purchasedItemIds?.length > 0);
     } catch (e) {}
-  }, [subscription.isPremium]);
+  }, [subscription.isPremium, subscription.purchasedItemIds]);
 
   // ══════════════════════════════════════════════════════════
   // NOTIFY ANDROID WEBVIEW ON VIEW CHANGE (for AdMob interstitial)
@@ -3224,13 +3227,19 @@ function ExamVaultAppInner() {
           }
         })();
         checkSubscriptionStatus(firebaseUser.uid).then((status) => {
+          const updates: any = {};
           if (status.isPremium) {
-            store.setSubscription({
-              isPremium: true,
-              premiumExpiry: status.premiumExpiry,
-              planName: status.planName,
-              purchasedItemIds: status.purchasedItems?.map((p: any) => p.itemId) || [],
-            });
+            updates.isPremium = true;
+            updates.premiumExpiry = status.premiumExpiry;
+            updates.planName = status.planName;
+          }
+          // Always update purchasedItemIds (even if not premium subscriber)
+          const items = status.purchasedItems?.map((p: any) => p.itemId) || [];
+          if (items.length > 0) {
+            updates.purchasedItemIds = items;
+          }
+          if (Object.keys(updates).length > 0) {
+            store.setSubscription(updates);
           }
         }).catch(console.error);
       } else {

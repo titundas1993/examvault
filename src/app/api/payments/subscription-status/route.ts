@@ -111,11 +111,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // If user has any active purchase, they are premium too
-    // (one-time test purchases count as premium — no ads, full access)
-    if (purchasedItems.length > 0) {
-      isPremium = true;
-    }
+    // isPremium is ONLY true for subscription users (access to ALL content)
+    // One-time purchase = access to THAT specific item only
+    // hasAnyPurchase is returned separately for ad suppression
+    const hasAnyPurchase = purchasedItems.length > 0;
 
     return NextResponse.json({
       isPremium,
@@ -123,6 +122,7 @@ export async function GET(req: NextRequest) {
       planName,
       subscription,
       purchasedItems,
+      hasAnyPurchase,
     });
   } catch (error: any) {
     console.error("Subscription status error:", error);

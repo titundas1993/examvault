@@ -162,8 +162,9 @@ export default function PaymentModal() {
           if (type === "one_time") {
             const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
             storeUpdates.purchasedItemIds = [...currentPurchased, planId];
-            // One-time purchase also means premium (no ads, premium badge)
-            storeUpdates.isPremium = true;
+            // Don't set isPremium=true for one-time purchase
+            // isPremium is ONLY for subscription users (access to ALL content)
+            // One-time purchase only gives access to THAT specific item
           }
 
           if (Object.keys(storeUpdates).length > 0) {
@@ -404,7 +405,7 @@ export default function PaymentModal() {
                 const currentPurchased = useAppStore.getState().subscription.purchasedItemIds;
                 setSubscription({
                   purchasedItemIds: [...currentPurchased, paymentModalData.planId],
-                  isPremium: true, // One-time purchase = premium (no ads, premium badge)
+                  // Don't set isPremium=true — only subscription = isPremium
                 });
               }
 
