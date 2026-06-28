@@ -280,49 +280,78 @@ function Header() {
   const { setView, setSidebarOpen, language, setLanguage, unreadNotificationCount, user } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const lang = language;
 
   return (
     <>
-      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100 shadow-sm">
+      <div className="sticky top-0 z-40 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] shadow-lg">
+        {/* Top Row */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl hover:bg-gray-100">
-              <Menu className="w-5 h-5 text-ev-navy" />
+            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl hover:bg-white/10 transition-colors">
+              <Menu className="w-5 h-5 text-white" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-ev-orange to-ev-gold flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
                 <span className="text-lg">📚</span>
               </div>
-              <h1 className="text-lg font-black text-ev-navy leading-tight">EXAM<span className="text-ev-orange">VAULT</span></h1>
+              <h1 className="text-lg font-black text-white leading-tight tracking-tight">
+                EXAM<span className="text-amber-400">VAULT</span>
+              </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {(subscription.isPremium || (subscription.purchasedItemIds?.length > 0)) ? (
-              <button onClick={() => setView("my-purchases")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ev-gold-light text-ev-gold text-xs font-bold">
+              <button onClick={() => setView("my-purchases")} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30">
                 <Crown className="w-3 h-3" /> PRO
               </button>
             ) : user?.role !== "guest" ? (
-              <button onClick={() => setView("pricing")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ev-gold-light text-ev-gold text-xs font-bold animate-pulse">
+              <button onClick={() => setView("pricing")} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30 animate-pulse">
                 <Crown className="w-3 h-3" /> Upgrade
               </button>
             ) : null}
-            <select value={language} onChange={e => setLanguage(e.target.value)} className="text-xs bg-gray-100 rounded-lg px-2 py-1.5 border-0 focus:outline-none font-medium text-ev-navy">
-              <option value="en">EN</option>
-              <option value="hi">हि</option>
-              <option value="bn">বা</option>
-              <option value="as">অ</option>
-            </select>
-            <button onClick={() => setShowNotifications(true)} className="p-2 rounded-xl hover:bg-gray-100 relative">
-              <Bell className="w-5 h-5 text-ev-navy" />
+            <button onClick={() => setShowSearch(!showSearch)} className="p-2 rounded-xl hover:bg-white/10 transition-colors">
+              <Search className="w-5 h-5 text-white" />
+            </button>
+            <button onClick={() => setShowNotifications(true)} className="p-2 rounded-xl hover:bg-white/10 transition-colors relative">
+              <Bell className="w-5 h-5 text-white" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-ev-red rounded-full border-2 border-white text-[10px] text-white font-bold flex items-center justify-center px-1">
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full border-2 border-[#0B1437] text-[10px] text-white font-bold flex items-center justify-center px-1">
                   {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
                 </span>
               )}
             </button>
           </div>
         </div>
+
+        {/* Search Bar (expandable) */}
+        {showSearch && (
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    setShowSearch(false);
+                    setView("mocktests");
+                  }
+                }}
+                placeholder="Search tests, exams, categories..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white/10 text-white placeholder-white/50 rounded-xl border border-white/20 focus:outline-none focus:border-amber-400/50 text-sm"
+                autoFocus
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-3 text-white/50 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <NotificationPanel open={showNotifications} onClose={() => setShowNotifications(false)} />
     </>
@@ -783,7 +812,7 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
 // ==================== HOME TAB ====================
 function HomeTab() {
-  const { setView, user, currentView, navigationItems } = useAppStore();
+  const { setView, user, currentView, navigationItems, subscription, firebaseUser } = useAppStore();
   const lang = useAppStore(s => s.language);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
@@ -791,70 +820,89 @@ function HomeTab() {
   const [popularTests, setPopularTests] = useState<any[]>([]);
   const [dailyQuizzes, setDailyQuizzes] = useState<any[]>([]);
   const [mockTests, setMockTests] = useState<any[]>([]);
+  const [testSeries, setTestSeries] = useState<any[]>([]);
+  const [recentResults, setRecentResults] = useState<any[]>([]);
 
-  // Fetch data from Firestore — re-fetch when user comes back to home
-  // Announcements use real-time listener
+  // Fetch data from Firestore
   useEffect(() => {
     const q = query(collection(db, "announcements"), where("isActive", "==", true));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => {
-        const raw = d.data();
-        return { ...raw, id: d.id } as AnnouncementData;
-      });
+      const data = snapshot.docs.map((d) => ({ ...d.data(), id: d.id } as AnnouncementData));
       data.sort((a, b) => {
         const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
         return dateB - dateA;
       });
       setAnnouncements(data);
-    }, (error) => {
-      console.error("Announcement real-time error:", error);
-    });
+    }, (error) => { console.error("Announcement real-time error:", error); });
     return () => unsubscribe();
   }, []);
 
-  // Other data (popular tests, quizzes, mock tests) fetch on home view
   useEffect(() => {
     if (currentView !== "home") return;
     async function fetchData() {
       try {
-        const [popData, quizData, testData] = await Promise.all([
-          getPopularTests(),
-          getDailyQuiz(),
-          getMockTests(),
+        const [popData, quizData, testData, seriesData] = await Promise.all([
+          getPopularTests(), getDailyQuiz(), getMockTests(), getTestSeries(),
         ]);
-        if (popData && popData.length > 0) setPopularTests(popData);
-        if (quizData && quizData.length > 0) setDailyQuizzes(quizData);
-        if (testData && testData.length > 0) setMockTests(testData);
+        if (popData) setPopularTests(popData);
+        if (quizData) setDailyQuizzes(quizData);
+        if (testData) setMockTests(testData);
+        if (seriesData) setTestSeries(seriesData);
       } catch (e) { console.error("Firestore fetch error:", e); }
     }
     fetchData();
   }, [currentView]);
 
+  // Fetch recent test results for "Continue Learning"
+  useEffect(() => {
+    if (!firebaseUser?.uid) return;
+    import("@/lib/services/firestore").then(({ getUserTestResults }) => {
+      getUserTestResults(firebaseUser.uid).then(results => {
+        setRecentResults((results as any[])?.slice(0, 3) || []);
+      }).catch(() => {});
+    });
+  }, [firebaseUser?.uid]);
+
+  // Unique categories from all tests
+  const allTests = [...mockTests, ...popularTests, ...testSeries];
+  const categories = Array.from(new Set(allTests.map((t: any) => t.category).filter(Boolean))).slice(0, 8);
+
   const navQuickLinks = navigationItems.filter(i => i.location === "quicklinks").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const quickLinksData = navQuickLinks.length === 0 ? DEFAULT_QUICK_LINKS : navQuickLinks.slice(0, 4);
 
   return (
-    <div className="pb-6">
-      {/* Welcome */}
-      <div className="px-4 pt-4 pb-2">
-        <h2 className="text-xl font-bold text-ev-navy">
-          {user?.role === "guest" ? `${t("welcome", lang)} 👋` : `${t("welcomeBack", lang)} 👋`}
-        </h2>
-        <p className="text-gray-500 text-sm">{t("startLearning", lang)}</p>
+    <div className="pb-6 bg-[#F8FAFC] min-h-screen">
+      {/* 1. Welcome (inside header gradient extension) */}
+      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pb-6 pt-2">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-white/60 text-xs">{new Date().toLocaleDateString(lang === "bn" ? "bn-IN" : lang === "hi" ? "hi-IN" : lang === "as" ? "as-IN" : "en-IN", { weekday: "long", day: "numeric", month: "short" })}</p>
+            <h2 className="text-xl font-bold text-white">
+              {user?.role === "guest" ? `${t("welcome", lang)} 👋` : `Hi, ${user?.name?.split(" ")[0] || "User"} 👋`}
+            </h2>
+          </div>
+          {user?.photoURL ? (
+            <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border-2 border-amber-400/50 object-cover" />
+          ) : (
+            <button onClick={() => setView("profile")} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border-2 border-amber-400/30">
+              <User className="w-5 h-5 text-white/70" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Banner Carousel - Auto Rotating */}
-      <div className="px-4 mb-5">
+      {/* 2. Auto Banner Slider */}
+      <div className="px-4 -mt-4 mb-5">
         <AutoRotatingBanners />
       </div>
 
-      {/* Quick Links Grid */}
+      {/* 3. Quick Links Grid (Categories) */}
       <div className="px-4 mb-5">
         <div className="grid grid-cols-4 gap-3">
           {quickLinksData.map((item, i) => {
             const IconComp = ICON_MAP[item.icon] || Zap;
-            const bgClass = QUICKLINK_BG[item.color] || "bg-gradient-to-br from-gray-500 to-gray-600 shadow-gray-500/30";
+            const bgClass = QUICKLINK_BG[item.color] || "bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30";
             return (
             <motion.button
               key={item.id || i}
@@ -877,138 +925,189 @@ function HomeTab() {
         </div>
       </div>
 
-      {/* Announcements - Auto-scrolling Carousel */}
-      <div className="px-4 mb-5">
-        <div className="bg-ev-orange/10 rounded-2xl p-4 border border-ev-orange/20">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Megaphone className="w-4 h-4 text-ev-orange" />
-              <span className="text-sm font-bold text-ev-orange uppercase tracking-wider">{t("announcements", lang)}</span>
-            </div>
-            <div className="flex items-center gap-1" id="announcement-dots">
-              {announcements.map((_, i) => (
-                <span key={i} className={"w-1.5 h-1.5 rounded-full transition-all announcement-dot-" + i + " " + (i === 0 ? "bg-ev-orange w-3" : "bg-ev-orange/30")} />
-              ))}
-            </div>
+      {/* 4. Popular Categories Pills */}
+      {categories.length > 0 && (
+        <div className="px-4 mb-5">
+          <h3 className="text-base font-bold text-[#0B1437] mb-3">Popular Categories</h3>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setView("mocktests")}
+                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-700 whitespace-nowrap shadow-sm hover:border-blue-500 hover:text-blue-600 transition-colors active:scale-95"
+              >
+                {cat}
+              </button>
+            ))}
           </div>
-          <AnnouncementCarousel announcements={announcements} />
         </div>
-      </div>
+      )}
 
-      {/* Upcoming Exams */}
-      <div className="px-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-ev-navy">Upcoming Exams 🔔</h3>
-          <button onClick={() => setView("upcoming-exams")} className="text-ev-orange text-sm font-semibold">View All →</button>
-        </div>
-        <button onClick={() => setView("upcoming-exams")} className="w-full bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl p-5 shadow-lg shadow-cyan-500/20 text-left">
-          <div className="flex items-center gap-3 mb-2">
-            <CalendarDays className="w-8 h-8 text-white/80" />
-            <div>
-              <h4 className="text-lg font-bold text-white">Check Upcoming Exams</h4>
-              <p className="text-white/70 text-sm">WBCS, SSC, Railway, Banking & more</p>
+      {/* 5. Premium Banner */}
+      {!(subscription.isPremium || subscription.purchasedItemIds?.length > 0) && user?.role !== "guest" && (
+        <div className="px-4 mb-5">
+          <button
+            onClick={() => setView("pricing")}
+            className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl p-4 shadow-lg shadow-amber-500/30 text-left active:scale-[0.98] transition-transform relative overflow-hidden"
+          >
+            <div className="absolute right-0 top-0 opacity-20">
+              <Crown className="w-24 h-24 text-white -mr-4 -mt-4" />
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-white/60 text-xs">
-            <span>Apply Link</span>
-            <span>•</span>
-            <span>Official Website</span>
-            <span>•</span>
-            <span>Full Details</span>
-          </div>
-        </button>
-      </div>
-
-      {/* Daily Tips */}
-      <div className="px-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-ev-navy">Daily Tips 💡</h3>
-          <button onClick={() => setView("daily-tips")} className="text-ev-orange text-sm font-semibold">View All →</button>
-        </div>
-        <button onClick={() => setView("daily-tips")} className="w-full bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 shadow-lg shadow-amber-500/20 text-left">
-          <div className="flex items-center gap-3 mb-2">
-            <Sparkles className="w-8 h-8 text-white/80" />
-            <div>
-              <h4 className="text-lg font-bold text-white">Today's Study Tips</h4>
-              <p className="text-white/70 text-sm">Expert strategies & exam tips</p>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-1">
+                <Crown className="w-5 h-5 text-white" />
+                <span className="text-white font-black text-sm uppercase tracking-wide">Premium</span>
+              </div>
+              <h4 className="text-white font-bold text-lg">Unlock All Tests & Features</h4>
+              <p className="text-white/80 text-xs mt-1">Get unlimited access to mock tests, previous papers & more</p>
+              <div className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-lg text-white text-xs font-bold">
+                View Plans →
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-white/60 text-xs">
-            <span>Study Tips</span>
-            <span>•</span>
-            <span>Exam Strategy</span>
-            <span>•</span>
-            <span>Motivation</span>
-          </div>
-        </button>
-      </div>
-
-      {/* Popular Tests */}
-      <div className="px-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-ev-navy">{t("popularTests", lang)} 🔥</h3>
-          <button onClick={() => setView("mocktests")} className="text-ev-orange text-sm font-semibold">{t("viewAll", lang)} →</button>
+          </button>
         </div>
-        <div className="space-y-3">
-          {popularTests.slice(0, 3).map((test, i) => (
-            <motion.div
-              key={test.id || i}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                {test.imageUrl ? (
-                  <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
-                ) : (
-                  <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (isItemFree(test) ? "bg-green-50" : "bg-ev-gold-light")}>
-                    {isItemFree(test) ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
+      )}
+
+      {/* 6. Continue Learning */}
+      {recentResults.length > 0 && (
+        <div className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-[#0B1437]">Continue Learning</h3>
+            <button onClick={() => setView("profile")} className="text-blue-600 text-xs font-semibold">View All →</button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+            {recentResults.map((r, i) => (
+              <button
+                key={r.id || i}
+                onClick={() => { useAppStore.getState().setSelectedTest(r.testId); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
+                className="min-w-[200px] bg-white rounded-2xl p-3 border border-gray-100 shadow-sm text-left active:scale-95 transition-transform"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-blue-500" />
                   </div>
-                )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
-                    {isItemFree(test) && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-green-50 text-ev-green">{t("free", lang)}</span>}
-                    {!isItemFree(test) && <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-ev-gold-light text-ev-gold">{t("premium", lang)}</span>}
-                  </div>
-                  <h4 className="font-bold text-ev-navy">{test.title}</h4>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{test.duration} min</span>
-                    <span className="flex items-center gap-1"><Target className="w-3 h-3" />{test.marks || 0} marks</span>
-                    <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{test.questions} Q</span>
-                    {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">{r.testCategory}</span>
+                </div>
+                <h4 className="text-sm font-bold text-[#0B1437] truncate">{r.testTitle}</h4>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs font-bold text-emerald-600">{r.scoredMarks}/{r.totalMarks}</span>
+                  <span className="text-[10px] text-gray-400">• {r.accuracy}% accuracy</span>
+                </div>
+                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{ width: `${r.accuracy}%` }} />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 7. Announcements - Auto-scrolling */}
+      {announcements.length > 0 && (
+        <div className="px-4 mb-5">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-4 border border-orange-100">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-bold text-orange-600 uppercase tracking-wider">{t("announcements", lang)}</span>
+              </div>
+              <div className="flex items-center gap-1" id="announcement-dots">
+                {announcements.map((_, i) => (
+                  <span key={i} className={"w-1.5 h-1.5 rounded-full transition-all announcement-dot-" + i + " " + (i === 0 ? "bg-orange-500 w-3" : "bg-orange-200")} />
+                ))}
+              </div>
+            </div>
+            <AnnouncementCarousel announcements={announcements} />
+          </div>
+        </div>
+      )}
+
+      {/* 8. Latest Updates - Upcoming Exams + Daily Tips */}
+      <div className="px-4 mb-5">
+        <h3 className="text-base font-bold text-[#0B1437] mb-3">Latest Updates</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => setView("upcoming-exams")} className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl p-4 shadow-md text-left active:scale-95 transition-transform">
+            <CalendarDays className="w-7 h-7 text-white/90 mb-2" />
+            <h4 className="text-sm font-bold text-white">Upcoming Exams</h4>
+            <p className="text-white/70 text-[10px] mt-0.5">WBCS, SSC & more</p>
+          </button>
+          <button onClick={() => setView("daily-tips")} className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-4 shadow-md text-left active:scale-95 transition-transform">
+            <Sparkles className="w-7 h-7 text-white/90 mb-2" />
+            <h4 className="text-sm font-bold text-white">Daily Tips</h4>
+            <p className="text-white/70 text-[10px] mt-0.5">Expert strategies</p>
+          </button>
+        </div>
+      </div>
+
+      {/* 9. Popular Tests */}
+      {popularTests.length > 0 && (
+        <div className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-[#0B1437]">{t("popularTests", lang)} 🔥</h3>
+            <button onClick={() => setView("mocktests")} className="text-blue-600 text-xs font-semibold">{t("viewAll", lang)} →</button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+            {popularTests.slice(0, 5).map((test, i) => (
+              <motion.div
+                key={test.id || i}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
+                className="min-w-[220px] bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 overflow-hidden"
+              >
+                <div className={"h-24 flex items-center justify-center relative " + (isItemFree(test) ? "bg-gradient-to-br from-emerald-400 to-teal-500" : "bg-gradient-to-br from-amber-400 to-orange-500")}>
+                  {test.imageUrl ? (
+                    <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" />
+                  ) : (
+                    isItemFree(test) ? <Zap className="w-10 h-10 text-white/80" /> : <Crown className="w-10 h-10 text-white/80" />
+                  )}
+                  <span className={"absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold " + (isItemFree(test) ? "bg-emerald-500 text-white" : "bg-amber-500 text-white")}>
+                    {isItemFree(test) ? t("free", lang) : t("premium", lang)}
+                  </span>
+                </div>
+                <div className="p-3">
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{test.category}</span>
+                  <h4 className="font-bold text-[#0B1437] text-sm mt-1.5 line-clamp-2">{test.title}</h4>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
+                    <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{test.duration}m</span>
+                    <span className="flex items-center gap-0.5"><BookOpen className="w-3 h-3" />{test.questions}Q</span>
+                    {!isItemFree(test) && <span className="flex items-center gap-0.5 text-amber-600 font-bold">₹{test.price || 0}</span>}
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Daily Quiz */}
-      <div className="px-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-ev-navy">{t("dailyQuiz", lang)} 🧠</h3>
-          <button onClick={() => setView("free-quizzes")} className="text-ev-orange text-sm font-semibold">{t("viewAll", lang)} →</button>
-        </div>
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {dailyQuizzes.map(q => (
-            <div key={q.id} onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })} className="min-w-[160px] bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform">
-              <Brain className="w-8 h-8 text-white/80 mb-2" />
-              <h4 className="text-sm font-bold text-white">{q.title}</h4>
-              <div className="flex items-center gap-2 mt-1 text-xs text-white/70 flex-wrap">
-                <span>{q.questions} Q</span>
-                <span>•</span>
-                <span>{q.duration} min</span>
-                {q.subTests && q.subTests.length > 0 && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 text-white/90 font-bold"><Grid3X3 className="w-3 h-3" />{q.subTests.length}</span>}
+      {/* 10. Daily Quiz */}
+      {dailyQuizzes.length > 0 && (
+        <div className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-[#0B1437]">{t("dailyQuiz", lang)} 🧠</h3>
+            <button onClick={() => setView("free-quizzes")} className="text-blue-600 text-xs font-semibold">{t("viewAll", lang)} →</button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+            {dailyQuizzes.map(q => (
+              <div
+                key={q.id}
+                onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })}
+                className="min-w-[170px] bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform"
+              >
+                <Brain className="w-8 h-8 text-white/80 mb-2" />
+                <h4 className="text-sm font-bold text-white">{q.title}</h4>
+                <div className="flex items-center gap-2 mt-1 text-[10px] text-white/70 flex-wrap">
+                  <span>{q.questions} Q</span>
+                  <span>•</span>
+                  <span>{q.duration} min</span>
+                </div>
+                <div className="mt-2 text-[10px] text-white/60">{q.participants || 0} joined</div>
               </div>
-              <div className="mt-2 text-xs text-white/60">{q.participants || 0} joined</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -3521,28 +3620,15 @@ function BottomNav() {
 
   const tabs = navigationItems.filter(i => i.location === "bottomnav").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const fallback = tabs.length === 0 ? DEFAULT_BOTTOM_NAV : tabs;
-  const items = fallback.slice(0, 5); // Max 5 bottom nav items
-
-  // Color scheme for each tab — matches app branding
-  const tabColors = [
-    { active: "from-ev-orange to-ev-gold", icon: "text-white", bg: "bg-gradient-to-r from-ev-orange to-ev-gold shadow-lg shadow-ev-orange/30" },
-    { active: "from-blue-500 to-indigo-600", icon: "text-white", bg: "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30" },
-    { active: "from-amber-500 to-yellow-500", icon: "text-white", bg: "bg-gradient-to-r from-amber-500 to-yellow-500 shadow-lg shadow-amber-500/30" },
-    { active: "from-teal-500 to-emerald-600", icon: "text-white", bg: "bg-gradient-to-r from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/30" },
-    { active: "from-purple-500 to-pink-500", icon: "text-white", bg: "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30" },
-  ];
+  const items = fallback.slice(0, 5);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 pb-safe">
-      {/* Gradient top border */}
-      <div className="h-[2px] bg-gradient-to-r from-ev-orange via-ev-gold to-ev-orange" />
-      {/* Nav background with subtle gradient */}
-      <div className="bg-gradient-to-t from-gray-50 to-white/98 backdrop-blur-xl">
-        <div className="flex items-center justify-around py-2 px-2 max-w-lg mx-auto">
+    <div className="fixed bottom-0 left-0 right-0 z-40">
+      <div className="bg-white border-t border-gray-100 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center justify-around py-1.5 px-2 max-w-lg mx-auto">
           {items.map((item, idx) => {
             const IconComp = ICON_MAP[item.icon] || Home;
             const isActive = currentView === item.targetView;
-            const color = tabColors[idx] || tabColors[0];
             return (
               <button
                 key={item.id || idx}
@@ -3550,12 +3636,12 @@ function BottomNav() {
                   if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
                   else setView(item.targetView as any);
                 }}
-                className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all duration-300 active:scale-90"
+                className="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 active:scale-90"
               >
-                <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? color.bg : ""}`}>
-                  <IconComp className={`w-5 h-5 transition-all duration-300 ${isActive ? color.icon : "text-gray-400"}`} />
+                <div className={`p-1 rounded-lg transition-all duration-200 ${isActive ? "bg-[#0B1437]" : ""}`}>
+                  <IconComp className={`w-5 h-5 transition-all duration-200 ${isActive ? "text-amber-400" : "text-gray-400"}`} />
                 </div>
-                <span className={`text-[10px] font-bold transition-all duration-300 ${isActive ? "text-ev-navy" : "text-gray-400"}`}>{item.label}</span>
+                <span className={`text-[10px] font-bold transition-all duration-200 ${isActive ? "text-[#0B1437]" : "text-gray-400"}`}>{item.label}</span>
               </button>
             );
           })}
