@@ -890,317 +890,373 @@ function AnnouncementCarousel({ announcements }: { announcements: AnnouncementDa
 
 // ==================== HOME TAB ====================
 function HomeTab() {
-  const { setView, user, currentView, navigationItems, subscription, firebaseUser } = useAppStore();
-  const lang = useAppStore(s => s.language);
-  const requireAuth = useRequireAuth();
-  const requirePremium = useRequirePremium();
-  const [announcements, setAnnouncements] = useState<AnnouncementData[]>([]);
-  const [popularTests, setPopularTests] = useState<any[]>([]);
-  const [dailyQuizzes, setDailyQuizzes] = useState<any[]>([]);
-  const [mockTests, setMockTests] = useState<any[]>([]);
-  const [testSeries, setTestSeries] = useState<any[]>([]);
-  const [recentResults, setRecentResults] = useState<any[]>([]);
+  const { setView, user } = useAppStore();
   const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch data from Firestore
+  // Fetch categories + announcements
   useEffect(() => {
-    const q = query(collection(db, "announcements"), where("isActive", "==", true));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({ ...d.data(), id: d.id } as AnnouncementData));
-      data.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-        return dateB - dateA;
-      });
-      setAnnouncements(data);
-    }, (error) => { console.error("Announcement real-time error:", error); });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (currentView !== "home") return;
     async function fetchData() {
       try {
-        const [popData, quizData, testData, seriesData, catData] = await Promise.all([
-          getPopularTests(), getDailyQuiz(), getMockTests(), getTestSeries(), getCategories(),
+        const [cats, anns] = await Promise.all([
+          getCategories(),
+          getAnnouncements(),
         ]);
-        if (popData) setPopularTests(popData);
-        if (quizData) setDailyQuizzes(quizData);
-        if (testData) setMockTests(testData);
-        if (seriesData) setTestSeries(seriesData);
-        if (catData) setCategories(catData);
-      } catch (e) { console.error("Firestore fetch error:", e); }
+        setCategories(cats || []);
+        setAnnouncements(anns || []);
+      } catch (e) { console.error("Home fetch error:", e); }
+      finally { setLoading(false); }
     }
     fetchData();
-  }, [currentView]);
+  }, []);
 
-  // Fetch recent test results for "Continue Learning"
-  useEffect(() => {
-    if (!firebaseUser?.uid) return;
-    import("@/lib/services/firestore").then(({ getUserTestResults }) => {
-      getUserTestResults(firebaseUser.uid).then(results => {
-        setRecentResults((results as any[])?.slice(0, 3) || []);
-      }).catch(() => {});
-    });
-  }, [firebaseUser?.uid]);
+  // Fallback categories if Firestore empty
+  const displayCategories = categories.length > 0 ? categories : [
+    { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more" },
+    { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more" },
+    { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more" },
+    { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more" },
+    { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment" },
+    { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more" },
+    { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more" },
+    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam" },
+  ].map(c => ({ ...c, isActive: true, order: 0 }) as CategoryData);
 
-  // Unique categories from all tests
-  const allTests = [...mockTests, ...popularTests, ...testSeries];
-  // Use categories from Firestore, fallback to test-derived categories
-  const displayCategories = categories.length > 0 ? categories : Array.from(new Set(allTests.map((t: any) => t.category).filter(Boolean))).slice(0, 8).map((cat: string, i: number) => ({
-    id: cat,
-    name: cat,
-    icon: ["🏦", "🚂", "📋", "🎓", "👮", "📊", "⚖️", "📝"][i % 8],
-    color: "from-blue-500 to-indigo-600",
-  } as CategoryData));
-
-  const navQuickLinks = navigationItems.filter(i => i.location === "quicklinks").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const quickLinksData = navQuickLinks.length === 0 ? DEFAULT_QUICK_LINKS : navQuickLinks.slice(0, 4);
+  // Scrolling text from announcements
+  const scrollText = announcements.length > 0
+    ? announcements.map(a => a.title || a.message || "").filter(Boolean).join("  •  ")
+    : "Welcome to ExamVault  •  Premium Mock Tests  •  Previous Year Papers  •  Daily Quizzes  •  Expert Study Notes";
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* 1. Welcome (inside header gradient extension) */}
-      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pb-6 pt-2">
-        <div className="flex items-center justify-between mb-4">
+      {/* Navy Header Background */}
+      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pt-3 pb-8">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-white/60 text-xs">{new Date().toLocaleDateString(lang === "bn" ? "bn-IN" : lang === "hi" ? "hi-IN" : lang === "as" ? "as-IN" : "en-IN", { weekday: "long", day: "numeric", month: "short" })}</p>
-            <h2 className="text-xl font-bold text-white">
-              {user?.role === "guest" ? `${t("welcome", lang)} 👋` : `Hi, ${user?.name?.split(" ")[0] || "User"} 👋`}
+            <p className="text-white/50 text-[10px] uppercase tracking-wider">Welcome</p>
+            <h2 className="text-white font-bold text-base">
+              {user?.name ? `Hi, ${user.name.split(" ")[0]} 👋` : "ExamVault 👋"}
             </h2>
           </div>
           {user?.photoURL ? (
-            <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border-2 border-amber-400/50 object-cover" />
+            <img src={user.photoURL} alt="Profile" className="w-9 h-9 rounded-full border border-amber-400/30 object-cover" />
           ) : (
-            <button onClick={() => setView("profile")} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border-2 border-amber-400/30">
-              <User className="w-5 h-5 text-white/70" />
+            <button onClick={() => setView("profile")} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center border border-amber-400/20">
+              <User className="w-4 h-4 text-white/60" />
             </button>
           )}
         </div>
       </div>
 
-      {/* 2. Auto Banner Slider */}
-      <div className="px-4 -mt-4 mb-5">
+      {/* Auto Banner Slider */}
+      <div className="px-4 -mt-5 mb-0">
         <AutoRotatingBanners />
       </div>
 
-      {/* 3. Quick Links Grid (Categories) */}
-      <div className="px-4 mb-5">
-        <div className="grid grid-cols-4 gap-3">
-          {quickLinksData.map((item, i) => {
-            const IconComp = ICON_MAP[item.icon] || Zap;
-            const bgClass = QUICKLINK_BG[item.color] || "bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30";
-            return (
-            <motion.button
-              key={item.id || i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05 }}
-              onClick={() => {
-                if (item.requireAuth) requireAuth(() => setView(item.targetView as any));
-                else setView(item.targetView as any);
-              }}
-              className="flex flex-col items-center gap-2"
-            >
-              <div className={"w-14 h-14 rounded-2xl " + bgClass + " shadow-lg flex items-center justify-center"}>
-                <IconComp className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{item.label}</span>
-            </motion.button>
-            );
-          })}
+      {/* Scrolling Text */}
+      <div className="bg-[#0B1437] py-2 overflow-hidden mb-4">
+        <div className="flex whitespace-nowrap animate-marquee">
+          <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
+          <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
         </div>
       </div>
 
-      {/* 4. Popular Categories Pills */}
-      {displayCategories.length > 0 && (
-        <div className="px-4 mb-5">
-          <h3 className="text-base font-bold text-[#0B1437] mb-3">Popular Categories</h3>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {displayCategories.map(cat => (
-              <button
-                key={cat.id}
+      {/* Categories Grid */}
+      <div className="px-4">
+        <h3 className="text-base font-bold text-[#0B1437] mb-3">Exam Categories</h3>
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {displayCategories.map((cat, i) => (
+              <motion.button
+                key={cat.id || i}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
                 onClick={() => {
                   useAppStore.getState().setSelectedCategory(cat.id!);
-                  setView("category-detail");
+                  setView("subcategory-list");
                 }}
-                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-700 whitespace-nowrap shadow-sm hover:border-blue-500 hover:text-blue-600 transition-colors active:scale-95 flex items-center gap-1.5"
+                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden"
               >
-                {cat.icon && <span>{cat.icon}</span>}
-                {cat.name}
-              </button>
+                <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
+                <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
+                  <span className="text-2xl">{cat.icon || "📚"}</span>
+                </div>
+                <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
+                <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">
+                  Explore <ChevronRight className="w-3 h-3" />
+                </div>
+              </motion.button>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* 5. Premium Banner */}
-      {!(subscription.isPremium || subscription.purchasedItemIds?.length > 0) && user?.role !== "guest" && (
-        <div className="px-4 mb-5">
-          <button
-            onClick={() => setView("pricing")}
-            className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl p-4 shadow-lg shadow-amber-500/30 text-left active:scale-[0.98] transition-transform relative overflow-hidden"
-          >
-            <div className="absolute right-0 top-0 opacity-20">
-              <Crown className="w-24 h-24 text-white -mr-4 -mt-4" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-1">
-                <Crown className="w-5 h-5 text-white" />
-                <span className="text-white font-black text-sm uppercase tracking-wide">Premium</span>
-              </div>
-              <h4 className="text-white font-bold text-lg">Unlock All Tests & Features</h4>
-              <p className="text-white/80 text-xs mt-1">Get unlimited access to mock tests, previous papers & more</p>
-              <div className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-lg text-white text-xs font-bold">
-                View Plans →
-              </div>
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* 6. Continue Learning */}
-      {recentResults.length > 0 && (
-        <div className="px-4 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-[#0B1437]">Continue Learning</h3>
-            <button onClick={() => setView("profile")} className="text-blue-600 text-xs font-semibold">View All →</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-            {recentResults.map((r, i) => (
-              <button
-                key={r.id || i}
-                onClick={() => { useAppStore.getState().setSelectedTest(r.testId); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
-                className="min-w-[200px] bg-white rounded-2xl p-3 border border-gray-100 shadow-sm text-left active:scale-95 transition-transform"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">{r.testCategory}</span>
-                </div>
-                <h4 className="text-sm font-bold text-[#0B1437] truncate">{r.testTitle}</h4>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs font-bold text-emerald-600">{r.scoredMarks}/{r.totalMarks}</span>
-                  <span className="text-[10px] text-gray-400">• {r.accuracy}% accuracy</span>
-                </div>
-                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{ width: `${r.accuracy}%` }} />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 7. Announcements - Auto-scrolling */}
-      {announcements.length > 0 && (
-        <div className="px-4 mb-5">
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-4 border border-orange-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Megaphone className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-bold text-orange-600 uppercase tracking-wider">{t("announcements", lang)}</span>
-              </div>
-              <div className="flex items-center gap-1" id="announcement-dots">
-                {announcements.map((_, i) => (
-                  <span key={i} className={"w-1.5 h-1.5 rounded-full transition-all announcement-dot-" + i + " " + (i === 0 ? "bg-orange-500 w-3" : "bg-orange-200")} />
-                ))}
-              </div>
-            </div>
-            <AnnouncementCarousel announcements={announcements} />
-          </div>
-        </div>
-      )}
-
-      {/* 8. Latest Updates - Upcoming Exams + Daily Tips */}
-      <div className="px-4 mb-5">
-        <h3 className="text-base font-bold text-[#0B1437] mb-3">Latest Updates</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => setView("upcoming-exams")} className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl p-4 shadow-md text-left active:scale-95 transition-transform">
-            <CalendarDays className="w-7 h-7 text-white/90 mb-2" />
-            <h4 className="text-sm font-bold text-white">Upcoming Exams</h4>
-            <p className="text-white/70 text-[10px] mt-0.5">WBCS, SSC & more</p>
-          </button>
-          <button onClick={() => setView("daily-tips")} className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-4 shadow-md text-left active:scale-95 transition-transform">
-            <Sparkles className="w-7 h-7 text-white/90 mb-2" />
-            <h4 className="text-sm font-bold text-white">Daily Tips</h4>
-            <p className="text-white/70 text-[10px] mt-0.5">Expert strategies</p>
-          </button>
-        </div>
+        )}
       </div>
-
-      {/* 9. Popular Tests */}
-      {popularTests.length > 0 && (
-        <div className="px-4 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-[#0B1437]">{t("popularTests", lang)} 🔥</h3>
-            <button onClick={() => setView("mocktests")} className="text-blue-600 text-xs font-semibold">{t("viewAll", lang)} →</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-            {popularTests.slice(0, 5).map((test, i) => (
-              <motion.div
-                key={test.id || i}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("popularTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
-                className="min-w-[220px] bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 overflow-hidden"
-              >
-                <div className={"h-24 flex items-center justify-center relative " + (isItemFree(test) ? "bg-gradient-to-br from-emerald-400 to-teal-500" : "bg-gradient-to-br from-amber-400 to-orange-500")}>
-                  {test.imageUrl ? (
-                    <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" />
-                  ) : (
-                    isItemFree(test) ? <Zap className="w-10 h-10 text-white/80" /> : <Crown className="w-10 h-10 text-white/80" />
-                  )}
-                  <span className={"absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold " + (isItemFree(test) ? "bg-emerald-500 text-white" : "bg-amber-500 text-white")}>
-                    {isItemFree(test) ? t("free", lang) : t("premium", lang)}
-                  </span>
-                </div>
-                <div className="p-3">
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{test.category}</span>
-                  <h4 className="font-bold text-[#0B1437] text-sm mt-1.5 line-clamp-2">{test.title}</h4>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
-                    <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{test.duration}m</span>
-                    <span className="flex items-center gap-0.5"><BookOpen className="w-3 h-3" />{test.questions}Q</span>
-                    {!isItemFree(test) && <span className="flex items-center gap-0.5 text-amber-600 font-bold">₹{test.price || 0}</span>}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 10. Daily Quiz */}
-      {dailyQuizzes.length > 0 && (
-        <div className="px-4 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-[#0B1437]">{t("dailyQuiz", lang)} 🧠</h3>
-            <button onClick={() => setView("free-quizzes")} className="text-blue-600 text-xs font-semibold">{t("viewAll", lang)} →</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-            {dailyQuizzes.map(q => (
-              <div
-                key={q.id}
-                onClick={() => requireAuth(() => { useAppStore.getState().setSelectedTest(q.id); useAppStore.getState().setSelectedTestType("dailyQuiz"); setView("test-info"); })}
-                className="min-w-[170px] bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95 transition-transform"
-              >
-                <Brain className="w-8 h-8 text-white/80 mb-2" />
-                <h4 className="text-sm font-bold text-white">{q.title}</h4>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-white/70 flex-wrap">
-                  <span>{q.questions} Q</span>
-                  <span>•</span>
-                  <span>{q.duration} min</span>
-                </div>
-                <div className="mt-2 text-[10px] text-white/60">{q.participants || 0} joined</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
+// ==================== SUBCATEGORY LIST SCREEN ====================
+function SubcategoryListScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const [category, setCategory] = useState<CategoryData | null>(null);
+  const [subcategories, setSubcategories] = useState<CategoryData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!selectedCategory) { setLoading(false); return; }
+    async function fetchData() {
+      try {
+        const cats = await getCategories();
+        const cat = cats.find(c => c.id === selectedCategory);
+        setCategory(cat || null);
+        const subs = await getSubcategories(selectedCategory);
+        setSubcategories(subs);
+      } catch (e) { console.error("Subcategory fetch error:", e); }
+      finally { setLoading(false); }
+    }
+    fetchData();
+  }, [selectedCategory]);
+
+  // Fallback subcategories if Firestore empty
+  const fallbackSubs: CategoryData[] = category?.name === "SSC" ? [
+    { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level" },
+    { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level" },
+    { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff" },
+    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable" },
+    { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization" },
+    { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer" },
+  ].map(c => ({ ...c, isActive: true, order: 0, parentId: selectedCategory }) as CategoryData) : [];
+
+  const displaySubs = subcategories.length > 0 ? subcategories : fallbackSubs;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10">
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{category?.icon || "📚"}</span>
+            <div>
+              <h1 className="text-white font-bold text-lg">{category?.name || "Category"}</h1>
+              <p className="text-white/50 text-xs">Select your exam</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Subcategories List */}
+      <div className="px-4 pt-4">
+        {displaySubs.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-400 text-sm">No subcategories available</p>
+            <button onClick={() => goBack()} className="mt-4 px-4 py-2 bg-[#0B1437] text-white rounded-xl text-xs font-bold">Go Back</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {displaySubs.map((sub, i) => (
+              <motion.button
+                key={sub.id || i}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => {
+                  useAppStore.getState().setSelectedSubcategory(sub.id!);
+                  setView("premium-plans");
+                }}
+                className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3"
+              >
+                <div className={"w-11 h-11 rounded-xl bg-gradient-to-br " + (sub.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm flex-shrink-0"}>
+                  <span className="text-xl">{sub.icon || "📝"}</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <h4 className="font-bold text-[#0B1437] text-sm">{sub.name}</h4>
+                  <p className="text-[10px] text-gray-400">{sub.description || "View plans & tests"}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-300" />
+              </motion.button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==================== PREMIUM PLANS SCREEN ====================
+function PremiumPlansScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const selectedSubcategory = useAppStore(s => s.selectedSubcategory);
+  const subscription = useAppStore(s => s.subscription);
+  const [plans, setPlans] = useState<PremiumPlan[]>([]);
+  const [category, setCategory] = useState<CategoryData | null>(null);
+  const [subcategory, setSubcategory] = useState<CategoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Get category + subcategory names
+        const cats = await getCategories();
+        const cat = cats.find(c => c.id === selectedCategory);
+        setCategory(cat || null);
+
+        if (selectedSubcategory && selectedCategory) {
+          const subs = await getSubcategories(selectedCategory);
+          const sub = subs.find(s => s.id === selectedSubcategory);
+          setSubcategory(sub || null);
+        }
+
+        // Get plans — all plans + category-specific
+        const allPlans = await getPlansByScope();
+        setPlans(allPlans);
+      } catch (e) { console.error("Plans fetch error:", e); }
+      finally { setLoading(false); }
+    }
+    fetchData();
+  }, [selectedCategory, selectedSubcategory]);
+
+  // Fallback plans if Firestore empty
+  const fallbackPlans: PremiumPlan[] = [
+    {
+      id: "sub-premium", name: (subcategory?.name || category?.name || "Exam") + " Premium",
+      description: "Access all " + (subcategory?.name || category?.name || "") + " tests & papers",
+      price: 99, originalPrice: 199, durationDays: 30, type: "subscription",
+      scope: "subcategory", scopeId: selectedSubcategory || undefined,
+      features: ["All " + (subcategory?.name || "") + " mock tests", "Previous year papers", "Detailed solutions", "Performance analytics"],
+      isActive: true, isPopular: false, order: 1,
+    },
+    {
+      id: "cat-premium", name: (category?.name || "Category") + " Premium",
+      description: "Access all " + (category?.name || "") + " exams",
+      price: 199, originalPrice: 399, durationDays: 90, type: "subscription",
+      scope: "category", scopeId: selectedCategory || undefined,
+      features: ["All " + (category?.name || "") + " mock tests", "All subcategories", "Previous year papers", "Study notes", "Ad-free experience"],
+      isActive: true, isPopular: true, order: 2,
+    },
+    {
+      id: "all-premium", name: "All Access Premium",
+      description: "Unlimited access to everything",
+      price: 499, originalPrice: 999, durationDays: 365, type: "subscription",
+      scope: "all",
+      features: ["ALL mock tests", "ALL previous papers", "ALL study notes", "ALL categories", "Ad-free experience", "Priority support"],
+      isActive: true, isPopular: false, order: 3,
+    },
+  ];
+
+  const displayPlans = plans.length > 0 ? plans : fallbackPlans;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10">
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Premium Plans</h1>
+            <p className="text-white/50 text-xs">{subcategory?.name || category?.name || "Choose your plan"}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Plans */}
+      <div className="px-4 pt-4 space-y-3">
+        {displayPlans.map((plan, i) => (
+          <motion.div
+            key={plan.id || i}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className={"bg-white rounded-2xl p-4 border-2 shadow-sm " + (plan.isPopular ? "border-amber-400 ring-2 ring-amber-400/10" : "border-gray-100")}
+          >
+            {plan.isPopular && (
+              <div className="inline-block px-2 py-0.5 rounded-full bg-amber-400 text-white text-[9px] font-bold mb-2">⭐ MOST POPULAR</div>
+            )}
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h4 className="font-bold text-[#0B1437] text-base">{plan.name}</h4>
+                <p className="text-[10px] text-gray-400 mt-0.5">{plan.description}</p>
+              </div>
+              <div className={"w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 " + (plan.isPopular ? "bg-gradient-to-br from-amber-400 to-orange-500" : "bg-gray-100")}>
+                <Crown className={"w-5 h-5 " + (plan.isPopular ? "text-white" : "text-gray-400")} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="text-2xl font-black text-[#0B1437]">₹{plan.price}</span>
+              {plan.originalPrice && <span className="text-sm text-gray-400 line-through">₹{plan.originalPrice}</span>}
+              <span className="text-xs text-gray-500">/{plan.durationDays} days</span>
+            </div>
+            <div className="space-y-1.5 mb-3">
+              {plan.features.map((f, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs text-gray-600">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                useAppStore.getState().setPaymentModalData({
+                  planId: plan.id!,
+                  planName: plan.name,
+                  amount: plan.price,
+                  type: plan.type,
+                });
+                useAppStore.getState().setShowPaymentModal(true);
+              }}
+              disabled={subscription.isPremium}
+              className={"w-full py-3 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform " +
+                (subscription.isPremium
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : plan.isPopular
+                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+                  : "bg-[#0B1437] text-white")}
+            >
+              {subscription.isPremium ? "✓ Subscribed" : `Get ${plan.name}`}
+            </button>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Bottom Note */}
+      <div className="px-4 mt-4 text-center">
+        <p className="text-[10px] text-gray-400">
+          🔒 Secure payment via Razorpay  •  UPI, Card, NetBanking accepted  •  Cancel anytime
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 // ==================== MOCK TESTS TAB ====================
 function MockTestsTab() {
@@ -4475,6 +4531,8 @@ function ExamVaultAppInner() {
           {currentView === "my-purchases" && <MyPurchasesScreen />}
           {currentView === "performance" && <PerformanceAnalyticsScreen />}
           {currentView === "category-detail" && <CategoryDetailScreen />}
+          {currentView === "subcategory-list" && <SubcategoryListScreen />}
+          {currentView === "premium-plans" && <PremiumPlansScreen />}
         </motion.div>
       </AnimatePresence>
       <BottomNav />
