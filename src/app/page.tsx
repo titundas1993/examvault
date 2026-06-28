@@ -1210,6 +1210,7 @@ function MockTestsTab() {
   const [filter, setFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [tests, setTests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const requireAuth = useRequireAuth();
   const requirePremium = useRequirePremium();
 
@@ -1217,16 +1218,15 @@ function MockTestsTab() {
     async function fetchData() {
       try {
         const data = await getMockTests();
-        if (data && data.length > 0) setTests(data);
+        if (data) setTests(data);
       } catch (e) { console.error("Firestore fetch error:", e); }
+      finally { setLoading(false); }
     }
     fetchData();
   }, []);
 
-  // Extract unique categories from test data for dynamic filters
   const categories = ["All", ...Array.from(new Set(tests.map((t: any) => t.category).filter(Boolean)))];
 
-  // Filter tests by category + search term
   const filteredTests = tests.filter((t: any) => {
     const matchesCategory = filter === "All" || t.category === filter;
     const matchesSearch = !searchTerm ||
@@ -1237,79 +1237,136 @@ function MockTestsTab() {
   });
 
   return (
-    <div className="pb-6">
-      <div className="px-4 pt-4">
-        <h2 className="text-xl font-bold text-ev-navy mb-3">{t("mockTests", lang)}</h2>
+    <div className="pb-6 bg-[#F8FAFC] min-h-screen">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-4">
+        <h2 className="text-white font-bold text-lg mb-3">Mock Tests</h2>
         <div className="relative mb-3">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
+          <Search className="w-4 h-4 text-white/40 absolute left-3 top-3" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-ev-orange text-sm"
-            placeholder={t("searchTests", lang)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white/10 text-white placeholder-white/40 rounded-xl border border-white/15 focus:outline-none focus:border-amber-400/50 text-sm"
+            placeholder="Search tests..."
           />
           {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
-            >
+            <button onClick={() => setSearchTerm("")} className="absolute right-3 top-3 text-white/40">
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-3">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {categories.map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={"px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all " + (filter === f ? "bg-ev-navy text-white" : "bg-gray-100 text-gray-600")}>
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={"px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all " +
+                (filter === f ? "bg-amber-400 text-[#0B1437]" : "bg-white/10 text-white/70 border border-white/15")}
+            >
               {f}
             </button>
           ))}
         </div>
       </div>
-      <div className="px-4 space-y-3">
-        {filteredTests.length === 0 ? (
-          <div className="text-center py-10">
-            <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">No tests found</p>
-            <p className="text-gray-400 text-xs mt-1">Try a different search or category</p>
+
+      {/* Loading */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" />
+        </div>
+      ) : filteredTests.length === 0 ? (
+        <div className="text-center py-16 px-4">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Search className="w-8 h-8 text-gray-300" />
           </div>
-        ) : (
-        filteredTests.map((test: any) => (
-          <div key={test.id} onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all">
-            <div className="flex items-center gap-3">
-              {test.imageUrl ? (
-                <img src={test.imageUrl} alt={test.title} className="min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl object-cover shadow-md" />
-              ) : (
-                <div className={"min-w-[5.5rem] w-[5.5rem] aspect-square rounded-2xl flex items-center justify-center " + (isItemFree(test) ? "bg-green-50" : "bg-ev-gold-light")}>
-                  {isItemFree(test) ? <Zap className="w-9 h-9 text-ev-green" /> : <Crown className="w-9 h-9 text-ev-gold" />}
+          <p className="text-[#0B1437] font-bold text-sm">No tests found</p>
+          <p className="text-gray-400 text-xs mt-1">Try a different search or category</p>
+        </div>
+      ) : (
+        <div className="px-4 pt-4 space-y-3">
+          {filteredTests.map((test: any) => {
+            const free = isItemFree(test);
+            const purchased = subscription.purchasedItemIds.includes(test.id) || subscription.isPremium;
+            return (
+              <motion.div
+                key={test.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => requirePremium(test.id, free, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
+                className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+              >
+                {/* Top Section */}
+                <div className="p-3 flex items-center gap-3">
+                  {/* Thumbnail */}
+                  <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                    {test.imageUrl ? (
+                      <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" />
+                    ) : free ? (
+                      <Zap className="w-7 h-7 text-emerald-500" />
+                    ) : (
+                      <Crown className="w-7 h-7 text-amber-500" />
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[#0B1437] text-sm truncate">{test.title}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{test.category}</span>
+                      {test.subTests && test.subTests.length > 0 && (
+                        <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                          <Grid3X3 className="w-2.5 h-2.5" />{test.subTests.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
+                      <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{test.duration} min</span>
+                      <span className="flex items-center gap-0.5"><FileText className="w-2.5 h-2.5" />{test.questions} Q</span>
+                      <span className="flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{test.marks || 0} marks</span>
+                    </div>
+                  </div>
+                  {/* Status Badge */}
+                  <div className="flex-shrink-0">
+                    {free ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span>
+                    ) : purchased ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center gap-0.5">
+                        <CheckCircle className="w-3 h-3" /> Active
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{test.price || 0}</span>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h4 className="font-bold text-ev-navy">{test.title}</h4>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
-                  <span className="font-bold px-2 py-0.5 rounded-md bg-ev-blue-light text-ev-navy">{test.category}</span>
-                  <span>{test.duration} min</span>
-                  <span>{test.questions} Q</span>
-                  <span>{test.marks || 0} marks</span>
-                  {test.subTests && test.subTests.length > 0 && <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ev-orange/10 text-ev-orange font-bold"><Grid3X3 className="w-3 h-3" />{test.subTests.length}</span>}
-                </div>
-              </div>
-            </div>
-            {!isItemFree(test) && (
-              subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
-                <div className="mt-3 w-full py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-xs flex items-center justify-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5" /> Active
-                </div>
-              ) : (
-                <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: Number(test.price) > 0 ? Number(test.price) : 0 }); }} className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-ev-orange to-ev-gold text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-transform">
-                  <ShoppingCart className="w-3.5 h-3.5" /> Buy — ₹{Number(test.price) > 0 ? Number(test.price) : 0}
-                </button>
-              )
-            )}
-          </div>
-        )))}
-      </div>
+                {/* Action Button */}
+                {!free && !purchased && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: Number(test.price) > 0 ? Number(test.price) : 0 }); }}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" /> Buy Now — ₹{Number(test.price) > 0 ? Number(test.price) : 0}
+                  </button>
+                )}
+                {free && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
+                    className="w-full py-2.5 bg-[#0B1437] text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Start Free Test
+                  </button>
+                )}
+                {purchased && !free && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
+                    className="w-full py-2.5 bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Start Test
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
