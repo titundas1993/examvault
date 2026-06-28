@@ -246,35 +246,26 @@ const QUICKLINK_BG: Record<string, string> = {
 
 // Default nav items (fallback when no Firestore data)
 const DEFAULT_BOTTOM_NAV = [
-  { label: "Home", icon: "Home", targetView: "home", location: "bottomnav", order: 0, isActive: true, color: "text-ev-navy", requireAuth: false },
-  { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "bottomnav", order: 1, isActive: true, color: "text-blue-600", requireAuth: false },
+  { label: "Home", icon: "Home", targetView: "home", location: "bottomnav", order: 0, isActive: true, color: "text-blue-600", requireAuth: false },
+  { label: "Tests", icon: "BookOpen", targetView: "mocktests", location: "bottomnav", order: 1, isActive: true, color: "text-indigo-600", requireAuth: false },
   { label: "Leaderboard", icon: "Award", targetView: "leaderboard", location: "bottomnav", order: 2, isActive: true, color: "text-amber-600", requireAuth: false },
-  { label: "Notes", icon: "Notebook", targetView: "notes", location: "bottomnav", order: 3, isActive: true, color: "text-teal-600", requireAuth: false },
-  { label: "Profile", icon: "User", targetView: "profile", location: "bottomnav", order: 4, isActive: true, color: "text-ev-navy", requireAuth: false },
+  { label: "Profile", icon: "User", targetView: "profile", location: "bottomnav", order: 3, isActive: true, color: "text-[#0B1437]", requireAuth: false },
 ];
 
 const DEFAULT_SIDE_MENU = [
-  { label: "Home", icon: "Home", targetView: "home", location: "sidemenu", order: 0, isActive: true, color: "text-ev-navy", requireAuth: false },
-  { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "sidemenu", order: 1, isActive: true, color: "text-blue-600", requireAuth: false },
-  { label: "Premium Plans", icon: "Crown", targetView: "pricing", location: "sidemenu", order: 2, isActive: true, color: "text-ev-gold", requireAuth: false },
-  { label: "Free Tests", icon: "Zap", targetView: "free-tests", location: "sidemenu", order: 3, isActive: true, color: "text-ev-green", requireAuth: false },
-  { label: "Free Quizzes", icon: "Brain", targetView: "free-quizzes", location: "sidemenu", order: 4, isActive: true, color: "text-purple-600", requireAuth: false },
-  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "sidemenu", order: 5, isActive: true, color: "text-ev-orange", requireAuth: false },
-  { label: "Upcoming Exams", icon: "CalendarDays", targetView: "upcoming-exams", location: "sidemenu", order: 6, isActive: true, color: "text-cyan-600", requireAuth: false },
-  { label: "Daily Tips", icon: "Sparkles", targetView: "daily-tips", location: "sidemenu", order: 7, isActive: true, color: "text-amber-600", requireAuth: false },
-  { label: "Notes", icon: "Notebook", targetView: "notes", location: "sidemenu", order: 8, isActive: true, color: "text-teal-600", requireAuth: false },
-  { label: "Leaderboard", icon: "Award", targetView: "leaderboard", location: "sidemenu", order: 9, isActive: true, color: "text-amber-600", requireAuth: false },
-  { label: "Profile", icon: "User", targetView: "profile", location: "sidemenu", order: 10, isActive: true, color: "text-ev-navy", requireAuth: false },
-  { label: "Settings", icon: "Settings", targetView: "settings", location: "sidemenu", order: 11, isActive: true, color: "text-gray-600", requireAuth: false },
-  { label: "Support", icon: "HelpCircle", targetView: "support", location: "sidemenu", order: 12, isActive: true, color: "text-ev-orange", requireAuth: false },
+  { label: "Home", icon: "Home", targetView: "home", location: "sidemenu", order: 0, isActive: true, color: "text-blue-600", requireAuth: false },
+  { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "sidemenu", order: 1, isActive: true, color: "text-indigo-600", requireAuth: false },
+  { label: "Free Tests", icon: "Zap", targetView: "free-tests", location: "sidemenu", order: 2, isActive: true, color: "text-emerald-600", requireAuth: false },
+  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "sidemenu", order: 3, isActive: true, color: "text-amber-600", requireAuth: false },
+  { label: "Notes", icon: "Notebook", targetView: "notes", location: "sidemenu", order: 4, isActive: true, color: "text-teal-600", requireAuth: false },
+  { label: "Leaderboard", icon: "Award", targetView: "leaderboard", location: "sidemenu", order: 5, isActive: true, color: "text-purple-600", requireAuth: false },
+  { label: "Premium Plans", icon: "Crown", targetView: "pricing", location: "sidemenu", order: 6, isActive: true, color: "text-amber-500", requireAuth: false },
+  { label: "My Purchases", icon: "ShoppingCart", targetView: "my-purchases", location: "sidemenu", order: 7, isActive: true, color: "text-blue-600", requireAuth: true },
+  { label: "Settings", icon: "Settings", targetView: "settings", location: "sidemenu", order: 8, isActive: true, color: "text-gray-600", requireAuth: false },
+  { label: "Support", icon: "HelpCircle", targetView: "support", location: "sidemenu", order: 9, isActive: true, color: "text-gray-500", requireAuth: false },
 ];
 
-const DEFAULT_QUICK_LINKS = [
-  { label: "Free Tests", icon: "Zap", targetView: "free-tests", location: "quicklinks", order: 0, isActive: true, color: "text-ev-green", requireAuth: false },
-  { label: "Test Series", icon: "Trophy", targetView: "test-series", location: "quicklinks", order: 1, isActive: true, color: "text-ev-gold", requireAuth: false },
-  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "quicklinks", order: 2, isActive: true, color: "text-ev-orange", requireAuth: false },
-  { label: "Notes", icon: "Notebook", targetView: "notes", location: "quicklinks", order: 3, isActive: true, color: "text-purple-600", requireAuth: false },
-];
+const DEFAULT_QUICK_LINKS: NavigationItem[] = [];
 
 // ==================== ALL DATA FROM FIREBASE ====================
 // ==================== HEADER ====================
@@ -1025,17 +1016,72 @@ function SubcategoryListScreen() {
     fetchData();
   }, [selectedCategory]);
 
-  // Fallback subcategories if Firestore empty
-  const fallbackSubs: CategoryData[] = category?.name === "SSC" ? [
-    { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level" },
-    { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level" },
-    { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff" },
-    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable" },
-    { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization" },
-    { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer" },
-  ].map(c => ({ ...c, isActive: true, order: 0, parentId: selectedCategory }) as CategoryData) : [];
+  // Fallback subcategories for ALL categories — admin can override from Firestore
+  const FALLBACK_SUBCATEGORIES: Record<string, CategoryData[]> = {
+    "ssc": [
+      { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level" },
+      { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level" },
+      { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff" },
+      { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable" },
+      { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization" },
+      { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer" },
+      { id: "ssc-steno", name: "SSC Stenographer", icon: "⌨️", color: "from-pink-500 to-rose-600", description: "Stenographer Grade C & D" },
+    ],
+    "railway": [
+      { id: "rrb-ntpc", name: "RRB NTPC", icon: "🚂", color: "from-red-500 to-rose-600", description: "Non-Technical Popular Categories" },
+      { id: "rrb-group-d", name: "RRB Group D", icon: "🛤️", color: "from-amber-500 to-orange-600", description: "Track Maintainer, Helper" },
+      { id: "rrb-alp", name: "RRB ALP", icon: "🔧", color: "from-blue-500 to-indigo-600", description: "Assistant Loco Pilot" },
+      { id: "rrb-je", name: "RRB JE", icon: "⚙️", color: "from-purple-500 to-violet-600", description: "Junior Engineer" },
+      { id: "rrb-tech", name: "RRB Technician", icon: "🛠️", color: "from-emerald-500 to-teal-600", description: "Technician Signal" },
+    ],
+    "banking": [
+      { id: "ibps-po", name: "IBPS PO", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "Probationary Officer" },
+      { id: "ibps-clerk", name: "IBPS Clerk", icon: "💳", color: "from-blue-500 to-indigo-600", description: "Clerical Cadre" },
+      { id: "sbi-po", name: "SBI PO", icon: "🏛️", color: "from-amber-500 to-orange-600", description: "State Bank PO" },
+      { id: "sbi-clerk", name: "SBI Clerk", icon: "💰", color: "from-purple-500 to-violet-600", description: "Junior Associate" },
+      { id: "rbi-grade-b", name: "RBI Grade B", icon: "📊", color: "from-red-500 to-rose-600", description: "Reserve Bank Officer" },
+      { id: "ibps-rrb", name: "IBPS RRB", icon: "🌾", color: "from-cyan-500 to-blue-600", description: "Regional Rural Banks" },
+    ],
+    "upsc": [
+      { id: "upsc-cse", name: "UPSC CSE", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services Examination" },
+      { id: "upsc-cds", name: "UPSC CDS", icon: "🎖️", color: "from-blue-500 to-indigo-600", description: "Combined Defence Services" },
+      { id: "upsc-nda", name: "UPSC NDA", icon: "🇮🇳", color: "from-emerald-500 to-teal-600", description: "National Defence Academy" },
+      { id: "upsc-ies", name: "UPSC IES/ISS", icon: "📈", color: "from-purple-500 to-violet-600", description: "Economic Services" },
+      { id: "upsc-capf", name: "UPSC CAPF", icon: "🛡️", color: "from-red-500 to-rose-600", description: "Central Armed Police Forces" },
+    ],
+    "adre": [
+      { id: "adre-grade-3", name: "ADRE Grade 3", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment Grade 3" },
+      { id: "adre-grade-4", name: "ADRE Grade 4", icon: "📄", color: "from-blue-500 to-indigo-600", description: "Assam Direct Recruitment Grade 4" },
+    ],
+    "assam-police": [
+      { id: "assam-si", name: "Assam Police SI", icon: "👮", color: "from-cyan-500 to-blue-600", description: "Sub-Inspector" },
+      { id: "assam-constable", name: "Assam Police Constable", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "Constable" },
+      { id: "assam-asi", name: "Assam Police ASI", icon: "🎖️", color: "from-emerald-500 to-teal-600", description: "Assistant Sub-Inspector" },
+    ],
+    "state-exams": [
+      { id: "wbcs", name: "WBCS", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "West Bengal Civil Service" },
+      { id: "assam-tet", name: "Assam TET", icon: "📚", color: "from-amber-500 to-orange-600", description: "Teacher Eligibility Test" },
+      { id: "assam-psc", name: "Assam PSC", icon: "⚖️", color: "from-blue-500 to-indigo-600", description: "Assam Public Service Commission" },
+      { id: "psc-clerk", name: "PSC Clerk", icon: "✍️", color: "from-emerald-500 to-teal-600", description: "Clerkship Examination" },
+    ],
+    "ssc-gd": [
+      { id: "ssc-gd-constable", name: "SSC GD Constable", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "General Duty Constable" },
+      { id: "ssc-gd-rifleman", name: "SSC GD Rifleman", icon: "🔫", color: "from-red-500 to-rose-600", description: "Rifleman in Rifles" },
+    ],
+  };
 
-  const displaySubs = subcategories.length > 0 ? subcategories : fallbackSubs;
+  // Get fallback subcategories for this category
+  const catKey = (category?.id || category?.name || "").toLowerCase().replace(/\s+/g, "-");
+  const fallbackSubs = (FALLBACK_SUBCATEGORIES[catKey] || FALLBACK_SUBCATEGORIES[category?.name?.toLowerCase() || ""] || []).map(c => ({ ...c, isActive: true, order: 0, parentId: selectedCategory }) as CategoryData);
+
+  // If no fallback exists for this category, show generic subcategory
+  const finalFallback = fallbackSubs.length > 0 ? fallbackSubs : [
+    { id: (catKey || "exam") + "-tier1", name: (category?.name || "Exam") + " Tier 1", icon: "📝", color: "from-blue-500 to-indigo-600", description: "Preliminary exam", isActive: true, order: 0, parentId: selectedCategory } as CategoryData,
+    { id: (catKey || "exam") + "-tier2", name: (category?.name || "Exam") + " Tier 2", icon: "📋", color: "from-purple-500 to-violet-600", description: "Mains exam", isActive: true, order: 1, parentId: selectedCategory } as CategoryData,
+    { id: (catKey || "exam") + "-interview", name: (category?.name || "Exam") + " Interview", icon: "🎤", color: "from-amber-500 to-orange-600", description: "Interview stage", isActive: true, order: 2, parentId: selectedCategory } as CategoryData,
+  ];
+
+  const displaySubs = subcategories.length > 0 ? subcategories : finalFallback;
 
   if (loading) {
     return (
