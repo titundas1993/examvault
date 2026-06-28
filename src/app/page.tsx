@@ -544,29 +544,109 @@ function CategoryDetailScreen() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Get category + subcategory info
+        // Get category + subcategory info from Firestore
         const cats = await getCategories();
-        const cat = cats.find(c => c.id === selectedCategory);
-        setCategory(cat || null);
+        let cat = cats.find(c => c.id === selectedCategory);
+        
+        // If not found in Firestore, check fallback categories
+        if (!cat) {
+          const FALLBACK_CATS: CategoryData[] = [
+            { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more", isActive: true, order: 0 } as CategoryData,
+            { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more", isActive: true, order: 1 } as CategoryData,
+            { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more", isActive: true, order: 2 } as CategoryData,
+            { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more", isActive: true, order: 3 } as CategoryData,
+            { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment", isActive: true, order: 4 } as CategoryData,
+            { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more", isActive: true, order: 5 } as CategoryData,
+            { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more", isActive: true, order: 6 } as CategoryData,
+            { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam", isActive: true, order: 7 } as CategoryData,
+          ];
+          cat = FALLBACK_CATS.find(c => c.id === selectedCategory) || null;
+        }
+        setCategory(cat);
 
+        // Get subcategory info
+        let sub: CategoryData | null = null;
         if (selectedSubcategory && selectedCategory) {
           const subs = await getSubcategories(selectedCategory);
-          const sub = subs.find(s => s.id === selectedSubcategory);
-          setSubcategory(sub || null);
+          sub = subs.find(s => s.id === selectedSubcategory) || null;
+          
+          // If not found in Firestore, check fallback subcategories
+          if (!sub) {
+            const FALLBACK_SUBS: Record<string, CategoryData[]> = {
+              "ssc": [
+                { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level", isActive: true, order: 0 } as CategoryData,
+                { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level", isActive: true, order: 1 } as CategoryData,
+                { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff", isActive: true, order: 2 } as CategoryData,
+                { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable", isActive: true, order: 3 } as CategoryData,
+                { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization", isActive: true, order: 4 } as CategoryData,
+                { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer", isActive: true, order: 5 } as CategoryData,
+                { id: "ssc-steno", name: "SSC Stenographer", icon: "⌨️", color: "from-pink-500 to-rose-600", description: "Stenographer Grade C & D", isActive: true, order: 6 } as CategoryData,
+              ],
+              "railway": [
+                { id: "rrb-ntpc", name: "RRB NTPC", icon: "🚂", color: "from-red-500 to-rose-600", description: "Non-Technical Popular Categories", isActive: true, order: 0 } as CategoryData,
+                { id: "rrb-group-d", name: "RRB Group D", icon: "🛤️", color: "from-amber-500 to-orange-600", description: "Track Maintainer, Helper", isActive: true, order: 1 } as CategoryData,
+                { id: "rrb-alp", name: "RRB ALP", icon: "🔧", color: "from-blue-500 to-indigo-600", description: "Assistant Loco Pilot", isActive: true, order: 2 } as CategoryData,
+              ],
+              "banking": [
+                { id: "ibps-po", name: "IBPS PO", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "Probationary Officer", isActive: true, order: 0 } as CategoryData,
+                { id: "ibps-clerk", name: "IBPS Clerk", icon: "💳", color: "from-blue-500 to-indigo-600", description: "Clerical Cadre", isActive: true, order: 1 } as CategoryData,
+                { id: "sbi-po", name: "SBI PO", icon: "🏛️", color: "from-amber-500 to-orange-600", description: "State Bank PO", isActive: true, order: 2 } as CategoryData,
+              ],
+              "upsc": [
+                { id: "upsc-cse", name: "UPSC CSE", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services Examination", isActive: true, order: 0 } as CategoryData,
+                { id: "upsc-cds", name: "UPSC CDS", icon: "🎖️", color: "from-blue-500 to-indigo-600", description: "Combined Defence Services", isActive: true, order: 1 } as CategoryData,
+                { id: "upsc-nda", name: "UPSC NDA", icon: "🇮🇳", color: "from-emerald-500 to-teal-600", description: "National Defence Academy", isActive: true, order: 2 } as CategoryData,
+              ],
+              "adre": [
+                { id: "adre-grade-3", name: "ADRE Grade 3", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment Grade 3", isActive: true, order: 0 } as CategoryData,
+                { id: "adre-grade-4", name: "ADRE Grade 4", icon: "📄", color: "from-blue-500 to-indigo-600", description: "Assam Direct Recruitment Grade 4", isActive: true, order: 1 } as CategoryData,
+              ],
+              "assam-police": [
+                { id: "assam-si", name: "Assam Police SI", icon: "👮", color: "from-cyan-500 to-blue-600", description: "Sub-Inspector", isActive: true, order: 0 } as CategoryData,
+                { id: "assam-constable", name: "Assam Police Constable", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "Constable", isActive: true, order: 1 } as CategoryData,
+              ],
+              "state-exams": [
+                { id: "wbcs", name: "WBCS", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "West Bengal Civil Service", isActive: true, order: 0 } as CategoryData,
+                { id: "assam-tet", name: "Assam TET", icon: "📚", color: "from-amber-500 to-orange-600", description: "Teacher Eligibility Test", isActive: true, order: 1 } as CategoryData,
+              ],
+            };
+            const subsFallback = FALLBACK_SUBS[selectedCategory] || [];
+            sub = subsFallback.find(s => s.id === selectedSubcategory) || null;
+          }
         }
+        setSubcategory(sub);
 
-        // Get ALL mock tests and filter by category/subcategory name
+        // Get ALL mock tests
         const allTests = await getMockTests();
-        const filterName = subcategory?.name || subcategory?.examCategory || category?.name || category?.examCategory || "";
-        const filtered = (allTests || []).filter((t: any) => {
-          // Match if test.category equals subcategory name OR category name
-          if (filterName && t.category === filterName) return true;
-          // Also match parent category name
-          if (category?.name && t.category === category.name) return true;
-          // Also match subcategory examCategory
-          if (subcategory?.examCategory && t.category === subcategory.examCategory) return true;
-          return false;
-        });
+        
+        // Build filter names — try multiple matches
+        const possibleNames = new Set<string>();
+        if (sub?.name) possibleNames.add(sub.name);
+        if (sub?.examCategory) possibleNames.add(sub.examCategory);
+        if (cat?.name) possibleNames.add(cat.name);
+        if (cat?.examCategory) possibleNames.add(cat.examCategory);
+        
+        // Also add common variations
+        if (sub?.name) {
+          possibleNames.add(sub.name.toUpperCase());
+          possibleNames.add(sub.name.toLowerCase());
+        }
+        
+        // Filter tests — match if test.category is in possibleNames
+        // OR if no filter names, show ALL tests (don't filter)
+        const filtered = possibleNames.size > 0
+          ? (allTests || []).filter((t: any) => {
+              const testCat = (t.category || "").trim();
+              // Exact match
+              if (possibleNames.has(testCat)) return true;
+              // Case-insensitive match
+              for (const name of possibleNames) {
+                if (testCat.toLowerCase() === name.toLowerCase()) return true;
+              }
+              return false;
+            })
+          : (allTests || []);
+        
         setTests(filtered);
       } catch (e) { console.error("CategoryDetail error:", e); }
       finally { setLoading(false); }
