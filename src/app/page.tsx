@@ -3599,15 +3599,14 @@ function ExitConfirmDialog() {
           <button
             onClick={() => {
               setExitConfirmVisible(false);
-              setIsExitingApp(true);
-              try { window.close(); } catch {}
-              window.history.back();
-              setTimeout(() => {
-                const store = useAppStore.getState();
-                if (store.isExitingApp) {
-                  window.location.replace("about:blank");
-                }
-              }, 500);
+              // Try native Android exit first
+              if (typeof window !== "undefined" && (window as any).AndroidBridge?.exitApp) {
+                (window as any).AndroidBridge.exitApp();
+              } else {
+                // Fallback for browser/PWA
+                try { window.close(); } catch {}
+                window.history.back();
+              }
             }}
             className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm active:scale-95 transition-transform cursor-pointer"
             style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}

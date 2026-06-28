@@ -547,6 +547,15 @@ public class MainActivity extends Activity implements PaymentResultListener {
             Log.d(TAG, "openInBrowser is deprecated — using native Razorpay SDK instead");
             // No longer needed — native SDK handles payment directly
         }
+
+        // Exit app — called from JavaScript when user confirms exit
+        @JavascriptInterface
+        public void exitApp() {
+            Log.d(TAG, "JS requested app exit");
+            runOnUiThread(() -> {
+                finishAffinity(); // Close the app properly
+            });
+        }
     }
 
     // ==================== Back Button Handling ====================
