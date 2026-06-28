@@ -141,13 +141,22 @@ export default function RootLayout({
                 }
               }, 2200);
 
-              // Register Service Worker
+              // Register Service Worker — auto-update on new deploy
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(reg) {
                     console.log('SW registered:', reg.scope);
+                    // Check for updates every 5 minutes
+                    setInterval(() => {
+                      reg.update();
+                    }, 300000);
                   }).catch(function(err) {
                     console.log('SW registration failed:', err);
+                  });
+                  // Listen for new SW taking over
+                  navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    console.log('SW updated — reloading page');
+                    window.location.reload();
                   });
                 });
               }

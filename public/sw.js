@@ -1,7 +1,7 @@
-const CACHE_NAME = 'examvault-v2';
+const CACHE_NAME = 'examvault-v3';
 const OFFLINE_URL = '/';
-const STATIC_CACHE = 'examvault-static-v2';
-const DYNAMIC_CACHE = 'examvault-dynamic-v2';
+const STATIC_CACHE = 'examvault-static-v3';
+const DYNAMIC_CACHE = 'examvault-dynamic-v3';
 
 const PRECACHE_URLS = [
   '/',
@@ -83,36 +83,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For static assets (JS, CSS, images) — Cache first, then network
+  // For static assets (JS, CSS, images) — Network first, then cache
+  // This ensures new deployments are always loaded
   if (
     event.request.url.match(/\.(js|css|png|jpg|jpeg|svg|gif|woff2?|ttf|ico)$/) ||
     event.request.url.includes('/_next/static/') ||
     event.request.url.includes('/icons/')
   ) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          // Return cached, but also update cache in background
-          fetch(event.request).then((response) => {
-            if (response && response.status === 200) {
-              caches.open(STATIC_CACHE).then((cache) => {
-                cache.put(event.request, response);
-              });
-            }
-          }).catch(() => {});
-          return cachedResponse;
+      // Network first — always get latest version
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const responseClone = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
         }
-        // Not in cache — fetch and cache
-        return fetch(event.request).then((response) => {
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return response;
-        }).catch(() => {
-          return new Response('', { status: 408 });
+        return response;
+      }).catch(() => {
+        // Network failed — serve from cache
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          return new Response('', { status: 408, statusText: 'Offline' });
         });
       })
     );
