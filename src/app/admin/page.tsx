@@ -107,23 +107,42 @@ async function loadCategoriesIntoGlobals() {
   try {
     const data = await adminGetCollection("categories");
     if (Array.isArray(data) && data.length > 0) {
-      const exams = data.filter((c: any) => c.type === "exam");
+      // New system: parent categories (no parentId) + subcategories (with parentId)
+      const parents = data.filter((c: any) => !c.parentId && c.isActive !== false);
+      const children = data.filter((c: any) => c.parentId && c.isActive !== false);
+
+      if (parents.length > 0) {
+        // Build combined list: parent name + child names
+        const allCats: { label: string; value: string }[] = [];
+        parents.forEach((p: any) => {
+          allCats.push({ label: p.name, value: p.name });
+          // Add subcategories with parent prefix
+          const subs = children.filter((c: any) => c.parentId === p.id);
+          subs.forEach((s: any) => {
+            allCats.push({ label: `  ↳ ${s.name}`, value: s.name });
+          });
+        });
+        allCats.push({ label: "Others", value: "Others" });
+        EXAM_CATEGORIES = allCats;
+      } else {
+        // Fallback: old system (type === "exam")
+        const exams = data.filter((c: any) => c.type === "exam");
+        EXAM_CATEGORIES = exams.length > 0
+          ? exams.map((c: any) => ({ label: c.name, value: c.name }))
+          : [...DEFAULT_EXAM_CATEGORIES];
+      }
+
+      // Subject categories (old system or new)
       const subjects = data.filter((c: any) => c.type === "subject");
-      // Use Firestore categories if available, otherwise keep defaults
-      EXAM_CATEGORIES = exams.length > 0
-        ? exams.map((c: any) => ({ label: c.name, value: c.name }))
-        : [...DEFAULT_EXAM_CATEGORIES];
       SUBJECT_CATEGORIES = subjects.length > 0
         ? subjects.map((c: any) => ({ label: c.name, value: c.name }))
         : [...DEFAULT_SUBJECT_CATEGORIES];
     } else {
-      // No categories in Firestore — reset to defaults
       EXAM_CATEGORIES = [...DEFAULT_EXAM_CATEGORIES];
       SUBJECT_CATEGORIES = [...DEFAULT_SUBJECT_CATEGORIES];
     }
   } catch (e) {
     console.error(e);
-    // On error, fall back to defaults
     EXAM_CATEGORIES = [...DEFAULT_EXAM_CATEGORIES];
     SUBJECT_CATEGORIES = [...DEFAULT_SUBJECT_CATEGORIES];
   }
