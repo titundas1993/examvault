@@ -1825,11 +1825,7 @@ function QuestionsAdmin() {
   };
 
   const TEST_TYPE_OPTIONS = [
-    { value: "mockTests", label: "Mock Tests", icon: BookOpen, color: "from-ev-orange to-orange-600" },
-    { value: "freeTests", label: "Free Tests", icon: Zap, color: "from-green-500 to-emerald-600" },
-    { value: "dailyQuiz", label: "Daily Quiz", icon: Brain, color: "from-purple-500 to-purple-600" },
-    { value: "testSeries", label: "Test Series", icon: Trophy, color: "from-ev-gold to-amber-500" },
-    { value: "popularTests", label: "Popular Tests", icon: Star, color: "from-amber-500 to-yellow-600" },
+    { value: "mockTests", label: "Mock Tests", icon: BookOpen, color: "from-amber-500 to-orange-600" },
   ];
 
   const getTestTypeLabel = (value: string) => TEST_TYPE_OPTIONS.find(t => t.value === value)?.label || value;

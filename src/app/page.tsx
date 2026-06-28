@@ -526,6 +526,134 @@ function SubcategoryListScreen() {
   );
 }
 
+// ==================== CATEGORY DETAIL SCREEN ====================
+
+function CategoryDetailScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const selectedSubcategory = useAppStore(s => s.selectedSubcategory);
+  const subscription = useAppStore(s => s.subscription);
+  const firebaseUser = useAppStore(s => s.firebaseUser);
+  const requirePremium = useRequirePremium();
+  const [category, setCategory] = useState<CategoryData | null>(null);
+  const [subcategory, setSubcategory] = useState<CategoryData | null>(null);
+  const [tests, setTests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Get category + subcategory info
+        const cats = await getCategories();
+        const cat = cats.find(c => c.id === selectedCategory);
+        setCategory(cat || null);
+
+        if (selectedSubcategory && selectedCategory) {
+          const subs = await getSubcategories(selectedCategory);
+          const sub = subs.find(s => s.id === selectedSubcategory);
+          setSubcategory(sub || null);
+        }
+
+        // Get ALL mock tests and filter by category/subcategory name
+        const allTests = await getMockTests();
+        const filterName = subcategory?.name || subcategory?.examCategory || category?.name || category?.examCategory || "";
+        const filtered = (allTests || []).filter((t: any) => {
+          // Match if test.category equals subcategory name OR category name
+          if (filterName && t.category === filterName) return true;
+          // Also match parent category name
+          if (category?.name && t.category === category.name) return true;
+          // Also match subcategory examCategory
+          if (subcategory?.examCategory && t.category === subcategory.examCategory) return true;
+          return false;
+        });
+        setTests(filtered);
+      } catch (e) { console.error("CategoryDetail error:", e); }
+      finally { setLoading(false); }
+    }
+    fetchData();
+  }, [selectedCategory, selectedSubcategory]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+
+  const displayName = subcategory?.name || category?.name || "Tests";
+  const displayIcon = subcategory?.icon || category?.icon || "📝";
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{displayIcon}</span>
+            <div>
+              <h1 className="text-white font-bold text-lg">{displayName}</h1>
+              <p className="text-white/50 text-xs">{tests.length} tests available</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tests List */}
+      <div className="px-4 pt-4">
+        {tests.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><FileText className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No tests available yet</p>
+            <p className="text-gray-400 text-xs mt-1">Tests will appear here when admin adds them</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tests.map((test: any, i) => {
+              const free = isItemFree(test);
+              const purchased = subscription.purchasedItemIds.includes(test.id) || subscription.isPremium;
+              return (
+                <motion.div key={test.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  onClick={() => requirePremium(test.id, free, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
+                  <div className="p-3 flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                      {test.imageUrl ? <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" /> : free ? <Zap className="w-7 h-7 text-emerald-500" /> : <Crown className="w-7 h-7 text-amber-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-[#0B1437] text-sm truncate">{test.title}</h4>
+                      {test.subject && <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md mt-1 inline-block">{test.subject}</span>}
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
+                        <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{test.duration || 0} min</span>
+                        <span className="flex items-center gap-0.5"><FileText className="w-2.5 h-2.5" />{test.questions || 0} Q</span>
+                        <span className="flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{test.marks || 0} marks</span>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {free ? <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span> :
+                       purchased ? <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Active</span> :
+                       <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{test.price || 0}</span>}
+                    </div>
+                  </div>
+                  {/* Action Button */}
+                  {!free && !purchased && (
+                    <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: Number(test.price) > 0 ? Number(test.price) : 0 }); }}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95">
+                      <ShoppingCart className="w-3.5 h-3.5" /> Buy Now — ₹{Number(test.price) > 0 ? Number(test.price) : 0}
+                    </button>
+                  )}
+                  {(free || purchased) && (
+                    <button onClick={(e) => { e.stopPropagation(); useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
+                      className={"w-full py-2.5 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (free ? "bg-[#0B1437]" : "bg-emerald-500")}>
+                      <Zap className="w-3.5 h-3.5" /> Start Test
+                    </button>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ==================== PREMIUM PLANS SCREEN ====================
 
 function PremiumPlansScreen() {
@@ -1259,6 +1387,7 @@ export default function ExamVaultApp() {
           {currentView === "home" && <HomeTab />}
           {currentView === "subcategory-list" && <SubcategoryListScreen />}
           {currentView === "premium-plans" && <PremiumPlansScreen />}
+          {currentView === "category-detail" && <CategoryDetailScreen />}
           {currentView === "mocktests" && <MockTestsTab />}
           {currentView === "test-info" && <TestInfoScreen />}
           {currentView === "exam" && <ExamPage />}
