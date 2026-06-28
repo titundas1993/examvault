@@ -17,7 +17,8 @@ import {
   Activity, PieChart, RefreshCw, ExternalLink, CheckCircle,
   Mail, Search, Loader2, Upload, FileUp, Download, Tag, Link as LinkIcon, Phone,
   Crown, CreditCard, IndianRupee, Compass, Database,
-  Grid3X3, ArrowLeft, ShoppingCart, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle
+  Grid3X3, ArrowLeft, ShoppingCart, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuestionPickerDialog from "@/components/admin/QuestionPickerDialog";
@@ -4379,11 +4380,12 @@ function SupportAdmin() {
 
 // ==================== CATEGORIES ADMIN ====================
 function CategoriesAdmin() {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newExamCategory, setNewExamCategory] = useState("");
-  const [newSubjectCategory, setNewSubjectCategory] = useState("");
-  const [adding, setAdding] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [expandedParent, setExpandedParent] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error") => {
@@ -4395,175 +4397,209 @@ function CategoriesAdmin() {
     setLoading(true);
     try {
       const data = await adminGetCollection("categories");
-      if (Array.isArray(data)) {
-        setCategories(data);
-        // Update globals
-        const exams = data.filter((c: any) => c.type === "exam");
-        const subjects = data.filter((c: any) => c.type === "subject");
-        if (exams.length > 0) EXAM_CATEGORIES = exams.map((c: any) => ({ label: c.name, value: c.name }));
-        if (subjects.length > 0) SUBJECT_CATEGORIES = subjects.map((c: any) => ({ label: c.name, value: c.name }));
-      }
+      if (Array.isArray(data)) setAllCategories(data);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
 
   useEffect(() => { loadCategories(); }, [loadCategories]);
 
-  const handleAddCategory = async (type: "exam" | "subject", name: string) => {
-    if (!name.trim()) return;
-    setAdding(type);
+  const parentCategories = allCategories.filter(c => !c.parentId);
+  const getSubcategories = (parentId: string) => allCategories.filter(c => c.parentId === parentId);
+
+  const handleSave = async () => {
+    const name = formData.name?.trim();
+    if (!name) { showToast("Name is required", "error"); return; }
     try {
-      // Check if already exists
-      const exists = categories.some(c => c.type === type && c.name.toLowerCase() === name.trim().toLowerCase());
-      if (exists) {
-        showToast(`${type === "exam" ? "Exam" : "Subject"} category "${name}" already exists!`, "error");
-        setAdding(null);
-        return;
+      const data: any = {
+        name,
+        description: formData.description || "",
+        icon: formData.icon || "📚",
+        color: formData.color || "from-blue-500 to-indigo-600",
+        isActive: formData.isActive !== false,
+        order: Number(formData.order) || 0,
+        parentId: formData.parentId || null,
+        examCategory: formData.examCategory || name,
+      };
+      if (editingItem) {
+        await adminUpdateDoc("categories", editingItem.id, data);
+        showToast(`"${name}" updated!`, "success");
+      } else {
+        await adminAddDoc("categories", { ...data, createdAt: new Date().toISOString() });
+        showToast(`"${name}" added!`, "success");
       }
-      await adminAddDoc("categories", { name: name.trim(), type, createdAt: new Date().toISOString() });
-      showToast(`${type === "exam" ? "Exam" : "Subject"} category "${name}" added!`, "success");
-      if (type === "exam") setNewExamCategory("");
-      else setNewSubjectCategory("");
+      setShowAddDialog(false);
+      setEditingItem(null);
+      setFormData({});
       loadCategories();
-    } catch (e: any) {
-      showToast(`Failed to add: ${e.message}`, "error");
-    }
-    setAdding(null);
+    } catch (e: any) { showToast(`Failed: ${e.message}`, "error"); }
   };
 
-  const handleDeleteCategory = async (catId: string, catName: string) => {
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}"? Subcategories will also be affected.`)) return;
     try {
-      await adminDeleteDoc("categories", catId);
-      showToast(`Category "${catName}" deleted!`, "success");
+      await adminDeleteDoc("categories", id);
+      // Also delete subcategories
+      const subs = getSubcategories(id);
+      for (const sub of subs) { await adminDeleteDoc("categories", sub.id); }
+      showToast(`"${name}" deleted!`, "success");
       loadCategories();
-    } catch (e: any) {
-      showToast(`Failed to delete: ${e.message}`, "error");
-    }
+    } catch (e: any) { showToast(`Failed: ${e.message}`, "error"); }
   };
 
-  const examCategories = categories.filter(c => c.type === "exam");
-  const subjectCategories = categories.filter(c => c.type === "subject");
+  const openAdd = (parentId: string | null = null) => {
+    setEditingItem(null);
+    setFormData({ parentId, icon: "📚", color: "from-blue-500 to-indigo-600", isActive: true, order: 0 });
+    setShowAddDialog(true);
+  };
+
+  const openEdit = (item: any) => {
+    setEditingItem(item);
+    setFormData({ ...item });
+    setShowAddDialog(true);
+  };
 
   return (
     <div>
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm flex items-center gap-2 ${toast.type === "success" ? "bg-gradient-to-r from-emerald-500 to-green-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}
-          >
-            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
-            {toast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-semibold text-sm ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}>
+          {toast.message}
+        </div>
+      )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
             <Tag className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-ev-navy">Categories</h2>
-            <p className="text-gray-500 text-sm">Manage exam & subject categories</p>
+            <h2 className="text-2xl font-black text-[#0B1437]">Categories</h2>
+            <p className="text-gray-500 text-sm">Manage categories & subcategories</p>
           </div>
         </div>
+        <button onClick={() => openAdd(null)} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-lg flex items-center gap-2 active:scale-95">
+          <Plus className="w-4 h-4" /> Add Category
+        </button>
       </div>
 
-      {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ev-orange" /></div> : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Exam Categories */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-ev-orange to-amber-500 flex items-center justify-center shadow">
-                <Trophy className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="font-bold text-ev-navy">Exam Categories</h3>
-                <p className="text-xs text-gray-400">{examCategories.length} categories</p>
-              </div>
-            </div>
-            {/* Add new */}
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={newExamCategory}
-                onChange={e => setNewExamCategory(e.target.value)}
-                placeholder="New exam category..."
-                onKeyDown={e => { if (e.key === "Enter") handleAddCategory("exam", newExamCategory); }}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => handleAddCategory("exam", newExamCategory)}
-                disabled={!newExamCategory.trim() || adding === "exam"}
-                className="bg-ev-orange hover:bg-ev-orange/90 text-white"
-              >
-                {adding === "exam" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              </Button>
-            </div>
-            {/* List */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {examCategories.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No exam categories yet</p>
-              ) : examCategories.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-ev-orange" />
-                    <span className="font-medium text-sm text-ev-navy">{cat.name}</span>
+      {loading ? <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div> :
+       parentCategories.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+          <p className="text-gray-400 text-sm mb-4">No categories yet</p>
+          <button onClick={() => openAdd(null)} className="px-4 py-2 bg-[#0B1437] text-white rounded-xl text-sm font-bold">Add First Category</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {parentCategories.sort((a, b) => (a.order || 0) - (b.order || 0)).map(cat => {
+            const subs = getSubcategories(cat.id);
+            const isExpanded = expandedParent === cat.id;
+            return (
+              <div key={cat.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Parent Category */}
+                <div className="p-4 flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${cat.color || "from-blue-500 to-indigo-600"} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                    <span className="text-xl">{cat.icon || "📚"}</span>
                   </div>
-                  <button onClick={() => handleDeleteCategory(cat.id, cat.name)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                    <p className="text-[10px] text-gray-400">{cat.description || "No description"} • {subs.length} subcategories</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => openAdd(cat.id)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-500" title="Add subcategory">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => openEdit(cat)} className="p-2 rounded-lg hover:bg-amber-50 text-amber-500" title="Edit">
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(cat.id, cat.name)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {subs.length > 0 && (
+                      <button onClick={() => setExpandedParent(isExpanded ? null : cat.id)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400">
+                        <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                {/* Subcategories */}
+                {isExpanded && subs.length > 0 && (
+                  <div className="border-t border-gray-50 bg-gray-50/50">
+                    {subs.sort((a, b) => (a.order || 0) - (b.order || 0)).map(sub => (
+                      <div key={sub.id} className="p-3 pl-12 flex items-center gap-3 border-b border-gray-50 last:border-0">
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${sub.color || "from-purple-500 to-violet-600"} flex items-center justify-center flex-shrink-0`}>
+                          <span className="text-sm">{sub.icon || "📝"}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h5 className="font-medium text-[#0B1437] text-sm">{sub.name}</h5>
+                          <p className="text-[10px] text-gray-400">{sub.description || ""}</p>
+                        </div>
+                        <button onClick={() => openEdit(sub)} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500"><Edit3 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDelete(sub.id, sub.name)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {/* Subject Categories */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow">
-                <BookOpen className="w-5 h-5 text-white" />
+      {/* Add/Edit Dialog */}
+      {showAddDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddDialog(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-[#0B1437] text-lg">{editingItem ? "Edit" : "Add"} {formData.parentId ? "Subcategory" : "Category"}</h3>
+              <button onClick={() => setShowAddDialog(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Name *</label>
+                <input value={formData.name || ""} onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. SSC CGL" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
               </div>
               <div>
-                <h3 className="font-bold text-ev-navy">Subject Categories</h3>
-                <p className="text-xs text-gray-400">{subjectCategories.length} categories</p>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Description</label>
+                <input value={formData.description || ""} onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="e.g. Combined Graduate Level" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Icon (emoji)</label>
+                <input value={formData.icon || ""} onChange={e => setFormData({ ...formData, icon: e.target.value })}
+                  placeholder="📋" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Color Gradient</label>
+                <select value={formData.color || "from-blue-500 to-indigo-600"} onChange={e => setFormData({ ...formData, color: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm">
+                  <option value="from-blue-500 to-indigo-600">Blue</option>
+                  <option value="from-red-500 to-rose-600">Red</option>
+                  <option value="from-emerald-500 to-teal-600">Green</option>
+                  <option value="from-amber-500 to-orange-600">Orange</option>
+                  <option value="from-purple-500 to-violet-600">Purple</option>
+                  <option value="from-cyan-500 to-blue-600">Cyan</option>
+                  <option value="from-pink-500 to-rose-600">Pink</option>
+                  <option value="from-slate-500 to-gray-700">Gray</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Order (lower = first)</label>
+                <input type="number" value={formData.order || 0} onChange={e => setFormData({ ...formData, order: Number(e.target.value) })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="isActive" checked={formData.isActive !== false} onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded" />
+                <label htmlFor="isActive" className="text-sm text-gray-600">Active (visible to users)</label>
               </div>
             </div>
-            {/* Add new */}
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={newSubjectCategory}
-                onChange={e => setNewSubjectCategory(e.target.value)}
-                placeholder="New subject category..."
-                onKeyDown={e => { if (e.key === "Enter") handleAddCategory("subject", newSubjectCategory); }}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => handleAddCategory("subject", newSubjectCategory)}
-                disabled={!newSubjectCategory.trim() || adding === "subject"}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {adding === "subject" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              </Button>
-            </div>
-            {/* List */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {subjectCategories.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No subject categories yet</p>
-              ) : subjectCategories.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="font-medium text-sm text-ev-navy">{cat.name}</span>
-                  </div>
-                  <button onClick={() => handleDeleteCategory(cat.id, cat.name)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setShowAddDialog(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm">Cancel</button>
+              <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-lg">
+                {editingItem ? "Update" : "Add"}
+              </button>
             </div>
           </div>
         </div>
