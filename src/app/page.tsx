@@ -611,74 +611,48 @@ function PremiumPlansScreen() {
 
 function MockTestsTab() {
   const { setView } = useAppStore();
-  const subscription = useAppStore(s => s.subscription);
-  const [filter, setFilter] = useState("All");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [tests, setTests] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
   const [loading, setLoading] = useState(true);
-  const requirePremium = useRequirePremium();
 
   useEffect(() => {
-    getMockTests().then(data => { setTests(data || []); setLoading(false); }).catch(() => setLoading(false));
+    getCategories().then(cats => { setCategories(cats || []); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  const categories = ["All", ...Array.from(new Set(tests.map((t: any) => t.category).filter(Boolean)))];
-  const filteredTests = tests.filter((t: any) => {
-    const matchesCategory = filter === "All" || t.category === filter;
-    const matchesSearch = !searchTerm || (t.title || "").toLowerCase().includes(searchTerm.toLowerCase()) || (t.category || "").toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const displayCategories = categories.length > 0 ? categories : [
+    { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more" },
+    { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more" },
+    { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more" },
+    { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more" },
+    { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment" },
+    { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more" },
+    { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more" },
+    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam" },
+  ].map(c => ({ ...c, isActive: true, order: 0 }) as CategoryData);
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-4">
-        <h2 className="text-white font-bold text-lg mb-3">Mock Tests</h2>
-        <div className="relative mb-3">
-          <Search className="w-4 h-4 text-white/40 absolute left-3 top-3" />
-          <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white/10 text-white placeholder-white/40 rounded-xl border border-white/15 focus:outline-none focus:border-amber-400/50 text-sm" placeholder="Search tests..." />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {categories.map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={"px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap " + (filter === f ? "bg-amber-400 text-[#0B1437]" : "bg-white/10 text-white/70 border border-white/15")}>{f}</button>
-          ))}
-        </div>
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <h2 className="text-white font-bold text-lg">Browse Tests</h2>
+        <p className="text-white/50 text-xs">Select your exam category</p>
       </div>
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div> :
-       filteredTests.length === 0 ? <div className="text-center py-16"><p className="text-[#0B1437] font-bold text-sm">No tests found</p></div> :
-       <div className="px-4 pt-4 space-y-3">
-         {filteredTests.map((test: any) => {
-           const free = isItemFree(test);
-           const purchased = subscription.purchasedItemIds.includes(test.id) || subscription.isPremium;
-           return (
-             <motion.div key={test.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-               onClick={() => requirePremium(test.id, free, () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
-               className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
-               <div className="p-3 flex items-center gap-3">
-                 <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                   {test.imageUrl ? <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" /> : free ? <Zap className="w-7 h-7 text-emerald-500" /> : <Crown className="w-7 h-7 text-amber-500" />}
-                 </div>
-                 <div className="flex-1 min-w-0">
-                   <h4 className="font-bold text-[#0B1437] text-sm truncate">{test.title}</h4>
-                   <div className="flex items-center gap-2 mt-1"><span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{test.category}</span></div>
-                   <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
-                     <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{test.duration} min</span>
-                     <span className="flex items-center gap-0.5"><FileText className="w-2.5 h-2.5" />{test.questions} Q</span>
-                   </div>
-                 </div>
-                 <div className="flex-shrink-0">
-                   {free ? <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span> :
-                    purchased ? <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Active</span> :
-                    <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{test.price || 0}</span>}
-                 </div>
-               </div>
-               {!free && !purchased && <button onClick={(e) => { e.stopPropagation(); requirePremium(test.id, false, () => {}, { name: test.title, price: Number(test.price) > 0 ? Number(test.price) : 0 }); }} className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95"><ShoppingCart className="w-3.5 h-3.5" /> Buy Now — ₹{Number(test.price) > 0 ? Number(test.price) : 0}</button>}
-               {(free || purchased) && <button onClick={(e) => { e.stopPropagation(); useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }} className={"w-full py-2.5 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (free ? "bg-[#0B1437]" : "bg-emerald-500")}><Zap className="w-3.5 h-3.5" /> Start Test</button>}
-             </motion.div>
-           );
-         })}
-       </div>}
+      <div className="px-4 pt-4">
+        <div className="grid grid-cols-2 gap-3">
+          {displayCategories.map((cat, i) => (
+            <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+              onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); }}
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
+              <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
+              <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
+                <span className="text-2xl">{cat.icon || "📚"}</span>
+              </div>
+              <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+              <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
+              <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
+            </motion.button>
+          ))}
+        </div>
+      </div>}
     </div>
   );
 }
