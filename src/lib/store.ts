@@ -8,7 +8,7 @@ export type AppView =
   | "test-info" | "exam" | "result" | "leaderboard" | "pricing"
   | "upcoming-exams" | "upcoming-exam-detail" | "daily-tips" | "daily-tip-detail"
   | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail"
-  | "my-purchases" | "performance";
+  | "my-purchases" | "performance" | "category-detail";
 
 // Test source collection type — tells ExamPage which collection to query
 export type TestSourceType = "mockTest" | "freeTest" | "dailyQuiz" | "testSeries" | "popularTest";
@@ -65,6 +65,10 @@ interface AppState {
   setSelectedTest: (id: string | null) => void;
   selectedTestType: TestSourceType | null;
   setSelectedTestType: (type: TestSourceType | null) => void;
+  selectedCategory: string | null;
+  setSelectedCategory: (id: string | null) => void;
+  selectedSubcategory: string | null;
+  setSelectedSubcategory: (id: string | null) => void;
   selectedNoteId: string | null;
   setSelectedNoteId: (id: string | null) => void;
   selectedPaperId: string | null;
@@ -195,6 +199,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedTest: (id) => set({ selectedTest: id }),
   selectedTestType: null,
   setSelectedTestType: (type) => set({ selectedTestType: type }),
+  selectedCategory: null,
+  setSelectedCategory: (id) => set({ selectedCategory: id }),
+  selectedSubcategory: null,
+  setSelectedSubcategory: (id) => set({ selectedSubcategory: id }),
   selectedNoteId: null,
   setSelectedNoteId: (id) => set({ selectedNoteId: id }),
   selectedPaperId: null,

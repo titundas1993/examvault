@@ -2262,6 +2262,221 @@ export async function getNavigationItems() {
   }
 }
 
+// ==================== CATEGORIES & SUBCATEGORIES ====================
+
+export interface CategoryData {
+  id?: string;
+  name: string;
+  description?: string;
+  icon?: string;          // emoji or lucide icon name
+  color?: string;         // gradient color class
+  parentId?: string | null; // null = top-level category, string = subcategory
+  examCategory?: string;  // linked exam category for filtering tests
+  isActive: boolean;
+  order: number;
+  createdAt?: string;
+}
+
+// Get top-level categories (parentId is null or empty)
+export async function getCategories(): Promise<CategoryData[]> {
+  try {
+    const q = query(collection(db, "categories"), where("isActive", "==", true));
+    const snapshot = await getDocs(q);
+    const all = snapshot.docs.map(d => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        name: data.name || "",
+        description: data.description || "",
+        icon: data.icon || "",
+        color: data.color || "from-blue-500 to-indigo-600",
+        parentId: data.parentId || null,
+        examCategory: data.examCategory || data.name,
+        isActive: data.isActive !== false,
+        order: data.order || 0,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+      } as CategoryData;
+    });
+    // Sort by order
+    all.sort((a, b) => (a.order || 0) - (b.order || 0));
+    // Return only top-level (no parentId)
+    return all.filter(c => !c.parentId);
+  } catch (error) {
+    console.error("Error getting categories:", error);
+    return [];
+  }
+}
+
+// Get subcategories for a parent category
+export async function getSubcategories(parentId: string): Promise<CategoryData[]> {
+  try {
+    const q = query(
+      collection(db, "categories"),
+      where("parentId", "==", parentId),
+      where("isActive", "==", true)
+    );
+    const snapshot = await getDocs(q);
+    const all = snapshot.docs.map(d => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        name: data.name || "",
+        description: data.description || "",
+        icon: data.icon || "",
+        color: data.color || "from-blue-500 to-indigo-600",
+        parentId: data.parentId,
+        examCategory: data.examCategory || data.name,
+        isActive: data.isActive !== false,
+        order: data.order || 0,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+      } as CategoryData;
+    });
+    all.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return all;
+  } catch (error) {
+    console.error("Error getting subcategories:", error);
+    return [];
+  }
+}
+
+// Get ALL categories (parents + children) — for admin
+export async function getAllCategories(): Promise<CategoryData[]> {
+  try {
+    const q = query(collection(db, "categories"));
+    const snapshot = await getDocs(q);
+    const all = snapshot.docs.map(d => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        name: data.name || "",
+        description: data.description || "",
+        icon: data.icon || "",
+        color: data.color || "from-blue-500 to-indigo-600",
+        parentId: data.parentId || null,
+        examCategory: data.examCategory || data.name,
+        isActive: data.isActive !== false,
+        order: data.order || 0,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+      } as CategoryData;
+    });
+    all.sort((a, b) => {
+      // Parents first, then by order
+      if (!a.parentId && b.parentId) return -1;
+      if (a.parentId && !b.parentId) return 1;
+      return (a.order || 0) - (b.order || 0);
+    });
+    return all;
+  } catch (error) {
+    console.error("Error getting all categories:", error);
+    return [];
+  }
+}
+
+// ==================== PREMIUM PLANS (3-TIER) ====================
+
+export interface PlanScope {
+  scope: "subcategory" | "category" | "all";
+  scopeId?: string;       // categoryId or subcategoryId (for scoped plans)
+  scopeName?: string;     // display name of the scope
+}
+
+export interface PremiumPlan extends PlanScope {
+  id?: string;
+  name: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  durationDays: number;
+  type: "subscription" | "one_time";
+  features: string[];
+  isActive: boolean;
+  isPopular?: boolean;
+  order: number;
+  createdAt?: string;
+}
+
+// Get plans filtered by scope
+export async function getPlansByScope(scope?: "subcategory" | "category" | "all", scopeId?: string): Promise<PremiumPlan[]> {
+  try {
+    const q = query(collection(db, "plans"), where("isActive", "==", true));
+    const snapshot = await getDocs(q);
+    let plans = snapshot.docs.map(d => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        name: data.name || "",
+        description: data.description || "",
+        price: data.price || 0,
+        originalPrice: data.originalPrice,
+        durationDays: data.durationDays || 30,
+        type: data.type || "subscription",
+        scope: data.scope || "all",
+        scopeId: data.scopeId,
+        scopeName: data.scopeName,
+        features: data.features || [],
+        isActive: data.isActive !== false,
+        isPopular: data.isPopular,
+        order: data.order || 0,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || "",
+      } as PremiumPlan;
+    });
+    // Filter by scope
+    if (scope) {
+      plans = plans.filter(p => p.scope === scope);
+      if (scope !== "all" && scopeId) {
+        plans = plans.filter(p => p.scope === "all" || p.scopeId === scopeId);
+      }
+    }
+    plans.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return plans;
+  } catch (error) {
+    console.error("Error getting plans:", error);
+    return [];
+  }
+}
+
+// ==================== PDF SYSTEM ====================
+
+export interface PdfDownloadRecord {
+  id?: string;
+  userId: string;
+  pdfId: string;
+  pdfType: "previousPaper" | "note";
+  pdfName: string;
+  downloadedAt: string;
+}
+
+// Track PDF download
+export async function trackPdfDownload(userId: string, pdfId: string, pdfType: "previousPaper" | "note", pdfName: string): Promise<void> {
+  try {
+    const ref = await addDoc(collection(db, "pdfDownloads"), {
+      userId,
+      pdfId,
+      pdfType,
+      pdfName,
+      downloadedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error tracking PDF download:", error);
+  }
+}
+
+// Check if user has downloaded a PDF (for offline indicator)
+export async function hasUserDownloadedPdf(userId: string, pdfId: string): Promise<boolean> {
+  try {
+    const q = query(
+      collection(db, "pdfDownloads"),
+      where("userId", "==", userId),
+      where("pdfId", "==", pdfId)
+    );
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+  } catch (error) {
+    console.error("Error checking PDF download:", error);
+    return false;
+  }
+}
+
 // ==================== COUPON CODES ====================
 
 export interface CouponData {

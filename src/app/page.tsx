@@ -10,6 +10,8 @@ import {
   getMockTests, getPopularTests, getFreeTests, getDailyQuiz,
   getPreviousPapers, getPreviousPaperById, getNotes, getNoteById, getBanners, getTestSeries,
   getAnnouncements, getQuestions, getLeaderboard, getAppSettings,
+  getCategories, getSubcategories, getPlansByScope, trackPdfDownload, hasUserDownloadedPdf,
+  type CategoryData, type PremiumPlan,
   saveTestResult, getUserTestResults, getTestLeaderboard,
   addLeaderboardEntry, updateLeaderboardEntry,
   checkSubscriptionStatus, hasPurchasedItem,
@@ -822,6 +824,7 @@ function HomeTab() {
   const [mockTests, setMockTests] = useState<any[]>([]);
   const [testSeries, setTestSeries] = useState<any[]>([]);
   const [recentResults, setRecentResults] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
 
   // Fetch data from Firestore
   useEffect(() => {
@@ -842,13 +845,14 @@ function HomeTab() {
     if (currentView !== "home") return;
     async function fetchData() {
       try {
-        const [popData, quizData, testData, seriesData] = await Promise.all([
-          getPopularTests(), getDailyQuiz(), getMockTests(), getTestSeries(),
+        const [popData, quizData, testData, seriesData, catData] = await Promise.all([
+          getPopularTests(), getDailyQuiz(), getMockTests(), getTestSeries(), getCategories(),
         ]);
         if (popData) setPopularTests(popData);
         if (quizData) setDailyQuizzes(quizData);
         if (testData) setMockTests(testData);
         if (seriesData) setTestSeries(seriesData);
+        if (catData) setCategories(catData);
       } catch (e) { console.error("Firestore fetch error:", e); }
     }
     fetchData();
@@ -866,7 +870,13 @@ function HomeTab() {
 
   // Unique categories from all tests
   const allTests = [...mockTests, ...popularTests, ...testSeries];
-  const categories = Array.from(new Set(allTests.map((t: any) => t.category).filter(Boolean))).slice(0, 8);
+  // Use categories from Firestore, fallback to test-derived categories
+  const displayCategories = categories.length > 0 ? categories : Array.from(new Set(allTests.map((t: any) => t.category).filter(Boolean))).slice(0, 8).map((cat: string, i: number) => ({
+    id: cat,
+    name: cat,
+    icon: ["🏦", "🚂", "📋", "🎓", "👮", "📊", "⚖️", "📝"][i % 8],
+    color: "from-blue-500 to-indigo-600",
+  } as CategoryData));
 
   const navQuickLinks = navigationItems.filter(i => i.location === "quicklinks").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const quickLinksData = navQuickLinks.length === 0 ? DEFAULT_QUICK_LINKS : navQuickLinks.slice(0, 4);
@@ -926,17 +936,21 @@ function HomeTab() {
       </div>
 
       {/* 4. Popular Categories Pills */}
-      {categories.length > 0 && (
+      {displayCategories.length > 0 && (
         <div className="px-4 mb-5">
           <h3 className="text-base font-bold text-[#0B1437] mb-3">Popular Categories</h3>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {categories.map(cat => (
+            {displayCategories.map(cat => (
               <button
-                key={cat}
-                onClick={() => setView("mocktests")}
-                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-700 whitespace-nowrap shadow-sm hover:border-blue-500 hover:text-blue-600 transition-colors active:scale-95"
+                key={cat.id}
+                onClick={() => {
+                  useAppStore.getState().setSelectedCategory(cat.id!);
+                  setView("category-detail");
+                }}
+                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-700 whitespace-nowrap shadow-sm hover:border-blue-500 hover:text-blue-600 transition-colors active:scale-95 flex items-center gap-1.5"
               >
-                {cat}
+                {cat.icon && <span>{cat.icon}</span>}
+                {cat.name}
               </button>
             ))}
           </div>
@@ -3351,6 +3365,316 @@ function MyPurchasesScreen() {
   );
 }
 
+// ==================== CATEGORY DETAIL SCREEN ====================
+// Shows subcategories, tests, papers, notes for a selected category
+function CategoryDetailScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const lang = useAppStore(s => s.language);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const subscription = useAppStore(s => s.subscription);
+  const requirePremium = useRequirePremium();
+  const [category, setCategory] = useState<CategoryData | null>(null);
+  const [subcategories, setSubcategories] = useState<CategoryData[]>([]);
+  const [mockTests, setMockTests] = useState<any[]>([]);
+  const [testSeries, setTestSeries] = useState<any[]>([]);
+  const [previousPapers, setPreviousPapers] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [plans, setPlans] = useState<PremiumPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"tests" | "papers" | "notes" | "plans">("tests");
+
+  useEffect(() => {
+    if (!selectedCategory) { setLoading(false); return; }
+    async function fetchData() {
+      try {
+        // Fetch category details
+        const cats = await getCategories();
+        const cat = cats.find(c => c.id === selectedCategory);
+        setCategory(cat || null);
+
+        // Fetch subcategories
+        const subs = await getSubcategories(selectedCategory);
+        setSubcategories(subs);
+
+        // Fetch content filtered by category
+        const examCat = cat?.examCategory || cat?.name || "";
+        const [tests, series, papers, notesData, plansData] = await Promise.all([
+          getMockTests(), getTestSeries(), getPreviousPapers(), getNotes(),
+          getPlansByScope("category", selectedCategory),
+        ]);
+        setMockTests((tests || []).filter((t: any) => t.category === examCat || t.category === cat?.name));
+        setTestSeries((series || []).filter((s: any) => s.category === examCat || s.category === cat?.name));
+        setPreviousPapers((papers || []).filter((p: any) => p.category === examCat || p.category === cat?.name));
+        setNotes((notesData || []).filter((n: any) => n.category === examCat || n.category === cat?.name));
+        setPlans(plansData);
+      } catch (e) {
+        console.error("Category detail fetch error:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [selectedCategory]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  if (!category) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+        <p className="text-gray-500 mb-4">Category not found</p>
+        <button onClick={() => goBack()} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Go Back</button>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { key: "tests" as const, label: "Mock Tests", count: mockTests.length },
+    { key: "papers" as const, label: "Papers", count: previousPapers.length },
+    { key: "notes" as const, label: "Notes", count: notes.length },
+    { key: "plans" as const, label: "Premium", count: plans.length },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] p-5 pt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10">
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-white font-bold text-xl flex items-center gap-2">
+              <span className="text-2xl">{category.icon || "📚"}</span>
+              {category.name}
+            </h1>
+            {category.description && <p className="text-white/60 text-xs mt-0.5">{category.description}</p>}
+          </div>
+        </div>
+
+        {/* Subcategories Pills */}
+        {subcategories.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button
+              onClick={() => setActiveTab("tests")}
+              className="px-3 py-1.5 rounded-full bg-amber-400 text-[#0B1437] text-xs font-bold whitespace-nowrap"
+            >
+              All {category.name}
+            </button>
+            {subcategories.map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => {
+                  useAppStore.getState().setSelectedCategory(sub.id);
+                  setView("category-detail");
+                }}
+                className="px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-semibold whitespace-nowrap border border-white/20 hover:bg-white/20"
+              >
+                {sub.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Premium Banner (if plans exist) */}
+      {plans.length > 0 && !(subscription.isPremium) && (
+        <div className="px-4 mt-4 mb-4">
+          <button
+            onClick={() => setActiveTab("plans")}
+            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-3 shadow-lg text-left active:scale-[0.98] flex items-center gap-3"
+          >
+            <Crown className="w-8 h-8 text-white flex-shrink-0" />
+            <div className="flex-1">
+              <h4 className="text-white font-bold text-sm">Unlock {category.name} Premium</h4>
+              <p className="text-white/80 text-xs">Get access to all {category.name} tests & papers</p>
+            </div>
+            <span className="text-white text-xs font-bold bg-white/20 px-2 py-1 rounded-lg">from ₹{Math.min(...plans.map(p => p.price))}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Tab Bar */}
+      <div className="px-4 mb-4">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key ? "bg-white shadow-sm text-[#0B1437]" : "text-gray-500"}`}
+            >
+              {tab.label}
+              {tab.count > 0 && <span className="ml-1 text-[10px] opacity-60">({tab.count})</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-4 space-y-3">
+        {activeTab === "tests" && (
+          mockTests.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No tests available for {category.name}</p>
+          ) : (
+            mockTests.map((test: any) => (
+              <div
+                key={test.id}
+                onClick={() => requirePremium(test.id, isItemFree(test), () => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }, { name: test.title, price: test.price || 0 })}
+                className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm cursor-pointer active:scale-95 transition-transform flex items-center gap-3"
+              >
+                <div className={"w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 " + (isItemFree(test) ? "bg-emerald-50" : "bg-amber-50")}>
+                  {isItemFree(test) ? <Zap className="w-6 h-6 text-emerald-500" /> : <Crown className="w-6 h-6 text-amber-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-[#0B1437] text-sm truncate">{test.title}</h4>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
+                    <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{test.duration}m</span>
+                    <span className="flex items-center gap-0.5"><BookOpen className="w-3 h-3" />{test.questions}Q</span>
+                    {!isItemFree(test) && <span className="text-amber-600 font-bold">₹{test.price || 0}</span>}
+                  </div>
+                </div>
+                {subscription.purchasedItemIds.includes(test.id) || subscription.isPremium ? (
+                  <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">Active</span>
+                ) : isItemFree(test) ? (
+                  <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span>
+                ) : (
+                  <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">Buy</span>
+                )}
+              </div>
+            ))
+          )
+        )}
+
+        {activeTab === "papers" && (
+          previousPapers.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No previous papers for {category.name}</p>
+          ) : (
+            previousPapers.map((paper: any) => {
+              const hasAccess = subscription.isPremium || subscription.purchasedItemIds.includes(paper.id) || isItemFree(paper);
+              return (
+                <div
+                  key={paper.id}
+                  onClick={() => {
+                    if (hasAccess) {
+                      useAppStore.getState().setSelectedPaperId(paper.id);
+                      setView("previous-paper-detail");
+                    } else {
+                      requirePremium(paper.id, false, () => {}, { name: paper.title || paper.name, price: paper.price || 0 });
+                    }
+                  }}
+                  className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm cursor-pointer active:scale-95 transition-transform flex items-center gap-3"
+                >
+                  <div className={"w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 " + (hasAccess ? "bg-blue-50" : "bg-gray-100")}>
+                    {hasAccess ? <FileText className="w-6 h-6 text-blue-500" /> : <Lock className="w-5 h-5 text-gray-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[#0B1437] text-sm truncate">{paper.title || paper.name}</h4>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Year: {paper.year || "N/A"}</p>
+                  </div>
+                  {hasAccess ? (
+                    <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-bold">Open</span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{paper.price || 0}</span>
+                  )}
+                </div>
+              );
+            })
+          )
+        )}
+
+        {activeTab === "notes" && (
+          notes.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No notes for {category.name}</p>
+          ) : (
+            notes.map((note: any) => {
+              const hasAccess = subscription.isPremium || subscription.purchasedItemIds.includes(note.id) || isItemFree(note);
+              return (
+                <div
+                  key={note.id}
+                  onClick={() => {
+                    if (hasAccess) {
+                      useAppStore.getState().setSelectedNoteId(note.id);
+                      setView("note-detail");
+                    } else {
+                      requirePremium(note.id, false, () => {}, { name: note.title, price: note.price || 0 });
+                    }
+                  }}
+                  className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm cursor-pointer active:scale-95 transition-transform flex items-center gap-3"
+                >
+                  <div className={"w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 " + (hasAccess ? "bg-teal-50" : "bg-gray-100")}>
+                    {hasAccess ? <Notebook className="w-6 h-6 text-teal-500" /> : <Lock className="w-5 h-5 text-gray-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[#0B1437] text-sm truncate">{note.title}</h4>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{note.pages || 0} pages</p>
+                  </div>
+                  {hasAccess ? (
+                    <span className="px-2 py-1 rounded-lg bg-teal-50 text-teal-600 text-[10px] font-bold">Open</span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{note.price || 0}</span>
+                  )}
+                </div>
+              );
+            })
+          )
+        )}
+
+        {activeTab === "plans" && (
+          plans.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No premium plans for {category.name}</p>
+          ) : (
+            plans.map(plan => (
+              <div
+                key={plan.id}
+                className={"bg-white rounded-2xl p-4 border shadow-sm " + (plan.isPopular ? "border-amber-400 ring-2 ring-amber-400/20" : "border-gray-100")}
+              >
+                {plan.isPopular && (
+                  <span className="inline-block px-2 py-0.5 rounded-full bg-amber-400 text-white text-[10px] font-bold mb-2">MOST POPULAR</span>
+                )}
+                <h4 className="font-bold text-[#0B1437]">{plan.name}</h4>
+                <p className="text-xs text-gray-500 mt-0.5">{plan.description}</p>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-[#0B1437]">₹{plan.price}</span>
+                  {plan.originalPrice && <span className="text-sm text-gray-400 line-through">₹{plan.originalPrice}</span>}
+                  <span className="text-xs text-gray-500">/{plan.durationDays} days</span>
+                </div>
+                <div className="space-y-1 mt-3">
+                  {plan.features.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    useAppStore.getState().setPaymentModalData({
+                      planId: plan.id!,
+                      planName: plan.name,
+                      amount: plan.price,
+                      type: plan.type,
+                    });
+                    useAppStore.getState().setShowPaymentModal(true);
+                  }}
+                  className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-lg active:scale-95 transition-transform"
+                >
+                  {subscription.isPremium ? "Subscribed" : `Get ${plan.name}`}
+                </button>
+              </div>
+            ))
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ==================== PERFORMANCE ANALYTICS SCREEN ====================
 // Shows topic-wise strength/weakness, test history, progress charts
 function PerformanceAnalyticsScreen() {
@@ -4017,6 +4341,7 @@ function ExamVaultAppInner() {
           {currentView === "pricing" && <PricingPage />}
           {currentView === "my-purchases" && <MyPurchasesScreen />}
           {currentView === "performance" && <PerformanceAnalyticsScreen />}
+          {currentView === "category-detail" && <CategoryDetailScreen />}
         </motion.div>
       </AnimatePresence>
       <BottomNav />
