@@ -793,7 +793,7 @@ function ExamPage() {
     const scoredMarks = questions.reduce((sum, q, i) => sum + (answers[i] === q.correctAnswer ? (q.marks || 1) : 0), 0);
     const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
     const result: any = { userId: firebaseUser?.uid || "", userName: user?.name || "User", testId: selectedTest || "", testTitle, testCategory: "", totalQuestions: questions.length, correctAnswers: correct, wrongAnswers: wrong, skipped, totalMarks, scoredMarks, accuracy, timeUsedSeconds: 2700 - timeLeft, answers, createdAt: new Date().toISOString() };
-    if (firebaseUser?.uid) { try { await saveTestResult(result); } catch (e) { console.error("Save result error:", e); } }
+    if (firebaseUser?.uid) { try { await saveTestResult(result as any); } catch (e) { console.error("Save result error:", e); } }
     setLastTestResult(result);
     setView("result");
   }, [submitted, answers, questions, selectedTest, testTitle, firebaseUser, user, timeLeft]);
