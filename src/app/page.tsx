@@ -1209,7 +1209,7 @@ function MyPurchasesScreen() {
 
 // ==================== MAIN APP ====================
 
-export default function Home() {
+export default function ExamVaultApp() {
   const {
     currentView, authLoading, user, firebaseUser,
     setView, setUser, setFirebaseUser, setAuthLoading,
