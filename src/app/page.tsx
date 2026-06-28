@@ -17,9 +17,9 @@ import {
   Home, BookOpen, Award, User, Settings, HelpCircle,
   ChevronRight, Bell, Search, Clock, Star, Zap, Award as TrophyIcon,
   Target, TrendingUp, Crown, Menu, X, LogOut, ArrowLeft,
-  Edit, Download, Crown as CrownIcon, Timer, AlertTriangle, Loader2,
+  Timer, AlertTriangle, Loader2,
   CheckCircle, Bookmark, SkipForward, Grid3X3, ShoppingCart,
-  FileText, Lock, Brain, CalendarDays, Sparkles, Megaphone,
+  FileText,
 } from "lucide-react";
 
 // User Components
@@ -44,8 +44,8 @@ function isItemFree(item: any): boolean {
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  Home, BookOpen, Award, User, Settings, HelpCircle, Crown, CalendarDays,
-  Sparkles, FileText, Brain, Zap, Megaphone, TrophyIcon, Target,
+  Home, BookOpen, Award, User, Settings, HelpCircle, Crown,
+  FileText, Zap, TrophyIcon, Target,
 };
 
 function useRequireAuth() {
