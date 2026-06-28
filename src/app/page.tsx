@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
-import { t } from "@/lib/i18n";
 import { onAuthChange, logout as authLogout } from "@/lib/services/auth";
 import {
   getMockTests, getMockTestById, getQuestions, getLeaderboard,
@@ -14,8 +13,6 @@ import {
   type CategoryData, type PremiumPlan,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
 } from "@/lib/services/firestore";
-import { db } from "@/lib/firebase";
-import { onSnapshot, query, where, collection } from "firebase/firestore";
 import {
   Home, BookOpen, Award, User, Settings, HelpCircle,
   ChevronRight, Bell, Search, Clock, Star, Zap, Award as TrophyIcon,
