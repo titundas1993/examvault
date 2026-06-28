@@ -1216,7 +1216,7 @@ export default function Home() {
   const {
     currentView, authLoading, user, firebaseUser,
     setView, setUser, setFirebaseUser, setAuthLoading,
-    setSubscription, setNavigationItems,
+    setSubscription,
   } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const _isAndroidWebView = typeof window !== "undefined" && /wv/.test(navigator.userAgent);
