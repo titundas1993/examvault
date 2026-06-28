@@ -183,14 +183,31 @@ public class MainActivity extends Activity implements PaymentResultListener {
                     return true;
                 }
 
-                if (url.startsWith(appUrl) || url.contains("firebaseio.com") ||
-                    url.contains("googleapis.com") || url.contains("google.com") ||
-                    url.contains("razorpay.com")) {
-                    return false;
+                // Handle tel: (phone call) and mailto: (email) URLs
+                if (url.startsWith("tel:") || url.startsWith("mailto:")) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        return true;
+                    } catch (Exception e) {
+                        Log.w(TAG, "Cannot open tel/mailto: " + e.getMessage());
+                        return true;
+                    }
                 }
 
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(intent);
+                // Whitelist of URLs that should load inside WebView
+                if (url.startsWith(appUrl) || url.contains("firebaseio.com") ||
+                    url.contains("googleapis.com") || url.contains("razorpay.com") ||
+                    url.contains("checkout.razorpay.com") ||
+                    url.startsWith("https://examvault") ||
+                    url.startsWith("https://api.razorpay.com")) {
+                    return false; // Load in WebView
+                }
+
+                // Block ALL other URLs from opening external browser
+                // This prevents app from opening Chrome/Edge when user exits
+                Log.w(TAG, "Blocked external URL: " + url);
                 return true;
             }
 
