@@ -508,7 +508,7 @@ function SubcategoryListScreen() {
         <div className="space-y-2">
           {displaySubs.map((sub, i) => (
             <motion.button key={sub.id || i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-              onClick={() => { useAppStore.getState().setSelectedSubcategory(sub.id!); setView("premium-plans"); }}
+              onClick={() => { useAppStore.getState().setSelectedSubcategory(sub.id!); setView("category-detail"); }}
               className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3">
               <div className={"w-11 h-11 rounded-xl bg-gradient-to-br " + (sub.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm flex-shrink-0"}>
                 <span className="text-xl">{sub.icon || "📝"}</span>
