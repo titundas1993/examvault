@@ -48,9 +48,9 @@ public class MainActivity extends Activity implements PaymentResultListener {
 
     private WebView webView;
     private ProgressBar progressBar;
-    private String appUrl = "https://examvault-theta.vercel.app";
-    private String admobInterstitialId = "ca-app-pub-1742730064755213/5520307609";
-    private String admobBannerId = "ca-app-pub-1742730064755213/4499859652";
+    private String appUrl = "${APP_URL}";
+    private String admobInterstitialId = "${ADMOB_INTERSTITIAL_ID}";
+    private String admobBannerId = "${ADMOB_BANNER_ID}";
 
     // Interstitial ad
     private InterstitialAd mInterstitialAd;

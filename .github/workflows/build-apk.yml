@@ -14,6 +14,10 @@ on:
         description: 'AdMob Interstitial Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
         required: false
         default: 'ca-app-pub-1742730064755213/5520307609'
+      admob_banner_id:
+        description: 'AdMob Banner Ad Unit ID (ca-app-pub-XXXXX/YYYYY)'
+        required: false
+        default: 'ca-app-pub-1742730064755213/4499859652'
       build_aab:
         description: 'Also build AAB for Play Store? (true/false)'
         required: false
@@ -53,10 +57,12 @@ jobs:
           APP_URL="${{ github.event.inputs.app_url }}"
           ADMOB_APP_ID="${{ github.event.inputs.admob_app_id }}"
           ADMOB_INTERSTITIAL_ID="${{ github.event.inputs.admob_interstitial_id }}"
+          ADMOB_BANNER_ID="${{ github.event.inputs.admob_banner_id }}"
           BUILD_AAB="${{ github.event.inputs.build_aab }}"
           echo "Building for: $APP_URL (AAB: $BUILD_AAB)"
           echo "AdMob App ID: $ADMOB_APP_ID"
           echo "AdMob Interstitial ID: $ADMOB_INTERSTITIAL_ID"
+          echo "AdMob Banner ID: $ADMOB_BANNER_ID"
 
           # Extract domain from APP_URL for network security config
           APP_DOMAIN=$(echo "$APP_URL" | sed -E 's|https?://([^/]+).*|\1|')
@@ -247,13 +253,14 @@ jobs:
           cp android-templates/MainActivity.java android-project/app/src/main/java/com/examvault/education/MainActivity.java
           sed -i "s|\${APP_URL}|$APP_URL|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
           sed -i "s|\${ADMOB_INTERSTITIAL_ID}|$ADMOB_INTERSTITIAL_ID|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
+          sed -i "s|\${ADMOB_BANNER_ID}|$ADMOB_BANNER_ID|g" android-project/app/src/main/java/com/examvault/education/MainActivity.java
 
           echo "=== Verify AdMob App ID in manifest ==="
           grep "APPLICATION_ID" android-project/app/src/main/AndroidManifest.xml
           echo "=== Verify APP_URL in MainActivity ==="
           grep "appUrl" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
-          echo "=== Verify ADMOB ID in MainActivity ==="
-          grep "admobInterstitialId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -2
+          echo "=== Verify ADMOB IDs in MainActivity ==="
+          grep "admobInterstitialId\|admobBannerId" android-project/app/src/main/java/com/examvault/education/MainActivity.java | head -3
           echo "Android project created!"
 
           # strings.xml
