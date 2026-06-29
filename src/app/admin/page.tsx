@@ -5324,7 +5324,7 @@ function PlansAdmin() {
 
   const handleEdit = (plan: PlanData) => {
     setEditingPlan(plan);
-    const resolvedPlanType = (plan as any).planType || (plan.price === 0 ? "free" : "premium");
+    const resolvedPlanType = (plan as any).planType === "free" || (plan as any).planType === "premium" ? (plan as any).planType : "premium";
     setFormData({
       name: plan.name, description: plan.description, price: plan.price,
       originalPrice: plan.originalPrice || 0, durationDays: plan.durationDays ?? plan.duration ?? 0,
@@ -5335,9 +5335,13 @@ function PlansAdmin() {
   };
 
   const handleSave = async () => {
+    if (!formData.name?.trim()) { showToast("Plan name is required", "error"); return; }
+    if (formData.name.trim().length < 3) { showToast("Plan name must be at least 3 characters", "error"); return; }
+    if (formData.planType === "premium" && (!formData.price || Number(formData.price) <= 0)) { showToast("Premium plan must have a price > 0", "error"); return; }
+    if (!formData.durationDays || Number(formData.durationDays) <= 0) { showToast("Duration must be at least 1 day", "error"); return; }
     try {
       const planData: any = {
-        name: formData.name,
+        name: formData.name.trim(),
         description: formData.description,
         price: formData.planType === "free" ? 0 : Number(formData.price),
         durationDays: Number(formData.durationDays),
@@ -5806,16 +5810,16 @@ function NavigationAdmin() {
 // ==================== COUPONS ADMIN ====================
 function CouponsAdmin() {
   const fields = [
-    { key: "code", label: "Coupon Code", type: "text", placeholder: "FREEDOM50" },
+    { key: "code", label: "Coupon Code", type: "text", placeholder: "FREEDOM50", required: true },
     { key: "description", label: "Description", type: "text", placeholder: "50% off for Independence Day" },
     {
       key: "discountType", label: "Discount Type", type: "select",
       options: [
         { value: "percentage", label: "Percentage (%)" },
         { value: "fixed", label: "Fixed Amount" },
-      ],
+      ], required: true,
     },
-    { key: "discountValue", label: "Discount Value", type: "number", placeholder: "50" },
+    { key: "discountValue", label: "Discount Value", type: "number", placeholder: "50", required: true },
     { key: "minAmount", label: "Minimum Amount", type: "number", placeholder: "0" },
     { key: "maxDiscount", label: "Max Discount (0=unlimited)", type: "number", placeholder: "0" },
     { key: "usageLimit", label: "Usage Limit (0=unlimited)", type: "number", placeholder: "100" },
@@ -5841,15 +5845,15 @@ function CouponsAdmin() {
 // ==================== PUSH NOTIFICATIONS ADMIN ====================
 function PushNotificationsAdmin() {
   const fields = [
-    { key: "title", label: "Title", type: "text", placeholder: "New Test Added!" },
-    { key: "message", label: "Message", type: "textarea", placeholder: "Check out the new SSC CGL mock test" },
+    { key: "title", label: "Title", type: "text", placeholder: "New Test Added!", required: true },
+    { key: "message", label: "Message", type: "textarea", placeholder: "Check out the new SSC CGL mock test", required: true },
     {
       key: "targetUsers", label: "Target Users", type: "select",
       options: [
         { value: "all", label: "All Users" },
         { value: "premium", label: "Premium Users Only" },
         { value: "free", label: "Free Users Only" },
-      ],
+      ], required: true,
     },
     { key: "isActive", label: "Active", type: "switch" },
   ];
