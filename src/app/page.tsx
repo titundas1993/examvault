@@ -288,46 +288,7 @@ function HomeTab() {
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* Scrolling Text Banner at TOP — only shows when admin has added announcements */}
-      {scrollText && announcements.length > 0 && (
-        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
-          <div className="flex whitespace-nowrap animate-marquee">
-            {announcements.filter(a => a.title || a.description).map((a, idx) => (
-              <button
-                key={a.id || idx}
-                onClick={() => {
-                  // Click on announcement → open announcement detail
-                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
-                  setView("announcement-detail" as any);
-                  triggerAd("announcement_click");
-                }}
-                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
-              >
-                {a.title || a.description}
-                <span className="mx-2 text-amber-400/40">•</span>
-              </button>
-            ))}
-            {/* Duplicate set for seamless looping */}
-            {announcements.filter(a => a.title || a.description).map((a, idx) => (
-              <button
-                key={`dup-${a.id || idx}`}
-                onClick={() => {
-                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
-                  setView("announcement-detail" as any);
-                  triggerAd("announcement_click");
-                }}
-                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
-                aria-hidden="true"
-              >
-                {a.title || a.description}
-                <span className="mx-2 text-amber-400/40">•</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Banner Slider — only if admin has added banners */}
+      {/* Banner Slider — TOP (only if admin has added banners) */}
       {displayBanners.length > 0 && (
         <div className="px-4 pt-4 mb-0">
           <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
@@ -389,6 +350,45 @@ function HomeTab() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Scrolling Text Banner — BELOW banner slider (only when admin has added announcements) */}
+      {scrollText && announcements.length > 0 && (
+        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20 mt-3">
+          <div className="flex whitespace-nowrap animate-marquee">
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={a.id || idx}
+                onClick={() => {
+                  // Click on announcement → open announcement detail
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
+            {/* Duplicate set for seamless looping */}
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={`dup-${a.id || idx}`}
+                onClick={() => {
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+                aria-hidden="true"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
