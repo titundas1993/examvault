@@ -10,7 +10,10 @@ import {
   saveTestResult, getUserTestResults,
   checkSubscriptionStatus,
   getBanners, getAnnouncements,
+  getPreviousPapers, getStudyNotes, getUpcomingExams,
+  trackPaperDownload, hasUserDownloadedPaper,
   type CategoryData, type PremiumPlan,
+  type PreviousPaperData, type StudyNoteData, type UpcomingExamData,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
 } from "@/lib/services/firestore";
 import {
@@ -19,7 +22,7 @@ import {
   Target, TrendingUp, Crown, Menu, X, LogOut, ArrowLeft,
   Timer, AlertTriangle, Loader2,
   CheckCircle, Bookmark, SkipForward, Grid3X3, ShoppingCart,
-  FileText, Sun, Moon,
+  FileText, Sun, Moon, Download, Calendar, ExternalLink,
 } from "lucide-react";
 
 // User Components
@@ -104,10 +107,13 @@ const DEFAULT_BOTTOM_NAV = [
 const DEFAULT_SIDE_MENU = [
   { label: "Home", icon: "Home", targetView: "home", location: "sidemenu", order: 0, isActive: true, color: "text-blue-600", requireAuth: false },
   { label: "Mock Tests", icon: "BookOpen", targetView: "mocktests", location: "sidemenu", order: 1, isActive: true, color: "text-indigo-600", requireAuth: false },
-  { label: "Premium Plans", icon: "Crown", targetView: "pricing", location: "sidemenu", order: 2, isActive: true, color: "text-amber-500", requireAuth: false },
-  { label: "My Purchases", icon: "ShoppingCart", targetView: "my-purchases", location: "sidemenu", order: 3, isActive: true, color: "text-blue-600", requireAuth: true },
-  { label: "Settings", icon: "Settings", targetView: "settings", location: "sidemenu", order: 4, isActive: true, color: "text-gray-600", requireAuth: false },
-  { label: "Support", icon: "HelpCircle", targetView: "support", location: "sidemenu", order: 5, isActive: true, color: "text-gray-500", requireAuth: false },
+  { label: "Previous Papers", icon: "FileText", targetView: "previous-papers", location: "sidemenu", order: 2, isActive: true, color: "text-emerald-600", requireAuth: false },
+  { label: "Study Notes", icon: "BookOpen", targetView: "notes", location: "sidemenu", order: 3, isActive: true, color: "text-cyan-600", requireAuth: false },
+  { label: "Upcoming Exams", icon: "FileText", targetView: "upcoming-exams", location: "sidemenu", order: 4, isActive: true, color: "text-rose-600", requireAuth: false },
+  { label: "Premium Plans", icon: "Crown", targetView: "pricing", location: "sidemenu", order: 5, isActive: true, color: "text-amber-500", requireAuth: false },
+  { label: "My Purchases", icon: "ShoppingCart", targetView: "my-purchases", location: "sidemenu", order: 6, isActive: true, color: "text-blue-600", requireAuth: true },
+  { label: "Settings", icon: "Settings", targetView: "settings", location: "sidemenu", order: 7, isActive: true, color: "text-gray-600", requireAuth: false },
+  { label: "Support", icon: "HelpCircle", targetView: "support", location: "sidemenu", order: 8, isActive: true, color: "text-gray-500", requireAuth: false },
 ];
 
 // ==================== HEADER ====================
@@ -851,6 +857,12 @@ function TestInfoScreen() {
           </div>
         </div>
         {testData.description && <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4"><h3 className="font-bold text-[#0B1437] text-sm mb-2">Description</h3><p className="text-xs text-gray-500">{testData.description}</p></div>}
+        {testData.negativeMarking && (
+          <div className="bg-red-50 rounded-2xl p-4 border border-red-100 mb-4">
+            <h3 className="font-bold text-red-700 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Negative Marking Active</h3>
+            <p className="text-xs text-red-600">Each wrong answer: <span className="font-bold">-{testData.negativeMarkPerWrong || 0.25} marks</span> deducted. Unattempted questions have no penalty.</p>
+          </div>
+        )}
         {testData.instructions && <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 mb-4"><h3 className="font-bold text-amber-700 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Instructions</h3><p className="text-xs text-amber-600">{testData.instructions}</p></div>}
       </div>
       <div className="px-4 mt-6">
@@ -885,11 +897,19 @@ function ExamPage() {
   const [showQuestionNav, setShowQuestionNav] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
+  const [negativeMarking, setNegativeMarking] = useState(false);
+  const [negativeMarkPerWrong, setNegativeMarkPerWrong] = useState(0);
 
   useEffect(() => {
     if (!selectedTest) { setLoading(false); return; }
     getMockTestById(selectedTest).then(test => {
-      if (test) { setTestTitle(test.title); setTimeLeft((test.duration || 45) * 60); }
+      if (test) {
+        setTestTitle(test.title);
+        setTimeLeft((test.duration || 45) * 60);
+        // Load negative marking config from test data
+        setNegativeMarking(test.negativeMarking === true);
+        setNegativeMarkPerWrong(Number(test.negativeMarkPerWrong) || 0);
+      }
       getQuestions(selectedTest).then(qs => { setQuestions(qs || []); setLoading(false); }).catch(() => setLoading(false));
     }).catch(() => setLoading(false));
   }, [selectedTest]);
@@ -909,15 +929,36 @@ function ExamPage() {
       if (answers[i] === q.correctAnswer) correct++; else wrong++;
     });
     const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
-    const scoredMarks = questions.reduce((sum, q, i) => sum + (answers[i] === q.correctAnswer ? (q.marks || 1) : 0), 0);
+    const positiveMarks = questions.reduce((sum, q, i) => sum + (answers[i] === q.correctAnswer ? (q.marks || 1) : 0), 0);
+    // Apply negative marking if enabled
+    const deduction = (negativeMarking && negativeMarkPerWrong > 0) ? (wrong * negativeMarkPerWrong) : 0;
+    const scoredMarks = Math.max(0, positiveMarks - deduction);
     const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
-    const result: any = { userId: firebaseUser?.uid || "", userName: user?.name || "User", testId: selectedTest || "", testTitle, testCategory: "", totalQuestions: questions.length, correctAnswers: correct, wrongAnswers: wrong, skipped, totalMarks, scoredMarks, accuracy, timeUsedSeconds: 2700 - timeLeft, answers, createdAt: new Date().toISOString() };
+    const result: any = {
+      userId: firebaseUser?.uid || "",
+      userName: user?.name || "User",
+      testId: selectedTest || "",
+      testTitle,
+      testCategory: "",
+      totalQuestions: questions.length,
+      correctAnswers: correct,
+      wrongAnswers: wrong,
+      skipped,
+      totalMarks,
+      scoredMarks,
+      positiveMarks,
+      negativeMarks: deduction,
+      negativeMarkingApplied: negativeMarking && deduction > 0,
+      accuracy,
+      timeUsedSeconds: 2700 - timeLeft,
+      answers,
+      createdAt: new Date().toISOString()
+    };
     if (firebaseUser?.uid) { try { await saveTestResult(result as any); } catch (e) { console.error("Save result error:", e); } }
     setLastTestResult(result);
     setView("result");
-    // Trigger interstitial ad after test submission — premium users skipped on Android side
     triggerAd("test_submit");
-  }, [submitted, answers, questions, selectedTest, testTitle, firebaseUser, user, timeLeft]);
+  }, [submitted, answers, questions, selectedTest, testTitle, firebaseUser, user, timeLeft, negativeMarking, negativeMarkPerWrong]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   if (questions.length === 0) return <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6"><p className="text-gray-500 mb-4">No questions found</p><button onClick={() => goBack()} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Go Back</button></div>;
@@ -1046,6 +1087,22 @@ function ResultPage() {
           </div>
           <div className="mt-4 flex items-center justify-between"><span className="text-xs text-gray-400">Accuracy</span><span className="font-bold text-[#0B1437]">{r.accuracy}%</span></div>
           <div className="mt-1 flex items-center justify-between"><span className="text-xs text-gray-400">Time</span><span className="font-bold text-[#0B1437]">{Math.floor(r.timeUsedSeconds / 60)}m {r.timeUsedSeconds % 60}s</span></div>
+          {(r.negativeMarkingApplied || r.negativeMarks > 0) && (
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Positive Marks</span>
+                <span className="font-bold text-emerald-600 text-sm">+{r.positiveMarks || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Negative Marks ({r.wrongAnswers} wrong)</span>
+                <span className="font-bold text-red-600 text-sm">-{r.negativeMarks || 0}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-gray-500 font-semibold">Final Score</span>
+                <span className="font-bold text-[#0B1437] text-sm">{r.scoredMarks}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <div className="px-4 space-y-2">
@@ -1422,6 +1479,313 @@ function AnnouncementDetailScreen() {
   );
 }
 
+// ==================== PREVIOUS PAPERS SCREEN ====================
+
+function PreviousPapersScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const subscription = useAppStore(s => s.subscription);
+  const firebaseUser = useAppStore(s => s.firebaseUser);
+  const setShowPaymentModal = useAppStore(s => s.setShowPaymentModal);
+  const setPaymentModalData = useAppStore(s => s.setPaymentModalData);
+  const [papers, setPapers] = useState<PreviousPaperData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getPreviousPapers(selectedCategory || undefined).then(p => { setPapers(p || []); setLoading(false); }).catch(() => setLoading(false));
+  }, [selectedCategory]);
+
+  const handleDownload = async (paper: PreviousPaperData) => {
+    if (!paper.pdfUrl) return;
+    const isFree = paper.accessType !== "premium" || (paper.isFree !== false);
+    const purchased = subscription.isPremium || subscription.purchasedItemIds.includes(paper.id || "");
+    if (!isFree && !purchased) {
+      if (paper.price && Number(paper.price) > 0) {
+        setPaymentModalData({ planId: paper.id!, planName: paper.title, amount: Number(paper.price), type: "one_time" });
+        setShowPaymentModal(true);
+      } else {
+        setView("pricing");
+      }
+      return;
+    }
+    // Track download
+    if (firebaseUser?.uid && paper.id) {
+      await trackPaperDownload(paper.id, firebaseUser.uid);
+    }
+    // Open PDF in new tab
+    try { window.open(paper.pdfUrl, "_blank", "noopener,noreferrer"); } catch (e) {}
+    triggerAd("paper_download");
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Previous Papers</h1>
+            <p className="text-white/50 text-xs">{papers.length} papers available</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pt-4">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : papers.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><FileText className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No papers available yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add previous papers soon</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {papers.map((paper, i) => {
+              const isFree = paper.accessType !== "premium" || (paper.isFree !== false);
+              const purchased = subscription.isPremium || subscription.purchasedItemIds.includes(paper.id || "");
+              return (
+                <motion.div key={paper.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-7 h-7 text-emerald-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-[#0B1437] text-sm">{paper.title}</h4>
+                      {paper.examName && <p className="text-[10px] text-gray-500 mt-0.5">{paper.examName}</p>}
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] text-gray-400">
+                        {paper.year && <span className="px-1.5 py-0.5 rounded bg-gray-100">📅 {paper.year}</span>}
+                        {paper.subject && <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">{paper.subject}</span>}
+                        {paper.pages && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">📄 {paper.pages}p</span>}
+                        {paper.fileSize && <span className="px-1.5 py-0.5 rounded bg-gray-100">💾 {paper.fileSize}</span>}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {isFree ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span> :
+                       purchased ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Owned</span> :
+                       <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{paper.price || 0}</span>}
+                    </div>
+                  </div>
+                  {paper.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{paper.description}</p>}
+                  <button onClick={() => handleDownload(paper)}
+                    className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
+                    <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${paper.price || 0}`}
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==================== STUDY NOTES SCREEN ====================
+
+function StudyNotesScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const subscription = useAppStore(s => s.subscription);
+  const firebaseUser = useAppStore(s => s.firebaseUser);
+  const setShowPaymentModal = useAppStore(s => s.setShowPaymentModal);
+  const setPaymentModalData = useAppStore(s => s.setPaymentModalData);
+  const [notes, setNotes] = useState<StudyNoteData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getStudyNotes(selectedCategory || undefined).then(n => { setNotes(n || []); setLoading(false); }).catch(() => setLoading(false));
+  }, [selectedCategory]);
+
+  const handleDownload = async (note: StudyNoteData) => {
+    if (!note.pdfUrl) return;
+    const isFree = note.accessType !== "premium" || (note.isFree !== false);
+    const purchased = subscription.isPremium || subscription.purchasedItemIds.includes(note.id || "");
+    if (!isFree && !purchased) {
+      if (note.price && Number(note.price) > 0) {
+        setPaymentModalData({ planId: note.id!, planName: note.title, amount: Number(note.price), type: "one_time" });
+        setShowPaymentModal(true);
+      } else {
+        setView("pricing");
+      }
+      return;
+    }
+    if (firebaseUser?.uid && note.id) {
+      await trackPaperDownload(note.id, firebaseUser.uid);
+    }
+    try { window.open(note.pdfUrl, "_blank", "noopener,noreferrer"); } catch (e) {}
+    triggerAd("note_download");
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Study Notes</h1>
+            <p className="text-white/50 text-xs">{notes.length} notes available</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pt-4">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : notes.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><BookOpen className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No notes available yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add study notes soon</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {notes.map((note, i) => {
+              const isFree = note.accessType !== "premium" || (note.isFree !== false);
+              const purchased = subscription.isPremium || subscription.purchasedItemIds.includes(note.id || "");
+              return (
+                <motion.div key={note.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center flex-shrink-0">
+                      <BookOpen className="w-7 h-7 text-cyan-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-[#0B1437] text-sm">{note.title}</h4>
+                      {note.topic && <p className="text-[10px] text-gray-500 mt-0.5">{note.topic}</p>}
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] text-gray-400">
+                        {note.subject && <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">{note.subject}</span>}
+                        {note.pages && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">📄 {note.pages}p</span>}
+                        {note.fileSize && <span className="px-1.5 py-0.5 rounded bg-gray-100">💾 {note.fileSize}</span>}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {isFree ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">FREE</span> :
+                       purchased ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> Owned</span> :
+                       <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{note.price || 0}</span>}
+                    </div>
+                  </div>
+                  {note.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{note.description}</p>}
+                  <button onClick={() => handleDownload(note)}
+                    className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
+                    <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${note.price || 0}`}
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==================== UPCOMING EXAMS SCREEN ====================
+
+function UpcomingExamsScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const selectedCategory = useAppStore(s => s.selectedCategory);
+  const [exams, setExams] = useState<UpcomingExamData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getUpcomingExams(selectedCategory || undefined).then(e => { setExams(e || []); setLoading(false); }).catch(() => setLoading(false));
+  }, [selectedCategory]);
+
+  const formatDate = (d?: string) => {
+    if (!d) return "TBA";
+    try {
+      const date = new Date(d);
+      return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    } catch { return d; }
+  };
+
+  const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
+    application_open: { label: "📋 Apply Now", color: "text-emerald-600", bg: "bg-emerald-50" },
+    application_closed: { label: "⏳ Apply Closed", color: "text-amber-600", bg: "bg-amber-50" },
+    exam_soon: { label: "📝 Exam Soon", color: "text-blue-600", bg: "bg-blue-50" },
+    result_out: { label: "📢 Result Out", color: "text-purple-600", bg: "bg-purple-50" },
+    upcoming: { label: "🔒 Upcoming", color: "text-gray-600", bg: "bg-gray-100" },
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Upcoming Exams</h1>
+            <p className="text-white/50 text-xs">{exams.length} exams listed</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pt-4">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : exams.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Calendar className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No upcoming exams yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add exam notifications soon</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {exams.map((exam, i) => {
+              const status = statusConfig[exam.status || "upcoming"] || statusConfig.upcoming;
+              return (
+                <motion.div key={exam.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{exam.examName}</h4>
+                        {exam.organization && <p className="text-[10px] text-gray-500 mt-0.5">{exam.organization}</p>}
+                      </div>
+                      <span className={"px-2 py-1 rounded-lg text-[10px] font-bold flex-shrink-0 " + status.bg + " " + status.color}>{status.label}</span>
+                    </div>
+                    {exam.description && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{exam.description}</p>}
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div className="bg-emerald-50 rounded-xl p-2 text-center">
+                        <p className="text-[9px] text-gray-500 uppercase">Apply Start</p>
+                        <p className="text-[10px] font-bold text-emerald-600 mt-0.5">{formatDate(exam.applicationStartDate)}</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-2 text-center">
+                        <p className="text-[9px] text-gray-500 uppercase">Apply End</p>
+                        <p className="text-[10px] font-bold text-amber-600 mt-0.5">{formatDate(exam.applicationEndDate)}</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-2 text-center">
+                        <p className="text-[9px] text-gray-500 uppercase">Exam Date</p>
+                        <p className="text-[10px] font-bold text-blue-600 mt-0.5">{formatDate(exam.examDate)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {(exam.applicationUrl || exam.notificationUrl) && (
+                    <div className="flex gap-2 px-4 pb-3">
+                      {exam.applicationUrl && (
+                        <a href={exam.applicationUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95">
+                          <ExternalLink className="w-3.5 h-3.5" /> Apply Online
+                        </a>
+                      )}
+                      {exam.notificationUrl && (
+                        <a href={exam.notificationUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex-1 py-2.5 rounded-xl bg-[#0B1437] text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95">
+                          <FileText className="w-3.5 h-3.5" /> Notification
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ==================== MAIN APP ====================
 
 export default function ExamVaultApp() {
@@ -1523,6 +1887,9 @@ export default function ExamVaultApp() {
           {currentView === "performance" && <PerformanceAnalyticsScreen />}
           {currentView === "my-purchases" && <MyPurchasesScreen />}
           {currentView === "announcement-detail" && <AnnouncementDetailScreen />}
+          {currentView === "previous-papers" && <PreviousPapersScreen />}
+          {currentView === "notes" && <StudyNotesScreen />}
+          {currentView === "upcoming-exams" && <UpcomingExamsScreen />}
           {currentView === "pricing" && <PremiumPlansScreen />}
         </motion.div>
       </AnimatePresence>

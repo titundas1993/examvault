@@ -7,7 +7,7 @@ import {
   Home, BookOpen, Trophy, FileText, Notebook, Settings,
   ChevronRight, Bell, Clock, Star, Zap, Award, Target, TrendingUp,
   Users, BarChart3, Megaphone, Layout,
-  CalendarDays, Shield, Smartphone,
+  CalendarDays, Shield, Smartphone, Calendar,
   Brain, Flame, Sparkles,
   Menu, X, LogOut,
   Plus, Edit, Trash2, Eye, Globe,
@@ -172,6 +172,9 @@ const ADMIN_SIDEBAR_ITEMS: { icon: React.ComponentType<{ className?: string }>; 
   { icon: Tag, label: "Categories", view: "categories", color: "from-blue-500 to-indigo-600" },
   { icon: BookOpen, label: "Mock Tests", view: "mock-tests", color: "from-amber-500 to-orange-600" },
   { icon: FileQuestion, label: "Questions", view: "questions", color: "from-purple-500 to-violet-600" },
+  { icon: FileText, label: "Previous Papers", view: "previous-papers", color: "from-emerald-500 to-teal-600" },
+  { icon: BookOpen, label: "Study Notes", view: "notes", color: "from-cyan-500 to-blue-600" },
+  { icon: Calendar, label: "Upcoming Exams", view: "upcoming-exams", color: "from-rose-500 to-pink-600" },
   { icon: Image, label: "Banners", view: "banners", color: "from-cyan-500 to-blue-600" },
   { icon: Megaphone, label: "Announcements", view: "announcements", color: "from-pink-500 to-rose-600" },
   { icon: Crown, label: "Premium Plans", view: "plans", color: "from-amber-400 to-orange-500" },
@@ -1681,6 +1684,9 @@ function MockTestsAdmin() {
         { key: "difficulty", label: "Difficulty", type: "select", options: [
           { label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" },
         ] },
+        { key: "negativeMarking", label: "Negative Marking", type: "switch" },
+        { key: "negativeMarkPerWrong", label: "Marks Deducted per Wrong Answer", type: "number", placeholder: "0.25",
+          dependsOn: { field: "negativeMarking", value: "true" } },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
@@ -3666,25 +3672,45 @@ function UpcomingExamsAdmin() {
       color="from-cyan-500 to-blue-600"
       collectionName="upcomingExams"
       fields={[
-        { key: "name", label: "Exam Name", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
-        { key: "organizingBody", label: "Organizing Body", type: "text", placeholder: "e.g. PSC West Bengal" },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
-        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
+        { key: "examName", label: "Exam Name", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
+        { key: "organization", label: "Organizing Body", type: "text", placeholder: "e.g. PSC West Bengal" },
+        { key: "categoryId", label: "Parent Category (ID link)", type: "select", options: CATEGORY_ID_OPTIONS, placeholder: "Select category" },
+        { key: "category", label: "Category Name (auto-filled)", type: "select", options: EXAM_CATEGORIES, allowOther: true },
+        { key: "description", label: "Description / Notification Summary", type: "textarea", placeholder: "Brief about the exam..." },
+        { key: "applicationStartDate", label: "Application Start Date", type: "date" },
+        { key: "applicationEndDate", label: "Application End Date", type: "date" },
         { key: "examDate", label: "Exam Date", type: "date" },
-        { key: "lastApplyDate", label: "Last Apply Date", type: "date" },
-        { key: "eligibility", label: "Eligibility", type: "text", placeholder: "e.g. Graduate" },
-        { key: "ageLimit", label: "Age Limit", type: "text", placeholder: "e.g. 21-36 years" },
-        { key: "applicationFee", label: "Application Fee", type: "text", placeholder: "e.g. ₹200" },
-        { key: "syllabus", label: "Syllabus", type: "textarea", placeholder: "Exam syllabus..." },
-        { key: "applyLink", label: "Apply Link", type: "url", placeholder: "https://..." },
-        { key: "officialLink", label: "Official Link", type: "url", placeholder: "https://..." },
-        { key: "status", label: "Status", type: "select", options: [{ label: "Upcoming", value: "upcoming" }, { label: "Ongoing", value: "ongoing" }, { label: "Closed", value: "closed" }] },
+        { key: "resultDate", label: "Result Date (optional)", type: "date" },
+        { key: "status", label: "Status", type: "select", options: [
+          { label: "📋 Application Open", value: "application_open" },
+          { label: "⏳ Application Closed", value: "application_closed" },
+          { label: "📝 Exam Soon", value: "exam_soon" },
+          { label: "📢 Result Out", value: "result_out" },
+          { label: "🔒 Upcoming", value: "upcoming" },
+        ] },
+        { key: "notificationUrl", label: "Official Notification URL", type: "url", placeholder: "https://..." },
+        { key: "applicationUrl", label: "Apply Online URL", type: "url", placeholder: "https://..." },
+        { key: "imageUrl", label: "Banner Image", type: "image" },
         { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Image", type: "image" },
+        { key: "order", label: "Display Order", type: "number", placeholder: "0" },
       ]}
       fetchData={() => adminGetCollection("upcomingExams")}
-      onAdd={(data) => adminAddDoc("upcomingExams", data)}
-      onUpdate={(id, data) => adminUpdateDoc("upcomingExams", id, data)}
+      onAdd={async (data) => {
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminAddDoc("upcomingExams", { ...data, category, isActive: data.isActive !== false, createdAt: new Date().toISOString() });
+      }}
+      onUpdate={(id, data) => {
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminUpdateDoc("upcomingExams", id, { ...data, category });
+      }}
       onDelete={(id) => adminDeleteDoc("upcomingExams", id)}
     />
   );
@@ -3926,38 +3952,54 @@ function PreviousPapersAdmin() {
       color="from-ev-orange to-amber-500"
       collectionName="previousPapers"
       fields={[
-        { key: "name", label: "Paper Name", type: "text", placeholder: "e.g. WBCS 2025 Prelims", required: true },
+        { key: "title", label: "Paper Title", type: "text", placeholder: "e.g. WBCS 2025 Prelims Question Paper", required: true },
+        { key: "examName", label: "Exam Name", type: "text", placeholder: "e.g. WBCS Prelims 2025" },
         { key: "year", label: "Year", type: "number", placeholder: "2025" },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "categoryId", label: "Parent Category (ID link)", type: "select", options: CATEGORY_ID_OPTIONS, placeholder: "Select category" },
+        { key: "subcategoryId", label: "Subcategory (ID link)", type: "select",
+          optionsFromFormData: (fd) => {
+            const parent = fd.categoryId;
+            if (!parent) return [];
+            return SUBCATEGORY_ID_OPTIONS
+              .filter(s => s.parentId === parent)
+              .map(s => ({ label: s.label, value: s.value }));
+          },
+          placeholder: "Optional subcategory" },
+        { key: "category", label: "Category Name (auto-filled)", type: "select", options: EXAM_CATEGORIES, allowOther: true },
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
-        { key: "examType", label: "Exam Type", type: "select", options: [
-          { label: "Prelims", value: "Prelims" }, { label: "Mains", value: "Mains" },
-          { label: "Tier I", value: "Tier I" }, { label: "Tier II", value: "Tier II" },
-          { label: "Full", value: "Full" }, { label: "Others", value: "Others" },
-        ], allowOther: true },
-        { key: "totalQuestions", label: "Total Questions", type: "number" },
-        { key: "totalMarks", label: "Total Marks", type: "number" },
-        { key: "duration", label: "Duration (min)", type: "number" },
+        { key: "pages", label: "Pages", type: "number", placeholder: "100" },
+        { key: "fileSize", label: "File Size (e.g. 2.5 MB)", type: "text", placeholder: "2.5 MB" },
         { key: "description", label: "Description", type: "textarea", placeholder: "Paper description, topics covered..." },
-        { key: "downloadUrl", label: "Download URL / File", type: "file" },
-        { key: "solutionUrl", label: "Solution URL", type: "url", placeholder: "Solution PDF link" },
+        { key: "pdfUrl", label: "PDF File (upload or URL)", type: "file" },
+        { key: "thumbnailUrl", label: "Thumbnail Image", type: "image" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Thumbnail", type: "image" },
+        { key: "order", label: "Display Order", type: "number", placeholder: "0" },
       ]}
       fetchData={() => adminGetCollection("previousPapers")}
-      onAdd={(data) => {
+      onAdd={async (data) => {
         const isFree = data.accessType !== "premium";
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminAddDoc("previousPapers", { ...data, isFree, price });
+        // Auto-fill category name from categoryId
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminAddDoc("previousPapers", { ...data, category, isFree, price, downloadCount: 0, createdAt: new Date().toISOString() });
       }}
       onUpdate={(id, data) => {
         const isFree = data.accessType !== "premium";
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminUpdateDoc("previousPapers", id, { ...data, isFree, price });
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminUpdateDoc("previousPapers", id, { ...data, category, isFree, price });
       }}
       onDelete={(id) => adminDeleteDoc("previousPapers", id)}
     />
@@ -3968,43 +4010,60 @@ function PreviousPapersAdmin() {
 function NotesAdmin() {
   return (
     <CrudAdminPanel
-      title="Notes"
+      title="Study Notes"
       subtitle="Manage study materials & notes"
       icon={Notebook}
       color="from-teal-500 to-teal-600"
-      collectionName="notes"
+      collectionName="studyNotes"
       fields={[
-        { key: "title", label: "Title", type: "text", placeholder: "e.g. Indian History Notes", required: true },
-        { key: "category", label: "Category", type: "select", options: SUBJECT_CATEGORIES, required: true, allowOther: true },
-        { key: "examCategory", label: "Exam Category", type: "select", options: EXAM_CATEGORIES, allowOther: true },
-        { key: "author", label: "Author", type: "text", placeholder: "e.g. ExamVault Team" },
-        { key: "pages", label: "Pages", type: "number" },
-        { key: "language", label: "Language", type: "select", options: [
-          { label: "English", value: "English" }, { label: "Hindi", value: "Hindi" },
-          { label: "Bengali", value: "Bengali" }, { label: "Assamese", value: "Assamese" },
-        ] },
+        { key: "title", label: "Note Title", type: "text", placeholder: "e.g. Indian History Notes", required: true },
+        { key: "topic", label: "Topic", type: "text", placeholder: "e.g. Ancient India" },
+        { key: "categoryId", label: "Parent Category (ID link)", type: "select", options: CATEGORY_ID_OPTIONS, placeholder: "Select category" },
+        { key: "subcategoryId", label: "Subcategory (ID link)", type: "select",
+          optionsFromFormData: (fd) => {
+            const parent = fd.categoryId;
+            if (!parent) return [];
+            return SUBCATEGORY_ID_OPTIONS
+              .filter(s => s.parentId === parent)
+              .map(s => ({ label: s.label, value: s.value }));
+          },
+          placeholder: "Optional subcategory" },
+        { key: "category", label: "Category Name (auto-filled)", type: "select", options: EXAM_CATEGORIES, allowOther: true },
+        { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, required: true, allowOther: true },
+        { key: "pages", label: "Pages", type: "number", placeholder: "50" },
+        { key: "fileSize", label: "File Size (e.g. 1.5 MB)", type: "text", placeholder: "1.5 MB" },
         { key: "description", label: "Description", type: "textarea", placeholder: "What's covered in these notes..." },
-        { key: "topics", label: "Topics Covered", type: "textarea", placeholder: "Ancient India, Medieval India, etc." },
-        { key: "downloadUrl", label: "Download URL / File", type: "file" },
+        { key: "pdfUrl", label: "PDF File (upload or URL)", type: "file" },
+        { key: "thumbnailUrl", label: "Thumbnail Image", type: "image" },
         { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
         { key: "isActive", label: "Active", type: "switch" },
-        { key: "imageUrl", label: "Thumbnail", type: "image" },
+        { key: "order", label: "Display Order", type: "number", placeholder: "0" },
       ]}
-      fetchData={() => adminGetCollection("notes")}
-      onAdd={(data) => {
+      fetchData={() => adminGetCollection("studyNotes")}
+      onAdd={async (data) => {
         const isFree = data.accessType !== "premium";
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminAddDoc("notes", { ...data, isFree, price });
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminAddDoc("studyNotes", { ...data, category, isFree, price, downloadCount: 0, createdAt: new Date().toISOString() });
       }}
       onUpdate={(id, data) => {
         const isFree = data.accessType !== "premium";
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminUpdateDoc("notes", id, { ...data, isFree, price });
+        let category = data.category;
+        if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminUpdateDoc("studyNotes", id, { ...data, category, isFree, price });
       }}
-      onDelete={(id) => adminDeleteDoc("notes", id)}
+      onDelete={(id) => adminDeleteDoc("studyNotes", id)}
     />
   );
 }

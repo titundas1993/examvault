@@ -502,6 +502,8 @@ export interface MockTestData {
   id?: string;
   title: string;
   category: string;
+  categoryId?: string;       // ID link to parent category (new)
+  subcategoryId?: string;    // ID link to subcategory (new)
   subject?: string;
   duration: number;
   marks: number;
@@ -517,6 +519,9 @@ export interface MockTestData {
   isActive: boolean;
   accessType?: "free" | "premium";
   subTests?: SubTestData[];
+  // Negative marking
+  negativeMarking?: boolean;          // true if negative marking enabled
+  negativeMarkPerWrong?: number;      // e.g. 0.25, 0.5, 1
   createdAt?: string;
 }
 
@@ -785,105 +790,6 @@ export async function getUserProfile(uid: string) {
 }
 
 // ============================================================
-// 8. previousPapers Collection
-// ============================================================
-
-export interface PreviousPaperData {
-  id?: string;
-  name: string;
-  year: number;
-  category: string;
-  subject: string;
-  examType: string;
-  totalQuestions: number;
-  totalMarks: number;
-  duration: number;
-  downloadUrl: string;
-  solutionUrl: string;
-  description: string;
-  isActive: boolean;
-  isFree: boolean;
-  imageUrl: string;
-  createdAt?: string;
-}
-
-const PREVIOUS_PAPERS_COLLECTION = "previousPapers";
-
-export async function getPreviousPapers() {
-  try {
-    const q = query(
-      collection(db, PREVIOUS_PAPERS_COLLECTION),
-      where("isActive", "==", true)
-    );
-    const snapshot = await getDocs(q);
-    const papers = snapshot.docs.map((d) => {
-      const data = d.data() as Record<string, unknown>;
-      return convertTimestamps({ ...data, id: d.id } as Record<string, unknown>);
-    });
-    // Sort client-side to avoid composite index requirement
-    papers.sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-      return dateB - dateA;
-    });
-    return papers as PreviousPaperData[];
-  } catch (error) {
-    console.error("Error getting previous papers:", error);
-    throw error;
-  }
-}
-
-export async function getPreviousPaperById(id: string) {
-  try {
-    const docRef = doc(db, PREVIOUS_PAPERS_COLLECTION, id);
-    const snapshot = await getDoc(docRef);
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data() as Record<string, unknown>;
-    return convertTimestamps({ ...data, id: snapshot.id }) as PreviousPaperData;
-  } catch (error) {
-    console.error("Error getting previous paper by ID:", error);
-    throw error;
-  }
-}
-
-export async function addPreviousPaper(data: Omit<PreviousPaperData, "id" | "createdAt">) {
-  try {
-    const newDocRef = doc(collection(db, PREVIOUS_PAPERS_COLLECTION));
-    const id = newDocRef.id;
-    const docData = {
-      ...data,
-      id,
-      createdAt: serverTimestamp(),
-    };
-    await setDoc(newDocRef, docData);
-    return { id, ...data, createdAt: new Date().toISOString() };
-  } catch (error) {
-    console.error("Error adding previous paper:", error);
-    throw error;
-  }
-}
-
-export async function updatePreviousPaper(id: string, data: Partial<Omit<PreviousPaperData, "id" | "createdAt">>) {
-  try {
-    const docRef = doc(db, PREVIOUS_PAPERS_COLLECTION, id);
-    await updateDoc(docRef, { ...data });
-    return { id, ...data };
-  } catch (error) {
-    console.error("Error updating previous paper:", error);
-    throw error;
-  }
-}
-
-export async function deletePreviousPaper(id: string) {
-  try {
-    const docRef = doc(db, PREVIOUS_PAPERS_COLLECTION, id);
-    await deleteDoc(docRef);
-    return true;
-  } catch (error) {
-    console.error("Error deleting previous paper:", error);
-    throw error;
-  }
-}
 
 // ============================================================
 // 9. notes Collection
@@ -2667,3 +2573,150 @@ export async function getAppNotifications(userType: "all" | "premium" | "free"):
   }
 }
 
+
+// ============================================================
+// PREVIOUS EXAM PAPERS (PYQ) — admin controlled, no fallback
+// ============================================================
+export interface PreviousPaperData {
+  id?: string;
+  title: string;
+  description?: string;
+  examName?: string;          // e.g. "SSC CGL 2024"
+  year?: number;
+  category?: string;          // category name (for filter)
+  categoryId?: string;        // ID link
+  subcategoryId?: string;     // ID link
+  subject?: string;
+  pdfUrl: string;             // Firebase Storage URL
+  thumbnailUrl?: string;
+  fileSize?: string;          // human-readable size
+  pages?: number;
+  isFree: boolean;
+  price?: number;
+  accessType?: "free" | "premium";
+  isActive: boolean;
+  order?: number;
+  downloadCount?: number;
+  createdAt?: string;
+}
+const PREV_PAPERS_COLLECTION = "previousPapers";
+
+export async function getPreviousPapers(categoryId?: string): Promise<PreviousPaperData[]> {
+  try {
+    let q: any = collection(db, PREV_PAPERS_COLLECTION);
+    const constraints: any[] = [where("isActive", "==", true)];
+    if (categoryId) constraints.push(where("categoryId", "==", categoryId));
+    const snap = await getDocs(query(q, ...constraints));
+    const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as PreviousPaperData);
+    return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch (e) { console.error("getPreviousPapers error:", e); return []; }
+}
+
+export async function getPreviousPaperById(id: string): Promise<PreviousPaperData | null> {
+  try {
+    const snap = await getDoc(doc(db, PREV_PAPERS_COLLECTION, id));
+    if (!snap.exists()) return null;
+    return convertTimestamps({ ...snap.data(), id: snap.id }) as PreviousPaperData;
+  } catch (e) { console.error("getPreviousPaperById error:", e); return null; }
+}
+
+export async function trackPaperDownload(paperId: string, userId: string): Promise<void> {
+  try {
+    await setDoc(doc(db, "paperDownloads", `${userId}_${paperId}`), {
+      paperId, userId, downloadedAt: new Date().toISOString(),
+    }, { merge: true });
+    await updateDoc(doc(db, PREV_PAPERS_COLLECTION, paperId), {
+      downloadCount: (await getPreviousPaperById(paperId))?.downloadCount ?? 0 + 1,
+    }).catch(() => {});
+  } catch (e) { console.error("trackPaperDownload error:", e); }
+}
+
+export async function hasUserDownloadedPaper(paperId: string, userId: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, "paperDownloads", `${userId}_${paperId}`));
+    return snap.exists();
+  } catch (e) { return false; }
+}
+
+// ============================================================
+// STUDY NOTES — admin controlled, no fallback
+// ============================================================
+export interface StudyNoteData {
+  id?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  subject?: string;
+  topic?: string;
+  pdfUrl: string;
+  thumbnailUrl?: string;
+  fileSize?: string;
+  pages?: number;
+  isFree: boolean;
+  price?: number;
+  accessType?: "free" | "premium";
+  isActive: boolean;
+  order?: number;
+  downloadCount?: number;
+  createdAt?: string;
+}
+const STUDY_NOTES_COLLECTION = "studyNotes";
+
+export async function getStudyNotes(categoryId?: string): Promise<StudyNoteData[]> {
+  try {
+    const constraints: any[] = [where("isActive", "==", true)];
+    if (categoryId) constraints.push(where("categoryId", "==", categoryId));
+    const snap = await getDocs(query(collection(db, STUDY_NOTES_COLLECTION), ...constraints));
+    const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as StudyNoteData);
+    return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch (e) { console.error("getStudyNotes error:", e); return []; }
+}
+
+export async function getStudyNoteById(id: string): Promise<StudyNoteData | null> {
+  try {
+    const snap = await getDoc(doc(db, STUDY_NOTES_COLLECTION, id));
+    if (!snap.exists()) return null;
+    return convertTimestamps({ ...snap.data(), id: snap.id }) as StudyNoteData;
+  } catch (e) { console.error("getStudyNoteById error:", e); return null; }
+}
+
+// ============================================================
+// UPCOMING EXAMS — admin controlled, no fallback
+// ============================================================
+export interface UpcomingExamData {
+  id?: string;
+  examName: string;
+  description?: string;
+  category?: string;
+  categoryId?: string;
+  organization?: string;          // conducting body e.g. "SSC"
+  applicationStartDate?: string;  // ISO date
+  applicationEndDate?: string;
+  examDate?: string;
+  resultDate?: string;
+  notificationUrl?: string;       // official PDF / website link
+  applicationUrl?: string;        // direct apply link
+  imageUrl?: string;
+  status?: "upcoming" | "application_open" | "application_closed" | "exam_soon" | "result_out";
+  isActive: boolean;
+  order?: number;
+  createdAt?: string;
+}
+const UPCOMING_EXAMS_COLLECTION = "upcomingExams";
+
+export async function getUpcomingExams(categoryId?: string): Promise<UpcomingExamData[]> {
+  try {
+    const constraints: any[] = [where("isActive", "==", true)];
+    if (categoryId) constraints.push(where("categoryId", "==", categoryId));
+    const snap = await getDocs(query(collection(db, UPCOMING_EXAMS_COLLECTION), ...constraints));
+    const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as UpcomingExamData);
+    return items.sort((a, b) => {
+      // Sort by examDate (closest first); items without date go last
+      const da = a.examDate ? new Date(a.examDate).getTime() : Infinity;
+      const db2 = b.examDate ? new Date(b.examDate).getTime() : Infinity;
+      return da - db2;
+    });
+  } catch (e) { console.error("getUpcomingExams error:", e); return []; }
+}
