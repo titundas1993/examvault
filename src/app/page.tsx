@@ -232,7 +232,7 @@ function SideMenu() {
 // ==================== HOME TAB ====================
 
 function HomeTab() {
-  const { setView, user } = useAppStore();
+  const { setView } = useAppStore();
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementData[]>([]);
   const [banners, setBanners] = useState<BannerData[]>([]);
@@ -268,20 +268,15 @@ function HomeTab() {
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* Navy Header */}
-      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pt-3 pb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white/50 text-[10px] uppercase tracking-wider">Welcome</p>
-            <h2 className="text-white font-bold text-base">{user?.name ? `Hi, ${user.name.split(" ")[0]} 👋` : "ExamVault 👋"}</h2>
+      {/* Slim Navy Header — only EXAMVAULT logo, no welcome text, no profile button */}
+      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pt-4 pb-8">
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
+              <span className="text-lg">📚</span>
+            </div>
+            <h2 className="text-lg font-black text-white tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
           </div>
-          {user?.photoURL ? (
-            <img src={user.photoURL} alt="Profile" className="w-9 h-9 rounded-full border border-amber-400/30 object-cover" />
-          ) : (
-            <button onClick={() => setView("profile")} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center border border-amber-400/20">
-              <User className="w-4 h-4 text-white/60" />
-            </button>
-          )}
         </div>
       </div>
 
