@@ -127,8 +127,31 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html, body {
+    /* Prevent horizontal scroll jitter */
+    overflow-x: hidden;
+    /* Prevent pull-to-refresh / overscroll bounce which causes sticky header/footer flicker */
+    overscroll-behavior-y: none;
+    /* Smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+  }
   body {
     @apply bg-background text-foreground;
+    /* Use viewport-fit=cover so env(safe-area-inset-*) works on notched phones */
+  }
+  /* Sticky header — keep position stable during scroll */
+  [class*="sticky top-0"] {
+    position: sticky !important;
+    /* Prevent transform-created stacking context that causes jump */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  /* Fixed bottom nav — keep position stable */
+  [class*="fixed bottom-0"] {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
   }
 }
 

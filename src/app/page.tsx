@@ -127,7 +127,7 @@ function Header() {
 
   return (
     <>
-      <div className="sticky top-0 z-40 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] shadow-lg">
+      <div className="sticky top-0 z-40 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] shadow-lg" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl hover:bg-white/10">
@@ -1255,7 +1255,7 @@ function BottomNav() {
   const items = fallback.slice(0, 4);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40">
+    <div className="fixed bottom-0 left-0 right-0 z-40" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <div className="bg-white border-t border-gray-100 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="flex items-center justify-around py-1.5 px-2 max-w-lg mx-auto">
           {items.map((item, idx) => {

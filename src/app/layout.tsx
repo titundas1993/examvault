@@ -19,6 +19,9 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#001A4B",
+  // viewport-fit=cover enables env(safe-area-inset-*) on notched phones
+  // so the header/footer can add proper padding below status bar / above home indicator
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
