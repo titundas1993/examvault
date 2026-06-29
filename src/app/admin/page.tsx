@@ -2013,9 +2013,28 @@ function QuestionsAdmin() {
 
   // Save question
   const handleSave = async () => {
+    // Validate required fields
+    if (!formData.question?.trim()) {
+      showToast("Question text is required", "error");
+      return;
+    }
+    if (!formData.optionA?.trim() || !formData.optionB?.trim() || !formData.optionC?.trim() || !formData.optionD?.trim()) {
+      showToast("All 4 options (A, B, C, D) are required", "error");
+      return;
+    }
+    if (!formData.correctAnswer) {
+      showToast("Please select the correct answer", "error");
+      return;
+    }
+    // Auto-assign testId if not set
+    const targetTestId = formData.testId || activeSubTestId || activeTestId || "";
+    if (!targetTestId) {
+      showToast("Please select a test first (use the drill-down to navigate to a test)", "error");
+      return;
+    }
+
     // Check question count limit before adding new question
     if (!editingItem) {
-      const targetTestId = formData.testId || activeSubTestId || activeTestId || "";
       if (targetTestId) {
         const test = getActiveTest();
         const subTest = activeSubTestId ? test?.subTests?.find((st: any) => st.id === activeSubTestId) : null;
@@ -2024,7 +2043,7 @@ function QuestionsAdmin() {
         if (limitQ > 0) {
           const currentCount = getQuestionCountForTest(targetTestId);
           if (currentCount >= limitQ) {
-            showToast(`Cannot add more questions! Limit reached (${currentCount}/${limitQ}). Upgrade to Premium to add more.`, "error");
+            showToast(`Cannot add more questions! Limit reached (${currentCount}/${limitQ}).`, "error");
             return;
           }
         }
@@ -2033,7 +2052,8 @@ function QuestionsAdmin() {
 
     setSaving(true);
     try {
-      let saveData = { ...formData };
+      let saveData: any = { ...formData };
+      // Resolve custom category/subject
       if (saveData.category === "Others" && customCategory.trim()) {
         saveData.category = customCategory.trim();
       }
@@ -2041,22 +2061,30 @@ function QuestionsAdmin() {
         saveData.subject = customSubject.trim();
       }
       // Auto-assign testId based on current drill-down position
-      if (!saveData.testId && activeSubTestId) {
-        saveData.testId = activeSubTestId;
-      } else if (!saveData.testId && activeTestId) {
-        saveData.testId = activeTestId;
-      }
+      saveData.testId = targetTestId;
+      // Trim text fields
+      saveData.question = saveData.question.trim();
+      saveData.optionA = saveData.optionA.trim();
+      saveData.optionB = saveData.optionB.trim();
+      saveData.optionC = saveData.optionC.trim();
+      saveData.optionD = saveData.optionD.trim();
+      if (saveData.explanation) saveData.explanation = saveData.explanation.trim();
       if (editingItem) {
         const { id, createdAt, ...rest } = saveData;
         await adminUpdateDoc("questions", editingItem.id, rest);
+        showToast("Question updated successfully!", "success");
       } else {
         await adminAddDoc("questions", saveData);
+        showToast("Question added successfully!", "success");
       }
       setDialogOpen(false);
       setCustomCategory("");
       setCustomSubject("");
       loadQuestions();
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      showToast(`Failed to save: ${e.message || "Unknown error"}`, "error");
+    }
     setSaving(false);
   };
 
@@ -4582,29 +4610,30 @@ function CategoriesAdmin() {
   const handleSave = async () => {
     const name = formData.name?.trim();
     if (!name) { showToast("Name is required", "error"); return; }
+    if (name.length < 2) { showToast("Name must be at least 2 characters", "error"); return; }
     try {
       const data: any = {
         name,
-        description: formData.description || "",
-        icon: formData.icon || "📚",
+        description: (formData.description || "").trim(),
+        icon: formData.icon?.trim() || "📚",
         color: formData.color || "from-blue-500 to-indigo-600",
         isActive: formData.isActive !== false,
         order: Number(formData.order) || 0,
         parentId: formData.parentId || null,
-        examCategory: formData.examCategory || name,
+        examCategory: (formData.examCategory || name).trim(),
       };
       if (editingItem) {
         await adminUpdateDoc("categories", editingItem.id, data);
-        showToast(`"${name}" updated!`, "success");
+        showToast(`"${name}" updated successfully!`, "success");
       } else {
         await adminAddDoc("categories", { ...data, createdAt: new Date().toISOString() });
-        showToast(`"${name}" added!`, "success");
+        showToast(`"${name}" added successfully!`, "success");
       }
       setShowAddDialog(false);
       setEditingItem(null);
       setFormData({});
       loadCategories();
-    } catch (e: any) { showToast(`Failed: ${e.message}`, "error"); }
+    } catch (e: any) { showToast(`Failed: ${e.message || "Unknown error"}`, "error"); }
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -4726,6 +4755,19 @@ function CategoriesAdmin() {
               <h3 className="font-bold text-[#0B1437] text-lg">{editingItem ? "Edit" : "Add"} {formData.parentId ? "Subcategory" : "Category"}</h3>
               <button onClick={() => setShowAddDialog(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
+            {/* Live preview */}
+            <div className="mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200">
+              <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">Preview</p>
+              <div className="flex items-center gap-3">
+                <div className={"w-11 h-11 rounded-xl bg-gradient-to-br " + (formData.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm flex-shrink-0"}>
+                  <span className="text-xl">{formData.icon || "📚"}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-[#0B1437] text-sm truncate">{formData.name || "Category Name"}</h4>
+                  <p className="text-[10px] text-gray-400 truncate">{formData.description || "No description"}</p>
+                </div>
+              </div>
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Name *</label>
@@ -4738,23 +4780,39 @@ function CategoriesAdmin() {
                   placeholder="e.g. Combined Graduate Level" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Icon (emoji)</label>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Icon (emoji) — click to pick</label>
                 <input value={formData.icon || ""} onChange={e => setFormData({ ...formData, icon: e.target.value })}
-                  placeholder="📋" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm" />
+                  placeholder="📋" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm mb-2" />
+                <div className="flex flex-wrap gap-1">
+                  {["📚", "📋", "🚂", "🏦", "🎓", "📝", "👮", "🏛️", "🛡️", "⚖️", "🧮", "🔬", "🌍", "📜", "✏️", "🎯"].map(em => (
+                    <button key={em} type="button" onClick={() => setFormData({ ...formData, icon: em })}
+                      className={"w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all " + (formData.icon === em ? "bg-blue-100 border-2 border-blue-500" : "bg-gray-50 hover:bg-gray-100 border border-transparent")}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Color Gradient</label>
-                <select value={formData.color || "from-blue-500 to-indigo-600"} onChange={e => setFormData({ ...formData, color: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-500 text-sm">
-                  <option value="from-blue-500 to-indigo-600">Blue</option>
-                  <option value="from-red-500 to-rose-600">Red</option>
-                  <option value="from-emerald-500 to-teal-600">Green</option>
-                  <option value="from-amber-500 to-orange-600">Orange</option>
-                  <option value="from-purple-500 to-violet-600">Purple</option>
-                  <option value="from-cyan-500 to-blue-600">Cyan</option>
-                  <option value="from-pink-500 to-rose-600">Pink</option>
-                  <option value="from-slate-500 to-gray-700">Gray</option>
-                </select>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Blue", value: "from-blue-500 to-indigo-600" },
+                    { label: "Red", value: "from-red-500 to-rose-600" },
+                    { label: "Green", value: "from-emerald-500 to-teal-600" },
+                    { label: "Orange", value: "from-amber-500 to-orange-600" },
+                    { label: "Purple", value: "from-purple-500 to-violet-600" },
+                    { label: "Cyan", value: "from-cyan-500 to-blue-600" },
+                    { label: "Pink", value: "from-pink-500 to-rose-600" },
+                    { label: "Gray", value: "from-slate-500 to-gray-700" },
+                  ].map(c => (
+                    <button key={c.value} type="button" onClick={() => setFormData({ ...formData, color: c.value })}
+                      className={"rounded-xl overflow-hidden border-2 transition-all " + (formData.color === c.value ? "border-blue-500 shadow-md scale-105" : "border-transparent")}>
+                      <div className={"bg-gradient-to-br " + c.value + " h-8 flex items-center justify-center"}>
+                        <span className="text-[9px] font-bold text-white drop-shadow">{c.label}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Order (lower = first)</label>
