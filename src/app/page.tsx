@@ -288,7 +288,49 @@ function HomeTab() {
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* Banner Slider — TOP (only if admin has added banners) */}
+      {/* 1. Scrolling Announcement — TOP (admin announcements) */}
+      {scrollText && announcements.length > 0 && (
+        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
+          <div className="flex whitespace-nowrap animate-marquee">
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={a.id || idx}
+                onClick={() => {
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
+            {/* Duplicate set for seamless looping */}
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={`dup-${a.id || idx}`}
+                onClick={() => {
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+                aria-hidden="true"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Banner Ads placeholder — BELOW scrolling announcement
+          (On Android APK, AdMob banner shows here via native overlay)
+          (On web, this slot is reserved — AdMob only works in Android) */}
+
+      {/* 3. Admin Banner Slider — BELOW banner ads (image carousel admin creates) */}
       {displayBanners.length > 0 && (
         <div className="px-4 pt-4 mb-0">
           <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
@@ -302,7 +344,6 @@ function HomeTab() {
                   setView(targetView as any);
                   triggerAd("banner_internal");
                 } else if (linkType === "category" && categoryId) {
-                  // Navigate to subcategory-list with the selected category
                   useAppStore.getState().setSelectedCategory(categoryId);
                   useAppStore.getState().setSelectedSubcategory(null);
                   setView("subcategory-list");
@@ -314,7 +355,6 @@ function HomeTab() {
                   setView("announcement-detail" as any);
                   triggerAd("banner_detail");
                 }
-                // linkType === "none" — no action
               };
               const isClickable = banner.linkType && banner.linkType !== "none" && (
                 (banner.linkType === "internal" && banner.targetView) ||
@@ -350,45 +390,6 @@ function HomeTab() {
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Scrolling Text Banner — BELOW banner slider (only when admin has added announcements) */}
-      {scrollText && announcements.length > 0 && (
-        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20 mt-3">
-          <div className="flex whitespace-nowrap animate-marquee">
-            {announcements.filter(a => a.title || a.description).map((a, idx) => (
-              <button
-                key={a.id || idx}
-                onClick={() => {
-                  // Click on announcement → open announcement detail
-                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
-                  setView("announcement-detail" as any);
-                  triggerAd("announcement_click");
-                }}
-                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
-              >
-                {a.title || a.description}
-                <span className="mx-2 text-amber-400/40">•</span>
-              </button>
-            ))}
-            {/* Duplicate set for seamless looping */}
-            {announcements.filter(a => a.title || a.description).map((a, idx) => (
-              <button
-                key={`dup-${a.id || idx}`}
-                onClick={() => {
-                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
-                  setView("announcement-detail" as any);
-                  triggerAd("announcement_click");
-                }}
-                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
-                aria-hidden="true"
-              >
-                {a.title || a.description}
-                <span className="mx-2 text-amber-400/40">•</span>
-              </button>
-            ))}
           </div>
         </div>
       )}

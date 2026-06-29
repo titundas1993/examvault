@@ -447,21 +447,21 @@ public class MainActivity extends Activity implements PaymentResultListener {
                     new android.widget.RelativeLayout.LayoutParams(
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
                         android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT);
-                adParams.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+                // Banner ad BELOW progress bar (top area), ABOVE webview content
+                adParams.addRule(android.widget.RelativeLayout.BELOW, progressBar.getId());
                 rootLayout.addView(mAdView, adParams);
 
-                // Re-layout webview so it sits above the banner (above progress bar, above banner)
+                // Re-layout webview so it sits BELOW the banner ad
                 android.widget.RelativeLayout.LayoutParams wvParams =
                     new android.widget.RelativeLayout.LayoutParams(
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT);
-                wvParams.addRule(android.widget.RelativeLayout.BELOW, progressBar.getId());
-                wvParams.addRule(android.widget.RelativeLayout.ABOVE, mAdView.getId());
+                wvParams.addRule(android.widget.RelativeLayout.BELOW, mAdView.getId());
                 webView.setLayoutParams(wvParams);
 
                 AdRequest adRequest = new AdRequest.Builder().build();
                 mAdView.loadAd(adRequest);
-                Log.d(TAG, "Banner ad loading with unit ID: " + admobBannerId);
+                Log.d(TAG, "Banner ad loading with unit ID: " + admobBannerId + " (position: top, below progress bar)");
             });
         } catch (Exception e) {
             Log.e(TAG, "Banner ad load error: " + e.getMessage());
