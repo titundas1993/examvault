@@ -850,6 +850,17 @@ function TestInfoScreen() {
         </div>
       </div>
       <div className="p-4">
+        {/* Test image (if admin added) */}
+        {testData.imageUrl && (
+          <img src={testData.imageUrl} alt={testData.title} className="w-full h-40 object-cover rounded-2xl mb-4" />
+        )}
+        {/* Tags: subject, difficulty */}
+        {(testData.subject || testData.difficulty) && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {testData.subject && <span className="px-3 py-1 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold">{testData.subject}</span>}
+            {testData.difficulty && <span className={"px-3 py-1 rounded-lg text-xs font-bold " + (testData.difficulty === "easy" ? "bg-green-50 text-green-600" : testData.difficulty === "hard" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>{testData.difficulty?.toUpperCase()}</span>}
+          </div>
+        )}
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div><Clock className="w-5 h-5 text-blue-500 mx-auto mb-1" /><p className="text-xs text-gray-400">Duration</p><p className="font-bold text-[#0B1437] text-sm">{testData.duration} min</p></div>
@@ -1603,6 +1614,10 @@ function PreviousPapersScreen() {
               return (
                 <motion.div key={paper.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                  {/* Thumbnail image (if admin added) */}
+                  {paper.thumbnailUrl && (
+                    <img src={paper.thumbnailUrl} alt={paper.title} className="w-full h-32 object-cover rounded-xl mb-3" />
+                  )}
                   <div className="flex items-start gap-3">
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-7 h-7 text-emerald-600" />
@@ -1623,7 +1638,7 @@ function PreviousPapersScreen() {
                        <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{paper.price || 0}</span>}
                     </div>
                   </div>
-                  {paper.description && <p className="text-xs text-gray-500 mt-2">{paper.description}</p>}
+                  {paper.description && <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{paper.description}</p>}
                   <button onClick={() => handleDownload(paper)}
                     className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
                     <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${paper.price || 0}`}
@@ -1761,6 +1776,10 @@ function StudyNotesScreen() {
               return (
                 <motion.div key={note.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                  {/* Thumbnail image (if admin added) */}
+                  {note.thumbnailUrl && (
+                    <img src={note.thumbnailUrl} alt={note.title} className="w-full h-32 object-cover rounded-xl mb-3" />
+                  )}
                   <div className="flex items-start gap-3">
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center flex-shrink-0">
                       <BookOpen className="w-7 h-7 text-cyan-600" />
@@ -1780,7 +1799,7 @@ function StudyNotesScreen() {
                        <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{note.price || 0}</span>}
                     </div>
                   </div>
-                  {note.description && <p className="text-xs text-gray-500 mt-2">{note.description}</p>}
+                  {note.description && <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{note.description}</p>}
                   <button onClick={() => handleDownload(note)}
                     className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
                     <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${note.price || 0}`}
@@ -1852,26 +1871,36 @@ function UpcomingExamsScreen() {
                 <motion.div key={exam.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
                   <div className="p-4">
+                    {/* Banner image (if admin added) */}
+                    {exam.imageUrl && (
+                      <img src={exam.imageUrl} alt={exam.examName} className="w-full h-32 object-cover rounded-xl mb-3" />
+                    )}
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-[#0B1437] text-sm">{exam.examName}</h4>
                         {exam.organization && <p className="text-[10px] text-gray-500 mt-0.5">{exam.organization}</p>}
+                        {exam.category && <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[9px] font-bold">{exam.category}</span>}
                       </div>
                       <span className={"px-2 py-1 rounded-lg text-[10px] font-bold flex-shrink-0 " + status.bg + " " + status.color}>{status.label}</span>
                     </div>
-                    {exam.description && <p className="text-xs text-gray-500 mb-3">{exam.description}</p>}
-                    <div className="grid grid-cols-3 gap-2 mt-3">
+                    {exam.description && <p className="text-xs text-gray-500 mb-3 whitespace-pre-wrap">{exam.description}</p>}
+                    {/* All 4 dates — Apply Start, Apply End, Exam Date, Result Date */}
+                    <div className="grid grid-cols-2 gap-2 mt-3">
                       <div className="bg-emerald-50 rounded-xl p-2 text-center">
                         <p className="text-[9px] text-gray-500 uppercase">Apply Start</p>
-                        <p className="text-[10px] font-bold text-emerald-600 mt-0.5">{formatDate(exam.applicationStartDate)}</p>
+                        <p className="text-[11px] font-bold text-emerald-600 mt-0.5">{formatDate(exam.applicationStartDate)}</p>
                       </div>
                       <div className="bg-amber-50 rounded-xl p-2 text-center">
                         <p className="text-[9px] text-gray-500 uppercase">Apply End</p>
-                        <p className="text-[10px] font-bold text-amber-600 mt-0.5">{formatDate(exam.applicationEndDate)}</p>
+                        <p className="text-[11px] font-bold text-amber-600 mt-0.5">{formatDate(exam.applicationEndDate)}</p>
                       </div>
                       <div className="bg-blue-50 rounded-xl p-2 text-center">
                         <p className="text-[9px] text-gray-500 uppercase">Exam Date</p>
-                        <p className="text-[10px] font-bold text-blue-600 mt-0.5">{formatDate(exam.examDate)}</p>
+                        <p className="text-[11px] font-bold text-blue-600 mt-0.5">{formatDate(exam.examDate)}</p>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-2 text-center">
+                        <p className="text-[9px] text-gray-500 uppercase">Result Date</p>
+                        <p className="text-[11px] font-bold text-purple-600 mt-0.5">{formatDate(exam.resultDate)}</p>
                       </div>
                     </div>
                   </div>
