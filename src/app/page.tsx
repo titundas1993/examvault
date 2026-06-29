@@ -19,7 +19,7 @@ import {
   Target, TrendingUp, Crown, Menu, X, LogOut, ArrowLeft,
   Timer, AlertTriangle, Loader2,
   CheckCircle, Bookmark, SkipForward, Grid3X3, ShoppingCart,
-  FileText,
+  FileText, Sun, Moon,
 } from "lucide-react";
 
 // User Components
@@ -113,7 +113,7 @@ const DEFAULT_SIDE_MENU = [
 // ==================== HEADER ====================
 
 function Header() {
-  const { setView, setSidebarOpen, unreadNotificationCount, user } = useAppStore();
+  const { setView, setSidebarOpen, unreadNotificationCount, user, isDark, toggleDark } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -146,6 +146,19 @@ function Header() {
             ) : null}
             <button onClick={() => setShowSearch(!showSearch)} className="p-2 rounded-xl hover:bg-white/10">
               <Search className="w-5 h-5 text-white" />
+            </button>
+            {/* Dark Mode Toggle — Sun (light) / Moon (dark) */}
+            <button
+              onClick={toggleDark}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors active:scale-90"
+              title={isDark ? "Light Mode" : "Dark Mode"}
+            >
+              {isDark ? (
+                <Sun className="w-5 h-5 text-amber-400" />
+              ) : (
+                <Moon className="w-5 h-5 text-white" />
+              )}
             </button>
             <button onClick={() => setShowNotifications(true)} className="p-2 rounded-xl hover:bg-white/10 relative">
               <Bell className="w-5 h-5 text-white" />
