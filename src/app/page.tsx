@@ -128,48 +128,48 @@ function Header() {
   return (
     <>
       <div className="sticky top-0 z-40 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] shadow-lg" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl hover:bg-white/10">
-              <Menu className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-3 py-2.5 gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0">
+              <Menu className="w-4 h-4 text-white" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
-                <span className="text-lg">📚</span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md flex-shrink-0">
+                <span className="text-sm">📚</span>
               </div>
-              <h1 className="text-lg font-black text-white tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h1>
+              <h1 className="text-sm font-black text-white tracking-tight truncate">EXAM<span className="text-amber-400">VAULT</span></h1>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {(subscription.isPremium || subscription.purchasedItemIds?.length > 0) ? (
-              <button onClick={() => setView("my-purchases")} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30">
-                <Crown className="w-3 h-3" /> PRO
+              <button onClick={() => setView("my-purchases")} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-[10px] font-bold border border-amber-400/30">
+                <Crown className="w-2.5 h-2.5" /> PRO
               </button>
             ) : user?.role !== "guest" ? (
-              <button onClick={() => setView("pricing")} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30 animate-pulse">
-                <Crown className="w-3 h-3" /> Upgrade
+              <button onClick={() => setView("pricing")} className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-400/20 text-amber-400 text-[10px] font-bold border border-amber-400/30 animate-pulse">
+                <Crown className="w-2.5 h-2.5" /> Upgrade
               </button>
             ) : null}
-            <button onClick={() => setShowSearch(!showSearch)} className="p-2 rounded-xl hover:bg-white/10">
-              <Search className="w-5 h-5 text-white" />
+            <button onClick={() => setShowSearch(!showSearch)} className="p-1.5 rounded-lg hover:bg-white/10">
+              <Search className="w-4 h-4 text-white" />
             </button>
             {/* Dark Mode Toggle — Sun (light) / Moon (dark) */}
             <button
               onClick={toggleDark}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className="p-2 rounded-xl hover:bg-white/10 transition-colors active:scale-90"
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors active:scale-90"
               title={isDark ? "Light Mode" : "Dark Mode"}
             >
               {isDark ? (
-                <Sun className="w-5 h-5 text-amber-400" />
+                <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <Moon className="w-5 h-5 text-white" />
+                <Moon className="w-4 h-4 text-white" />
               )}
             </button>
-            <button onClick={() => setShowNotifications(true)} className="p-2 rounded-xl hover:bg-white/10 relative">
-              <Bell className="w-5 h-5 text-white" />
+            <button onClick={() => setShowNotifications(true)} className="p-1.5 rounded-lg hover:bg-white/10 relative">
+              <Bell className="w-4 h-4 text-white" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full border-2 border-[#0B1437] text-[10px] text-white font-bold flex items-center justify-center px-1">
+                <span className="absolute top-0 right-0 min-w-[14px] h-3.5 bg-red-500 rounded-full border border-[#0B1437] text-[9px] text-white font-bold flex items-center justify-center px-0.5">
                   {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
                 </span>
               )}
