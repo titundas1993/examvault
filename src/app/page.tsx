@@ -435,7 +435,7 @@ function HomeTab() {
                   <span className="text-2xl">{cat.icon || "📚"}</span>
                 </div>
                 <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
-                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{cat.description || "Tap to explore"}</p>
                 <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
               </motion.button>
             ))}
@@ -636,7 +636,8 @@ function CategoryDetailScreen() {
                       {test.imageUrl ? <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" /> : free ? <Zap className="w-7 h-7 text-emerald-500" /> : <Crown className="w-7 h-7 text-amber-500" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-[#0B1437] text-sm truncate">{test.title}</h4>
+                      <h4 className="font-bold text-[#0B1437] text-sm">{test.title}</h4>
+                      {test.description && <p className="text-[10px] text-gray-400 mt-0.5">{test.description}</p>}
                       {test.subject && <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md mt-1 inline-block">{test.subject}</span>}
                       <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
                         <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{test.duration || 0} min</span>
@@ -797,7 +798,7 @@ function MockTestsTab() {
                   <span className="text-2xl">{cat.icon || "📚"}</span>
                 </div>
                 <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
-                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{cat.description || "Tap to explore"}</p>
                 <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
               </motion.button>
             ))}
@@ -856,14 +857,14 @@ function TestInfoScreen() {
             <div><Star className="w-5 h-5 text-purple-500 mx-auto mb-1" /><p className="text-xs text-gray-400">Marks</p><p className="font-bold text-[#0B1437] text-sm">{testData.marks || 0}</p></div>
           </div>
         </div>
-        {testData.description && <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4"><h3 className="font-bold text-[#0B1437] text-sm mb-2">Description</h3><p className="text-xs text-gray-500">{testData.description}</p></div>}
+        {testData.description && <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4"><h3 className="font-bold text-[#0B1437] text-sm mb-2">Description</h3><p className="text-xs text-gray-500 whitespace-pre-wrap">{testData.description}</p></div>}
         {testData.negativeMarking && (
           <div className="bg-red-50 rounded-2xl p-4 border border-red-100 mb-4">
             <h3 className="font-bold text-red-700 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Negative Marking Active</h3>
-            <p className="text-xs text-red-600">Each wrong answer: <span className="font-bold">-{testData.negativeMarkPerWrong || 0.25} marks</span> deducted. Unattempted questions have no penalty.</p>
+            <p className="text-xs text-red-600 whitespace-pre-wrap">Each wrong answer: <span className="font-bold">-{testData.negativeMarkPerWrong || 0.25} marks</span> deducted. Unattempted questions have no penalty.</p>
           </div>
         )}
-        {testData.instructions && <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 mb-4"><h3 className="font-bold text-amber-700 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Instructions</h3><p className="text-xs text-amber-600">{testData.instructions}</p></div>}
+        {testData.instructions && <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 mb-4"><h3 className="font-bold text-amber-700 text-sm mb-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Instructions</h3><p className="text-xs text-amber-600 whitespace-pre-wrap">{testData.instructions}</p></div>}
       </div>
       <div className="px-4 mt-6">
         {hasAccess ? (
@@ -1559,7 +1560,7 @@ function PreviousPapersScreen() {
                     <span className="text-2xl">{cat.icon || "📚"}</span>
                   </div>
                   <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
-                  <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "View papers"}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{cat.description || "View papers"}</p>
                   <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
                 </motion.button>
               ))}
@@ -1622,7 +1623,7 @@ function PreviousPapersScreen() {
                        <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{paper.price || 0}</span>}
                     </div>
                   </div>
-                  {paper.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{paper.description}</p>}
+                  {paper.description && <p className="text-xs text-gray-500 mt-2">{paper.description}</p>}
                   <button onClick={() => handleDownload(paper)}
                     className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
                     <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${paper.price || 0}`}
@@ -1717,7 +1718,7 @@ function StudyNotesScreen() {
                     <span className="text-2xl">{cat.icon || "📚"}</span>
                   </div>
                   <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
-                  <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "View notes"}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{cat.description || "View notes"}</p>
                   <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
                 </motion.button>
               ))}
@@ -1779,7 +1780,7 @@ function StudyNotesScreen() {
                        <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">₹{note.price || 0}</span>}
                     </div>
                   </div>
-                  {note.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{note.description}</p>}
+                  {note.description && <p className="text-xs text-gray-500 mt-2">{note.description}</p>}
                   <button onClick={() => handleDownload(note)}
                     className={"mt-3 w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 " + (isFree || purchased ? "bg-[#0B1437] text-white" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white")}>
                     <Download className="w-3.5 h-3.5" /> {isFree ? "Download PDF" : purchased ? "Download PDF" : `Buy & Download — ₹${note.price || 0}`}
@@ -1858,7 +1859,7 @@ function UpcomingExamsScreen() {
                       </div>
                       <span className={"px-2 py-1 rounded-lg text-[10px] font-bold flex-shrink-0 " + status.bg + " " + status.color}>{status.label}</span>
                     </div>
-                    {exam.description && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{exam.description}</p>}
+                    {exam.description && <p className="text-xs text-gray-500 mb-3">{exam.description}</p>}
                     <div className="grid grid-cols-3 gap-2 mt-3">
                       <div className="bg-emerald-50 rounded-xl p-2 text-center">
                         <p className="text-[9px] text-gray-500 uppercase">Apply Start</p>
