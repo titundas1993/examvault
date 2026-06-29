@@ -289,11 +289,40 @@ function HomeTab() {
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
       {/* Scrolling Text Banner at TOP — only shows when admin has added announcements */}
-      {scrollText && (
+      {scrollText && announcements.length > 0 && (
         <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
           <div className="flex whitespace-nowrap animate-marquee">
-            <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
-            <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={a.id || idx}
+                onClick={() => {
+                  // Click on announcement → open announcement detail
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
+            {/* Duplicate set for seamless looping */}
+            {announcements.filter(a => a.title || a.description).map((a, idx) => (
+              <button
+                key={`dup-${a.id || idx}`}
+                onClick={() => {
+                  useAppStore.getState().setSelectedAnnouncementId(a.id || null);
+                  setView("announcement-detail" as any);
+                  triggerAd("announcement_click");
+                }}
+                className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase hover:text-amber-300 active:scale-95 transition-all"
+                aria-hidden="true"
+              >
+                {a.title || a.description}
+                <span className="mx-2 text-amber-400/40">•</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -1318,6 +1347,67 @@ function MyPurchasesScreen() {
   );
 }
 
+// ==================== ANNOUNCEMENT DETAIL SCREEN ====================
+
+function AnnouncementDetailScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const selectedAnnouncementId = useAppStore(s => s.selectedAnnouncementId);
+  const [announcement, setAnnouncement] = useState<AnnouncementData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAnnouncement() {
+      if (!selectedAnnouncementId) { setLoading(false); return; }
+      try {
+        const all = await getAnnouncements();
+        const found = all?.find(a => a.id === selectedAnnouncementId) || null;
+        setAnnouncement(found);
+      } catch (e) { console.error('Announcement fetch error:', e); }
+      finally { setLoading(false); }
+    }
+    fetchAnnouncement();
+  }, [selectedAnnouncementId]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+
+  if (!announcement) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6">
+        <p className="text-gray-500 text-sm mb-4">Announcement not found</p>
+        <button onClick={() => goBack()} className="px-5 py-2 rounded-xl bg-[#0B1437] text-white font-bold text-sm">Go Back</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Announcement</h1>
+            <p className="text-white/50 text-xs">{announcement.type || 'Notice'}</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pt-4">
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          {announcement.imageUrl && (
+            <img src={announcement.imageUrl} alt={announcement.title} className="w-full h-48 object-cover rounded-xl mb-4" />
+          )}
+          <h2 className="font-bold text-[#0B1437] text-lg mb-2">{announcement.title}</h2>
+          {announcement.description && <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{announcement.description}</p>}
+          {announcement.link && announcement.linkType === 'external' && (
+            <a href={announcement.link} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm">
+              {announcement.linkText || 'Open Link'} →
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ==================== MAIN APP ====================
 
 export default function ExamVaultApp() {
@@ -1407,6 +1497,7 @@ export default function ExamVaultApp() {
           {currentView === "support" && <SupportTab />}
           {currentView === "performance" && <PerformanceAnalyticsScreen />}
           {currentView === "my-purchases" && <MyPurchasesScreen />}
+          {currentView === "announcement-detail" && <AnnouncementDetailScreen />}
           {currentView === "pricing" && <PremiumPlansScreen />}
         </motion.div>
       </AnimatePresence>
