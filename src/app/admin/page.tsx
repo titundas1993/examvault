@@ -755,19 +755,59 @@ function CrudAdminPanel<T extends Record<string, any>>({
   };
 
   const handleSave = async () => {
+    // VALIDATION 1: Check required fields (excluding hidden ones via dependsOn)
+    const missingRequired = fields.filter(f => {
+      if (!f.required) return false;
+      // Skip if field is conditionally hidden via dependsOn
+      if (f.dependsOn) {
+        const currentVal = String(formData[f.dependsOn.field] || "");
+        const allowed = Array.isArray(f.dependsOn.value) ? f.dependsOn.value : [f.dependsOn.value];
+        if (!allowed.includes(currentVal)) return false;
+      }
+      // For switch fields, value is boolean so always valid
+      if (f.type === "switch") return false;
+      const val = formData[f.key];
+      if (val === undefined || val === null || val === "") return true;
+      if (typeof val === "string" && !val.trim()) return true;
+      return false;
+    });
+    if (missingRequired.length > 0) {
+      showToast(`Please fill required fields: ${missingRequired.map(f => f.label).join(", ")}`, "error");
+      return;
+    }
+
+    // VALIDATION 2: For Previous Papers and Study Notes — pdfUrl is required
+    if ((collectionName === "previousPapers" || collectionName === "studyNotes") && !formData.pdfUrl?.trim()) {
+      showToast("Please upload a PDF file (or paste PDF URL)", "error");
+      return;
+    }
+
+    // VALIDATION 3: For Upcoming Exams — examDate or applicationStartDate required
+    if (collectionName === "upcomingExams" && !formData.examDate && !formData.applicationStartDate) {
+      showToast("Please provide at least Exam Date or Application Start Date", "error");
+      return;
+    }
+
     // Check allowOther fields where "Others" is selected but custom text is empty
     const missingOther = fields.filter(f => f.allowOther && formData[f.key] === "Others" && !otherValues[f.key]?.trim());
     if (missingOther.length > 0) {
       showToast(`Please fill in custom value for: ${missingOther.map(f => f.label).join(", ")}`, "error");
       return;
     }
+
     setSaving(true);
     try {
       // Replace "Others" with custom values for allowOther fields
-      let saveData = { ...formData };
+      let saveData: any = { ...formData };
       fields.forEach(f => {
         if (f.allowOther && saveData[f.key] === "Others" && otherValues[f.key]?.trim()) {
           saveData[f.key] = otherValues[f.key].trim();
+        }
+        // Trim text fields
+        if (f.type === "text" || f.type === "textarea" || f.type === "url") {
+          if (typeof saveData[f.key] === "string") {
+            saveData[f.key] = saveData[f.key].trim();
+          }
         }
       });
       if (editingItem) {
@@ -783,9 +823,9 @@ function CrudAdminPanel<T extends Record<string, any>>({
       setDialogOpen(false);
       setOtherValues({});
       loadItems();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      showToast(`Error saving ${title.slice(0, -1).toLowerCase()}`, "error");
+      showToast(`Error saving: ${e.message || "Unknown error"}`, "error");
     }
     setSaving(false);
   };
