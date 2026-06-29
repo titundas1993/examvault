@@ -732,17 +732,17 @@ function CrudAdminPanel<T extends Record<string, any>>({
           initial[f.key] = val || (f.type === "switch" ? true : f.type === "number" ? 0 : "");
         }
       } else {
-        // For accessType, fallback from isFree or price
+        // For accessType, use explicit value only — NEVER auto-derive from price
         if (f.key === "accessType") {
           const existingAccess = item[f.key];
           if (existingAccess === "free" || existingAccess === "premium") {
             initial[f.key] = existingAccess;
-          } else if (item.isFree) {
+          } else if (item.isFree === true) {
             initial[f.key] = "free";
-          } else if (item.price && Number(item.price) > 0) {
+          } else if (item.isFree === false) {
             initial[f.key] = "premium";
           } else {
-            initial[f.key] = "free";
+            initial[f.key] = "free"; // default to free
           }
         } else {
           initial[f.key] = item[f.key] ?? (f.type === "switch" ? true : f.type === "number" ? 0 : "");
@@ -1065,7 +1065,7 @@ function CrudAdminPanel<T extends Record<string, any>>({
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const accessVal = item.accessType || (item.isFree ? "free" : item.price && item.price > 0 ? "premium" : null);
+                      const accessVal = item.accessType || (item.isFree === true ? "free" : item.isFree === false ? "premium" : null);
                       if (accessVal === "free") {
                         return <span className="px-2 py-1 rounded-lg text-xs font-bold bg-green-100 text-green-700">🆓 Free</span>;
                       } else if (accessVal === "premium") {
@@ -1687,7 +1687,7 @@ function MockTestsAdmin() {
         { key: "negativeMarking", label: "Negative Marking", type: "switch" },
         { key: "negativeMarkPerWrong", label: "Marks Deducted per Wrong Answer", type: "number", placeholder: "0.25",
           dependsOn: { field: "negativeMarking", value: "true" } },
-        { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "99", dependsOn: { field: "accessType", value: "premium" } },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
@@ -1701,7 +1701,7 @@ function MockTestsAdmin() {
         // Derive isFree from accessType so legacy code works
         const isFree = data.accessType !== "premium";
         // Premium items must have a price — default to ₹49 if not set
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         // Auto-fill `category` name from selected subcategory/category ID if not custom
         let category = data.category;
         if (data.subcategoryId) {
@@ -1719,7 +1719,7 @@ function MockTestsAdmin() {
       onUpdate={(id, data) => {
         // Derive isFree from accessType on update too
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         // Auto-fill `category` name from selected subcategory/category ID if not custom
         let category = data.category;
         if (data.subcategoryId) {
@@ -2701,7 +2701,7 @@ function TestSeriesAdmin() {
         { key: "title", label: "Series Title", type: "text", placeholder: "e.g. WBCS Complete Pack", required: true },
         { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
-        { key: "price", label: "Price (₹)", type: "number", placeholder: "499" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "499", dependsOn: { field: "accessType", value: "premium" } },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
@@ -2712,12 +2712,12 @@ function TestSeriesAdmin() {
       fetchData={() => adminGetCollection("testSeries")}
       onAdd={(data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         return adminAddDoc("testSeries", { ...data, isFree, price });
       }}
       onUpdate={(id, data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         return adminUpdateDoc("testSeries", id, { ...data, isFree, price });
       }}
       onDelete={(id) => adminDeleteDoc("testSeries", id)}
@@ -2805,7 +2805,7 @@ function PopularTestsAdmin() {
         { key: "questions", label: "Questions", type: "number" },
         { key: "attempts", label: "Attempts", type: "number" },
         { key: "rating", label: "Rating", type: "number" },
-        { key: "price", label: "Price (₹)", type: "number", placeholder: "99" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "99", dependsOn: { field: "accessType", value: "premium" } },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
@@ -3972,7 +3972,7 @@ function PreviousPapersAdmin() {
         { key: "description", label: "Description", type: "textarea", placeholder: "Paper description, topics covered..." },
         { key: "pdfUrl", label: "PDF File (upload or URL)", type: "file" },
         { key: "thumbnailUrl", label: "Thumbnail Image", type: "image" },
-        { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "49", dependsOn: { field: "accessType", value: "premium" } },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
@@ -3982,7 +3982,7 @@ function PreviousPapersAdmin() {
       fetchData={() => adminGetCollection("previousPapers")}
       onAdd={async (data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         // Auto-fill category name from categoryId
         let category = data.category;
         if (data.categoryId) {
@@ -3993,7 +3993,7 @@ function PreviousPapersAdmin() {
       }}
       onUpdate={(id, data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         let category = data.category;
         if (data.categoryId) {
           const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
@@ -4035,7 +4035,7 @@ function NotesAdmin() {
         { key: "description", label: "Description", type: "textarea", placeholder: "What's covered in these notes..." },
         { key: "pdfUrl", label: "PDF File (upload or URL)", type: "file" },
         { key: "thumbnailUrl", label: "Thumbnail Image", type: "image" },
-        { key: "price", label: "Price (₹)", type: "number", placeholder: "49" },
+        { key: "price", label: "Price (₹)", type: "number", placeholder: "49", dependsOn: { field: "accessType", value: "premium" } },
         { key: "accessType", label: "Free/Premium", type: "select", options: [
           { label: "🆓 Free", value: "free" }, { label: "👑 Premium", value: "premium" },
         ], required: true },
@@ -4045,7 +4045,7 @@ function NotesAdmin() {
       fetchData={() => adminGetCollection("studyNotes")}
       onAdd={async (data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         let category = data.category;
         if (data.categoryId) {
           const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
@@ -4055,7 +4055,7 @@ function NotesAdmin() {
       }}
       onUpdate={(id, data) => {
         const isFree = data.accessType !== "premium";
-        const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
+        const price = data.accessType === "premium" ? (Number(data.price) > 0 ? Number(data.price) : 49) : 0;
         let category = data.category;
         if (data.categoryId) {
           const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
@@ -5207,7 +5207,7 @@ function PlansAdmin() {
         features: Array.isArray(p.features) ? p.features : typeof p.features === "string" ? p.features.split(",") : [],
         durationDays: p.durationDays ?? p.duration ?? 0,
         type: p.type === "subscription" || p.type === "one_time" ? p.type : "subscription",
-        planType: p.planType === "free" || p.planType === "premium" ? p.planType : (p.price === 0 ? "free" : "premium"),
+        planType: p.planType === "free" || p.planType === "premium" ? p.planType : "premium",
         isPopular: p.isPopular ?? false,
         order: p.order ?? 0,
       }));
