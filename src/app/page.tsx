@@ -304,27 +304,15 @@ function HomeTab() {
     fetchData();
   }, []);
 
-  const displayCategories = categories.length > 0 ? categories : [
-    { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more" },
-    { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more" },
-    { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more" },
-    { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more" },
-    { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment" },
-    { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more" },
-    { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more" },
-    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam" },
-  ].map(c => ({ ...c, isActive: true, order: 0 }) as CategoryData);
-
+  // Categories & banners & announcements from Firestore only — NO fallbacks
+  const displayCategories = categories;
+  const displayBanners = banners;
   const scrollText = announcements.length > 0
-    ? announcements.map(a => a.title || a.message || "").filter(Boolean).join("  •  ")
-    : "Welcome to ExamVault  •  Premium Mock Tests  •  Previous Year Papers  •  Daily Quizzes  •  Expert Study Notes";
+    ? announcements.map(a => a.title || a.description || "").filter(Boolean).join("  •  ")
+    : "";
 
   // Auto banner rotation
   const [bannerIdx, setBannerIdx] = useState(0);
-  const displayBanners = banners.length > 0 ? banners : [
-    { id: "default1", title: "Premium Mock Tests", subtitle: "SSC, Railway, Banking & more", imageUrl: "", isActive: true, order: 0 } as any,
-    { id: "default2", title: "Previous Year Papers", subtitle: "Download & practice offline", imageUrl: "", isActive: true, order: 1 } as any,
-  ];
   useEffect(() => {
     if (displayBanners.length <= 1) return;
     const timer = setInterval(() => setBannerIdx(prev => (prev + 1) % displayBanners.length), 4000);
@@ -350,42 +338,56 @@ function HomeTab() {
         </div>
       </div>
 
-      {/* Banner Slider */}
-      <div className="px-4 -mt-5 mb-0">
-        <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
-          {displayBanners.map((banner: any, i) => (
-            <div key={banner.id || i}
-              className={"absolute inset-0 transition-opacity duration-500 " + (i === bannerIdx ? "opacity-100" : "opacity-0")}>
-              <div className="w-full h-full bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#3B82F6] flex flex-col justify-center px-5">
-                <h3 className="text-white font-bold text-lg">{banner.title}</h3>
-                <p className="text-white/60 text-xs mt-1">{banner.subtitle}</p>
+      {/* Banner Slider — only if admin has added banners */}
+      {displayBanners.length > 0 && (
+        <div className="px-4 -mt-5 mb-0">
+          <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
+            {displayBanners.map((banner: any, i) => (
+              <div key={banner.id || i}
+                className={"absolute inset-0 transition-opacity duration-500 " + (i === bannerIdx ? "opacity-100" : "opacity-0")}>
+                {banner.imageUrl ? (
+                  <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#3B82F6] flex flex-col justify-center px-5">
+                    <h3 className="text-white font-bold text-lg">{banner.title}</h3>
+                    <p className="text-white/60 text-xs mt-1">{banner.subtitle}</p>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-          {displayBanners.length > 1 && (
-            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
-              {displayBanners.map((_: any, i: number) => (
-                <button key={i} onClick={() => setBannerIdx(i)}
-                  className={"h-1.5 rounded-full transition-all " + (i === bannerIdx ? "w-6 bg-amber-400" : "w-1.5 bg-white/30")} />
-              ))}
-            </div>
-          )}
+            ))}
+            {displayBanners.length > 1 && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                {displayBanners.map((_: any, i: number) => (
+                  <button key={i} onClick={() => setBannerIdx(i)}
+                    className={"h-1.5 rounded-full transition-all " + (i === bannerIdx ? "w-6 bg-amber-400" : "w-1.5 bg-white/30")} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Scrolling Text */}
-      <div className="bg-[#0B1437] py-2 overflow-hidden mb-4">
-        <div className="flex whitespace-nowrap animate-marquee">
-          <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
-          <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
+      {/* Scrolling Text — only if admin has added announcements */}
+      {scrollText && (
+        <div className="bg-[#0B1437] py-2 overflow-hidden mb-4">
+          <div className="flex whitespace-nowrap animate-marquee">
+            <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
+            <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Categories Grid */}
+      {/* Categories Grid — from Firestore only */}
       <div className="px-4">
         <h3 className="text-base font-bold text-[#0B1437] mb-3">Exam Categories</h3>
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : displayCategories.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Grid3X3 className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No categories yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add categories soon</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {displayCategories.map((cat, i) => (
@@ -410,55 +412,6 @@ function HomeTab() {
 
 // ==================== SUBCATEGORY LIST ====================
 
-const FALLBACK_SUBCATEGORIES: Record<string, CategoryData[]> = {
-  "ssc": [
-    { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level" },
-    { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level" },
-    { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff" },
-    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable" },
-    { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization" },
-    { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer" },
-    { id: "ssc-steno", name: "SSC Stenographer", icon: "⌨️", color: "from-pink-500 to-rose-600", description: "Stenographer Grade C & D" },
-  ],
-  "railway": [
-    { id: "rrb-ntpc", name: "RRB NTPC", icon: "🚂", color: "from-red-500 to-rose-600", description: "Non-Technical Popular Categories" },
-    { id: "rrb-group-d", name: "RRB Group D", icon: "🛤️", color: "from-amber-500 to-orange-600", description: "Track Maintainer, Helper" },
-    { id: "rrb-alp", name: "RRB ALP", icon: "🔧", color: "from-blue-500 to-indigo-600", description: "Assistant Loco Pilot" },
-    { id: "rrb-je", name: "RRB JE", icon: "⚙️", color: "from-purple-500 to-violet-600", description: "Junior Engineer" },
-    { id: "rrb-tech", name: "RRB Technician", icon: "🛠️", color: "from-emerald-500 to-teal-600", description: "Technician Signal" },
-  ],
-  "banking": [
-    { id: "ibps-po", name: "IBPS PO", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "Probationary Officer" },
-    { id: "ibps-clerk", name: "IBPS Clerk", icon: "💳", color: "from-blue-500 to-indigo-600", description: "Clerical Cadre" },
-    { id: "sbi-po", name: "SBI PO", icon: "🏛️", color: "from-amber-500 to-orange-600", description: "State Bank PO" },
-    { id: "sbi-clerk", name: "SBI Clerk", icon: "💰", color: "from-purple-500 to-violet-600", description: "Junior Associate" },
-    { id: "rbi-grade-b", name: "RBI Grade B", icon: "📊", color: "from-red-500 to-rose-600", description: "Reserve Bank Officer" },
-    { id: "ibps-rrb", name: "IBPS RRB", icon: "🌾", color: "from-cyan-500 to-blue-600", description: "Regional Rural Banks" },
-  ],
-  "upsc": [
-    { id: "upsc-cse", name: "UPSC CSE", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services Examination" },
-    { id: "upsc-cds", name: "UPSC CDS", icon: "🎖️", color: "from-blue-500 to-indigo-600", description: "Combined Defence Services" },
-    { id: "upsc-nda", name: "UPSC NDA", icon: "🇮🇳", color: "from-emerald-500 to-teal-600", description: "National Defence Academy" },
-    { id: "upsc-ies", name: "UPSC IES/ISS", icon: "📈", color: "from-purple-500 to-violet-600", description: "Economic Services" },
-    { id: "upsc-capf", name: "UPSC CAPF", icon: "🛡️", color: "from-red-500 to-rose-600", description: "Central Armed Police Forces" },
-  ],
-  "adre": [
-    { id: "adre-grade-3", name: "ADRE Grade 3", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment Grade 3" },
-    { id: "adre-grade-4", name: "ADRE Grade 4", icon: "📄", color: "from-blue-500 to-indigo-600", description: "Assam Direct Recruitment Grade 4" },
-  ],
-  "assam-police": [
-    { id: "assam-si", name: "Assam Police SI", icon: "👮", color: "from-cyan-500 to-blue-600", description: "Sub-Inspector" },
-    { id: "assam-constable", name: "Assam Police Constable", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "Constable" },
-    { id: "assam-asi", name: "Assam Police ASI", icon: "🎖️", color: "from-emerald-500 to-teal-600", description: "Assistant Sub-Inspector" },
-  ],
-  "state-exams": [
-    { id: "wbcs", name: "WBCS", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "West Bengal Civil Service" },
-    { id: "assam-tet", name: "Assam TET", icon: "📚", color: "from-amber-500 to-orange-600", description: "Teacher Eligibility Test" },
-    { id: "assam-psc", name: "Assam PSC", icon: "⚖️", color: "from-blue-500 to-indigo-600", description: "Assam Public Service Commission" },
-    { id: "psc-clerk", name: "PSC Clerk", icon: "✍️", color: "from-emerald-500 to-teal-600", description: "Clerkship Examination" },
-  ],
-};
-
 function SubcategoryListScreen() {
   const goBack = useAppStore(s => s.goBack);
   const setView = useAppStore(s => s.setView);
@@ -468,28 +421,23 @@ function SubcategoryListScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!selectedCategory) { setLoading(false); return; }
     async function fetchData() {
+      if (!selectedCategory) { setLoading(false); return; }
       try {
-        const cats = await getCategories();
-        const cat = cats.find(c => c.id === selectedCategory);
-        setCategory(cat || null);
-        const subs = await getSubcategories(selectedCategory);
-        setSubcategories(subs);
-      } catch (e) { console.error("Subcategory fetch error:", e); }
-      finally { setLoading(false); }
+        const [allCats, subs] = await Promise.all([
+          getCategories(),
+          getSubcategories(selectedCategory),
+        ]);
+        setCategory(allCats?.find(c => c.id === selectedCategory) || null);
+        setSubcategories(subs || []);
+      } catch (e) {
+        console.error("SubcategoryList error:", e);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, [selectedCategory]);
-
-  const catKey = (category?.id || category?.name || "").toLowerCase().replace(/\s+/g, "-");
-  const fallbackSubs = (FALLBACK_SUBCATEGORIES[catKey] || FALLBACK_SUBCATEGORIES[category?.name?.toLowerCase() || ""] || []).map(c => ({ ...c, isActive: true, order: 0, parentId: selectedCategory }) as CategoryData);
-  const finalFallback = fallbackSubs.length > 0 ? fallbackSubs : [
-    { id: catKey + "-tier1", name: (category?.name || "Exam") + " Tier 1", icon: "📝", color: "from-blue-500 to-indigo-600", description: "Preliminary exam", isActive: true, order: 0, parentId: selectedCategory } as CategoryData,
-    { id: catKey + "-tier2", name: (category?.name || "Exam") + " Tier 2", icon: "📋", color: "from-purple-500 to-violet-600", description: "Mains exam", isActive: true, order: 1, parentId: selectedCategory } as CategoryData,
-    { id: catKey + "-interview", name: (category?.name || "Exam") + " Interview", icon: "🎤", color: "from-amber-500 to-orange-600", description: "Interview stage", isActive: true, order: 2, parentId: selectedCategory } as CategoryData,
-  ];
-  const displaySubs = subcategories.length > 0 ? subcategories : finalFallback;
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
 
@@ -505,22 +453,31 @@ function SubcategoryListScreen() {
         </div>
       </div>
       <div className="px-4 pt-4">
-        <div className="space-y-2">
-          {displaySubs.map((sub, i) => (
-            <motion.button key={sub.id || i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-              onClick={() => { useAppStore.getState().setSelectedSubcategory(sub.id!); setView("category-detail"); }}
-              className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3">
-              <div className={"w-11 h-11 rounded-xl bg-gradient-to-br " + (sub.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm flex-shrink-0"}>
-                <span className="text-xl">{sub.icon || "📝"}</span>
-              </div>
-              <div className="flex-1 text-left">
-                <h4 className="font-bold text-[#0B1437] text-sm">{sub.name}</h4>
-                <p className="text-[10px] text-gray-400">{sub.description || "View plans & tests"}</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-300" />
-            </motion.button>
-          ))}
-        </div>
+        {subcategories.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><BookOpen className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No subcategories yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add subcategories soon</p>
+            <button onClick={() => setView("category-detail")} className="mt-4 px-5 py-2 rounded-xl bg-[#0B1437] text-white text-xs font-bold">View All Tests</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {subcategories.map((sub, i) => (
+              <motion.button key={sub.id || i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                onClick={() => { useAppStore.getState().setSelectedSubcategory(sub.id!); setView("category-detail"); }}
+                className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3">
+                <div className={"w-11 h-11 rounded-xl bg-gradient-to-br " + (sub.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm flex-shrink-0"}>
+                  <span className="text-xl">{sub.icon || "📝"}</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <h4 className="font-bold text-[#0B1437] text-sm">{sub.name}</h4>
+                  <p className="text-[10px] text-gray-400">{sub.description || "View plans & tests"}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-300" />
+              </motion.button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -544,111 +501,36 @@ function CategoryDetailScreen() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Get category + subcategory info from Firestore
         const cats = await getCategories();
-        let cat = cats.find(c => c.id === selectedCategory);
-        
-        // If not found in Firestore, check fallback categories
-        if (!cat) {
-          const FALLBACK_CATS: CategoryData[] = [
-            { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more", isActive: true, order: 0 } as CategoryData,
-            { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more", isActive: true, order: 1 } as CategoryData,
-            { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more", isActive: true, order: 2 } as CategoryData,
-            { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more", isActive: true, order: 3 } as CategoryData,
-            { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment", isActive: true, order: 4 } as CategoryData,
-            { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more", isActive: true, order: 5 } as CategoryData,
-            { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more", isActive: true, order: 6 } as CategoryData,
-            { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam", isActive: true, order: 7 } as CategoryData,
-          ];
-          cat = FALLBACK_CATS.find(c => c.id === selectedCategory) || null;
-        }
+        const cat = cats.find(c => c.id === selectedCategory) || null;
         setCategory(cat);
 
-        // Get subcategory info
         let sub: CategoryData | null = null;
         if (selectedSubcategory && selectedCategory) {
           const subs = await getSubcategories(selectedCategory);
           sub = subs.find(s => s.id === selectedSubcategory) || null;
-          
-          // If not found in Firestore, check fallback subcategories
-          if (!sub) {
-            const FALLBACK_SUBS: Record<string, CategoryData[]> = {
-              "ssc": [
-                { id: "ssc-cgl", name: "SSC CGL", icon: "📋", color: "from-blue-500 to-indigo-600", description: "Combined Graduate Level", isActive: true, order: 0 } as CategoryData,
-                { id: "ssc-chsl", name: "SSC CHSL", icon: "📝", color: "from-purple-500 to-violet-600", description: "Combined Higher Secondary Level", isActive: true, order: 1 } as CategoryData,
-                { id: "ssc-mts", name: "SSC MTS", icon: "📄", color: "from-emerald-500 to-teal-600", description: "Multi Tasking Staff", isActive: true, order: 2 } as CategoryData,
-                { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "General Duty Constable", isActive: true, order: 3 } as CategoryData,
-                { id: "ssc-cpo", name: "SSC CPO", icon: "👮", color: "from-red-500 to-rose-600", description: "Central Police Organization", isActive: true, order: 4 } as CategoryData,
-                { id: "ssc-je", name: "SSC JE", icon: "⚙️", color: "from-cyan-500 to-blue-600", description: "Junior Engineer", isActive: true, order: 5 } as CategoryData,
-                { id: "ssc-steno", name: "SSC Stenographer", icon: "⌨️", color: "from-pink-500 to-rose-600", description: "Stenographer Grade C & D", isActive: true, order: 6 } as CategoryData,
-              ],
-              "railway": [
-                { id: "rrb-ntpc", name: "RRB NTPC", icon: "🚂", color: "from-red-500 to-rose-600", description: "Non-Technical Popular Categories", isActive: true, order: 0 } as CategoryData,
-                { id: "rrb-group-d", name: "RRB Group D", icon: "🛤️", color: "from-amber-500 to-orange-600", description: "Track Maintainer, Helper", isActive: true, order: 1 } as CategoryData,
-                { id: "rrb-alp", name: "RRB ALP", icon: "🔧", color: "from-blue-500 to-indigo-600", description: "Assistant Loco Pilot", isActive: true, order: 2 } as CategoryData,
-              ],
-              "banking": [
-                { id: "ibps-po", name: "IBPS PO", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "Probationary Officer", isActive: true, order: 0 } as CategoryData,
-                { id: "ibps-clerk", name: "IBPS Clerk", icon: "💳", color: "from-blue-500 to-indigo-600", description: "Clerical Cadre", isActive: true, order: 1 } as CategoryData,
-                { id: "sbi-po", name: "SBI PO", icon: "🏛️", color: "from-amber-500 to-orange-600", description: "State Bank PO", isActive: true, order: 2 } as CategoryData,
-              ],
-              "upsc": [
-                { id: "upsc-cse", name: "UPSC CSE", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services Examination", isActive: true, order: 0 } as CategoryData,
-                { id: "upsc-cds", name: "UPSC CDS", icon: "🎖️", color: "from-blue-500 to-indigo-600", description: "Combined Defence Services", isActive: true, order: 1 } as CategoryData,
-                { id: "upsc-nda", name: "UPSC NDA", icon: "🇮🇳", color: "from-emerald-500 to-teal-600", description: "National Defence Academy", isActive: true, order: 2 } as CategoryData,
-              ],
-              "adre": [
-                { id: "adre-grade-3", name: "ADRE Grade 3", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment Grade 3", isActive: true, order: 0 } as CategoryData,
-                { id: "adre-grade-4", name: "ADRE Grade 4", icon: "📄", color: "from-blue-500 to-indigo-600", description: "Assam Direct Recruitment Grade 4", isActive: true, order: 1 } as CategoryData,
-              ],
-              "assam-police": [
-                { id: "assam-si", name: "Assam Police SI", icon: "👮", color: "from-cyan-500 to-blue-600", description: "Sub-Inspector", isActive: true, order: 0 } as CategoryData,
-                { id: "assam-constable", name: "Assam Police Constable", icon: "🛡️", color: "from-amber-500 to-orange-600", description: "Constable", isActive: true, order: 1 } as CategoryData,
-              ],
-              "state-exams": [
-                { id: "wbcs", name: "WBCS", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "West Bengal Civil Service", isActive: true, order: 0 } as CategoryData,
-                { id: "assam-tet", name: "Assam TET", icon: "📚", color: "from-amber-500 to-orange-600", description: "Teacher Eligibility Test", isActive: true, order: 1 } as CategoryData,
-              ],
-            };
-            const subsFallback = FALLBACK_SUBS[selectedCategory] || [];
-            sub = subsFallback.find(s => s.id === selectedSubcategory) || null;
-          }
         }
         setSubcategory(sub);
 
-        // Get ALL mock tests
         const allTests = await getMockTests();
-        
-        // Build filter names — try multiple matches
         const possibleNames = new Set<string>();
         if (sub?.name) possibleNames.add(sub.name);
         if (sub?.examCategory) possibleNames.add(sub.examCategory);
         if (cat?.name) possibleNames.add(cat.name);
         if (cat?.examCategory) possibleNames.add(cat.examCategory);
-        
-        // Also add common variations
-        if (sub?.name) {
-          possibleNames.add(sub.name.toUpperCase());
-          possibleNames.add(sub.name.toLowerCase());
-        }
-        
-        // Filter tests — match if test.category is in possibleNames
-        // OR if no filter names, show ALL tests (don't filter)
+
         const filtered = possibleNames.size > 0
-          ? (allTests || []).filter((t: any) => {
-              const testCat = (t.category || "").trim();
-              // Exact match
+          ? (allTests || []).filter((t) => {
+              const testCat = (t.category || '').trim();
               if (possibleNames.has(testCat)) return true;
-              // Case-insensitive match
               for (const name of possibleNames) {
                 if (testCat.toLowerCase() === name.toLowerCase()) return true;
               }
               return false;
             })
-          : (allTests || []);
-        
+          : [];
         setTests(filtered);
-      } catch (e) { console.error("CategoryDetail error:", e); }
+      } catch (e) { console.error('CategoryDetail error:', e); }
       finally { setLoading(false); }
     }
     fetchData();
@@ -764,12 +646,8 @@ function PremiumPlansScreen() {
     fetchData();
   }, [selectedCategory, selectedSubcategory]);
 
-  const fallbackPlans: PremiumPlan[] = [
-    { id: "sub-premium", name: (subcategory?.name || category?.name || "Exam") + " Premium", description: "Access all " + (subcategory?.name || category?.name || "") + " tests & papers", price: 99, originalPrice: 199, durationDays: 30, type: "subscription", scope: "subcategory", scopeId: selectedSubcategory || undefined, features: ["All " + (subcategory?.name || "") + " mock tests", "Previous year papers", "Detailed solutions", "Performance analytics"], isActive: true, isPopular: false, order: 1 },
-    { id: "cat-premium", name: (category?.name || "Category") + " Premium", description: "Access all " + (category?.name || "") + " exams", price: 199, originalPrice: 399, durationDays: 90, type: "subscription", scope: "category", scopeId: selectedCategory || undefined, features: ["All " + (category?.name || "") + " mock tests", "All subcategories", "Previous year papers", "Study notes", "Ad-free experience"], isActive: true, isPopular: true, order: 2 },
-    { id: "all-premium", name: "All Access Premium", description: "Unlimited access to everything", price: 499, originalPrice: 999, durationDays: 365, type: "subscription", scope: "all", features: ["ALL mock tests", "ALL previous papers", "ALL study notes", "ALL categories", "Ad-free experience", "Priority support"], isActive: true, isPopular: false, order: 3 },
-  ];
-  const displayPlans = plans.length > 0 ? plans : fallbackPlans;
+  // Plans from Firestore only — NO fallbacks
+  const displayPlans = plans;
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
 
@@ -782,7 +660,13 @@ function PremiumPlansScreen() {
         </div>
       </div>
       <div className="px-4 pt-4 space-y-3">
-        {displayPlans.map((plan, i) => (
+        {displayPlans.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Crown className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No premium plans yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add plans soon</p>
+          </div>
+        ) : displayPlans.map((plan, i) => (
           <motion.div key={plan.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
             className={"bg-white rounded-2xl p-4 border-2 shadow-sm " + (plan.isPopular ? "border-amber-400 ring-2 ring-amber-400/10" : "border-gray-100")}>
             {plan.isPopular && <div className="inline-block px-2 py-0.5 rounded-full bg-amber-400 text-white text-[9px] font-bold mb-2">⭐ MOST POPULAR</div>}
@@ -810,7 +694,9 @@ function PremiumPlansScreen() {
           </motion.div>
         ))}
       </div>
-      <div className="px-4 mt-4 text-center"><p className="text-[10px] text-gray-400">🔒 Secure payment via Razorpay  •  UPI, Card, NetBanking accepted  •  Cancel anytime</p></div>
+      {displayPlans.length > 0 && (
+        <div className="px-4 mt-4 text-center"><p className="text-[10px] text-gray-400">🔒 Secure payment via Razorpay  •  UPI, Card, NetBanking accepted  •  Cancel anytime</p></div>
+      )}
     </div>
   );
 }
@@ -826,16 +712,8 @@ function MockTestsTab() {
     getCategories().then(cats => { setCategories(cats || []); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  const displayCategories = categories.length > 0 ? categories : [
-    { id: "ssc", name: "SSC", icon: "📋", color: "from-blue-500 to-indigo-600", description: "SSC CGL, CHSL, MTS, GD & more" },
-    { id: "railway", name: "Railway", icon: "🚂", color: "from-red-500 to-rose-600", description: "RRB NTPC, Group D, ALP & more" },
-    { id: "banking", name: "Banking", icon: "🏦", color: "from-emerald-500 to-teal-600", description: "IBPS, SBI, RBI & more" },
-    { id: "upsc", name: "UPSC", icon: "🎓", color: "from-amber-500 to-orange-600", description: "Civil Services, CDS, NDA & more" },
-    { id: "adre", name: "ADRE", icon: "📝", color: "from-purple-500 to-violet-600", description: "Assam Direct Recruitment" },
-    { id: "assam-police", name: "Assam Police", icon: "👮", color: "from-cyan-500 to-blue-600", description: "SI, Constable & more" },
-    { id: "state-exams", name: "State Exams", icon: "🏛️", color: "from-pink-500 to-rose-600", description: "State PSC, TET & more" },
-    { id: "ssc-gd", name: "SSC GD", icon: "🛡️", color: "from-slate-500 to-gray-700", description: "Constable GD Exam" },
-  ].map(c => ({ ...c, isActive: true, order: 0 }) as CategoryData);
+  // Categories from Firestore only — NO fallbacks
+  const displayCategories = categories;
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
@@ -845,21 +723,29 @@ function MockTestsTab() {
       </div>
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div> :
       <div className="px-4 pt-4">
-        <div className="grid grid-cols-2 gap-3">
-          {displayCategories.map((cat, i) => (
-            <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); }}
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
-              <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
-              <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
-                <span className="text-2xl">{cat.icon || "📚"}</span>
-              </div>
-              <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
-              <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
-              <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
-            </motion.button>
-          ))}
-        </div>
+        {displayCategories.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Grid3X3 className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No categories yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add categories soon</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {displayCategories.map((cat, i) => (
+              <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); }}
+                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
+                <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
+                <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
+                  <span className="text-2xl">{cat.icon || "📚"}</span>
+                </div>
+                <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "Tap to explore"}</p>
+                <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
+              </motion.button>
+            ))}
+          </div>
+        )}
       </div>}
     </div>
   );
