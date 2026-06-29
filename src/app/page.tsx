@@ -166,13 +166,7 @@ function Header() {
 // ==================== SIDE MENU ====================
 
 function SideMenu() {
-  const { sidebarOpen, setSidebarOpen, setView, setUser, user, navigationItems, subscription, setFirebaseUser } = useAppStore();
-  const [categories, setCategories] = useState<CategoryData[]>([]);
-
-  useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
-  }, []);
-
+  const { sidebarOpen, setSidebarOpen, setView, navigationItems } = useAppStore();
   const menuItems = navigationItems.filter(i => i.location === "sidemenu").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const fallback = menuItems.length === 0 ? DEFAULT_SIDE_MENU : menuItems;
 
@@ -186,61 +180,27 @@ function SideMenu() {
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
             className="fixed left-0 top-0 bottom-0 w-80 bg-[#F8FAFC] z-50 shadow-2xl overflow-y-auto scrollbar-hide"
           >
-            <div className="bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#0B1437] p-5 pb-6 relative overflow-hidden">
+            {/* Slim EXAMVAULT logo header — no user card, no PRO badge */}
+            <div className="bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#0B1437] p-5 pb-5 relative overflow-hidden">
               <div className="absolute right-0 top-0 opacity-5"><Crown className="w-32 h-32 text-amber-400 -mr-8 -mt-8" /></div>
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-                      <span className="text-xl">📚</span>
-                    </div>
-                    <div>
-                      <h2 className="text-white font-black text-base tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
-                      <p className="text-white/50 text-[10px]">Premium Exam Prep</p>
-                    </div>
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+                    <span className="text-xl">📚</span>
                   </div>
-                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20">
-                    <X className="w-5 h-5 text-white" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl backdrop-blur-sm">
-                  {user?.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border-2 border-amber-400/30 object-cover" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                      <User className="w-5 h-5 text-white" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-bold truncate">{user?.name || "Guest User"}</p>
-                    <p className="text-white/50 text-[10px] truncate">{user?.email || "Not logged in"}</p>
+                  <div>
+                    <h2 className="text-white font-black text-base tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
+                    <p className="text-white/50 text-[10px]">Premium Exam Prep</p>
                   </div>
-                  {(subscription.isPremium || subscription.purchasedItemIds?.length > 0) && (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-[9px] font-bold border border-amber-400/30">PRO</span>
-                  )}
                 </div>
-                {/* Login button moved to Profile tab — keeping the side menu clean */}
+                <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20">
+                  <X className="w-5 h-5 text-white" />
+                </button>
               </div>
             </div>
 
-            {categories.length > 0 && (
-              <div className="px-3 py-3">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1">Exam Categories</p>
-                <div className="grid grid-cols-4 gap-1">
-                  {categories.slice(0, 8).map(cat => (
-                    <button key={cat.id} onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); setSidebarOpen(false); }}
-                      className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-blue-50 active:scale-90">
-                      <div className={"w-9 h-9 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-sm"}>
-                        <span className="text-base">{cat.icon || "📚"}</span>
-                      </div>
-                      <span className="text-[9px] font-semibold text-gray-600 text-center leading-tight">{cat.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="px-3 py-2">
+            {/* Menu items only — no Exam Categories grid, no user info, no logout */}
+            <div className="px-3 py-3">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1">Menu</p>
               {fallback.map((item, idx) => {
                 const IconComp = ICON_MAP[item.icon] || HelpCircle;
@@ -258,15 +218,6 @@ function SideMenu() {
               })}
             </div>
 
-            {user?.role === "user" && (
-              <div className="px-3 py-2 border-t border-gray-100 mt-2">
-                <button onClick={async () => { try { await authLogout(); } catch(e) {} setUser(null); setFirebaseUser(null); setView("login"); setSidebarOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 font-semibold hover:bg-red-50">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center"><LogOut className="w-4 h-4" /></div>
-                  <span className="text-sm">Logout</span>
-                </button>
-              </div>
-            )}
             <div className="px-5 py-4 text-center">
               <p className="text-[10px] text-gray-400">ExamVault v2.0</p>
               <p className="text-[10px] text-gray-300 mt-0.5">Made with ❤️ for aspirants</p>
