@@ -187,8 +187,9 @@ FIREBASE SETUP (IMPORTANT!)
 ADMOB
 ==============================================================
 
-✅ App ID: ca-app-pub-4856877072247042~5647719557
-✅ Interstitial ID: ca-app-pub-4856877072247042/5368854663
+✅ App ID: ca-app-pub-1742730064755213~7890219994
+✅ Banner Ad ID: ca-app-pub-1742730064755213/4499859652
+✅ Interstitial Ad ID: ca-app-pub-1742730064755213/5520307609
 
 ⚠️ Play Store publish হলে:
    AdMob Console → Apps → "Link to Google Play"

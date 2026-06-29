@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.examvault.education'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.examvault.education"
+        minSdk 24
+        targetSdk 34
+        versionCode 2
+        versionName "1.0.1"
+    }
+
+    signingConfigs {
+        release {
+            // NOTE: You need to provide examvault-release.keystore
+            // See build-instructions.txt for details
+            storeFile file("examvault-release.keystore")
+            storePassword "ExamVault2026!"
+            keyAlias "examvault"
+            keyPassword "ExamVault2026!"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            // Use debug signing by default
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.gms:play-services-ads:23.0.0'
+    implementation 'com.razorpay:checkout:1.6.33'
+}

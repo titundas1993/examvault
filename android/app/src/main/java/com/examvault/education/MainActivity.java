@@ -26,6 +26,8 @@ import android.widget.Toast;
 
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdSize;
+import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
@@ -54,6 +56,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
 
     // Interstitial ad
     private InterstitialAd mInterstitialAd;
+    private AdView mAdView;
     private long lastAdShownTime = 0;
     private static final long MIN_AD_INTERVAL_MS = 90_000;
     private int actionCount = 0;
@@ -98,6 +101,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
             MobileAds.setRequestConfiguration(requestConfiguration);
 
             loadInterstitialAd();
+            loadBannerAd();
         });
 
         // Setup WebView
@@ -425,6 +429,44 @@ public class MainActivity extends Activity implements PaymentResultListener {
         });
     }
 
+    // ==================== AdMob Banner ====================
+
+    private void loadBannerAd() {
+        try {
+            runOnUiThread(() -> {
+                if (mAdView == null) {
+                    mAdView = new AdView(this);
+                    mAdView.setId(View.generateViewId());
+                    mAdView.setAdSize(AdSize.BANNER);
+                    mAdView.setAdUnitId(admobBannerId);
+
+                    // Add banner at bottom of root layout
+                    android.widget.RelativeLayout rootLayout = (android.widget.RelativeLayout) webView.getParent();
+                    android.widget.RelativeLayout.LayoutParams adParams =
+                        new android.widget.RelativeLayout.LayoutParams(
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT);
+                    adParams.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+                    rootLayout.addView(mAdView, adParams);
+
+                    // Push webview up so banner doesn't overlap content
+                    android.widget.RelativeLayout.LayoutParams wvParams =
+                        new android.widget.RelativeLayout.LayoutParams(
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT);
+                    wvParams.addRule(android.widget.RelativeLayout.ABOVE, mAdView.getId());
+                    wvParams.addRule(android.widget.RelativeLayout.BELOW, progressBar.getId());
+                    webView.setLayoutParams(wvParams);
+                }
+                AdRequest adRequest = new AdRequest.Builder().build();
+                mAdView.loadAd(adRequest);
+                Log.d(TAG, "Banner ad loading...");
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Banner ad load error: " + e.getMessage());
+        }
+    }
+
     // ==================== AdMob Interstitial ====================
 
     private void loadInterstitialAd() {
@@ -631,6 +673,7 @@ public class MainActivity extends Activity implements PaymentResultListener {
     protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
+        if (mAdView != null) mAdView.resume();
         if (mInterstitialAd == null && isNetworkAvailable()) {
             loadInterstitialAd();
         }
@@ -640,10 +683,15 @@ public class MainActivity extends Activity implements PaymentResultListener {
     protected void onPause() {
         super.onPause();
         if (webView != null) webView.onPause();
+        if (mAdView != null) mAdView.pause();
     }
 
     @Override
     protected void onDestroy() {
+        if (mAdView != null) {
+            mAdView.destroy();
+            mAdView = null;
+        }
         if (webView != null) {
             webView.destroy();
             webView = null;
