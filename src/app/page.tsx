@@ -291,19 +291,46 @@ function HomeTab() {
       {displayBanners.length > 0 && (
         <div className="px-4 pt-4 mb-0">
           <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
-            {displayBanners.map((banner: any, i) => (
-              <div key={banner.id || i}
-                className={"absolute inset-0 transition-opacity duration-500 " + (i === bannerIdx ? "opacity-100" : "opacity-0")}>
-                {banner.imageUrl ? (
-                  <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#3B82F6] flex flex-col justify-center px-5">
-                    <h3 className="text-white font-bold text-lg">{banner.title}</h3>
-                    <p className="text-white/60 text-xs mt-1">{banner.subtitle}</p>
-                  </div>
-                )}
-              </div>
-            ))}
+            {displayBanners.map((banner: any, i) => {
+              const handleClick = () => {
+                const linkType = banner.linkType;
+                const targetView = banner.targetView;
+                const link = banner.link;
+                if (linkType === "internal" && targetView) {
+                  setView(targetView as any);
+                } else if (linkType === "external" && link) {
+                  try { window.open(link, "_blank", "noopener,noreferrer"); } catch (e) {}
+                } else if (linkType === "detail") {
+                  useAppStore.getState().setSelectedAnnouncementId?.(banner.id);
+                  setView("announcement-detail" as any);
+                }
+                // linkType === "none" — no action
+              };
+              const isClickable = banner.linkType && banner.linkType !== "none" && (
+                (banner.linkType === "internal" && banner.targetView) ||
+                (banner.linkType === "external" && banner.link) ||
+                (banner.linkType === "detail")
+              );
+              return (
+                <div key={banner.id || i}
+                  onClick={isClickable ? handleClick : undefined}
+                  className={"absolute inset-0 transition-opacity duration-500 " + (i === bannerIdx ? "opacity-100" : "opacity-0") + (isClickable ? " cursor-pointer active:scale-[0.99]" : "")}>
+                  {banner.imageUrl ? (
+                    <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#3B82F6] flex flex-col justify-center px-5">
+                      <h3 className="text-white font-bold text-lg">{banner.title}</h3>
+                      <p className="text-white/60 text-xs mt-1">{banner.subtitle}</p>
+                      {banner.linkText && (
+                        <span className="mt-2 inline-block self-start px-3 py-1 rounded-lg bg-white/20 text-white text-xs font-semibold">
+                          {banner.linkText} →
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {displayBanners.length > 1 && (
               <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
                 {displayBanners.map((_: any, i: number) => (

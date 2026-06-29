@@ -173,6 +173,7 @@ const ADMIN_SIDEBAR_ITEMS: { icon: React.ComponentType<{ className?: string }>; 
   { icon: BookOpen, label: "Mock Tests", view: "mock-tests", color: "from-amber-500 to-orange-600" },
   { icon: FileQuestion, label: "Questions", view: "questions", color: "from-purple-500 to-violet-600" },
   { icon: Image, label: "Banners", view: "banners", color: "from-cyan-500 to-blue-600" },
+  { icon: Megaphone, label: "Announcements", view: "announcements", color: "from-pink-500 to-rose-600" },
   { icon: Crown, label: "Premium Plans", view: "plans", color: "from-amber-400 to-orange-500" },
   { icon: Tag, label: "Coupons", view: "coupons", color: "from-emerald-500 to-teal-600" },
   { icon: Bell, label: "Push Notify", view: "push-notifications", color: "from-pink-500 to-rose-600" },
@@ -3117,7 +3118,23 @@ function BannersAdmin() {
               </div>
               <div>
                 <Label className="mb-1.5 block text-sm font-medium">Click Action</Label>
-                <Select value={formData.linkType || "internal"} onValueChange={v => setFormData({ ...formData, linkType: v })}>
+                <Select value={formData.linkType || "internal"} onValueChange={v => {
+                  // Clear stale fields when linkType changes so old button text/URL doesn't persist
+                  const next: Record<string, any> = { ...formData, linkType: v };
+                  if (v === "none") {
+                    next.link = "";
+                    next.linkText = "";
+                    next.targetView = "";
+                  } else if (v === "internal") {
+                    next.link = ""; // external URL not needed
+                  } else if (v === "external") {
+                    next.targetView = ""; // internal target not needed
+                  } else if (v === "detail") {
+                    next.link = "";
+                    next.targetView = "";
+                  }
+                  setFormData(next);
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {LINK_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
