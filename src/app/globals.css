@@ -128,9 +128,10 @@
     @apply border-border outline-ring/50;
   }
   html, body {
-    /* Allow normal vertical scrolling
-       Only kill horizontal overflow (which causes layout shift) */
-    overflow-x: hidden;
+    /* overflow-x: clip (NOT hidden) — clips horizontal overflow but does NOT
+       create a scroll container, so position: sticky still works.
+       'hidden' creates a scroll container which breaks sticky in some browsers. */
+    overflow-x: clip;
     /* Smooth scrolling on iOS */
     -webkit-overflow-scrolling: touch;
   }
@@ -138,13 +139,14 @@
     @apply bg-background text-foreground;
     min-height: 100vh;
   }
-  /* Sticky header — keep position stable during scroll */
+  /* Sticky header — keep position stable.
+     DO NOT add transform: translateZ(0) here — transforms break sticky
+     positioning in some browsers (Safari, older Android WebView). */
   [class*="sticky top-0"] {
     position: sticky !important;
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
   }
-  /* Fixed bottom nav — keep position stable */
+  /* Fixed bottom nav — transform is safe here (fixed doesn't depend on
+     ancestor overflow). */
   [class*="fixed bottom-0"] {
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
