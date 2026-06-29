@@ -127,21 +127,15 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html {
-    /* Vertical scroll: auto (default, allows scrolling)
-       Horizontal scroll: hidden (kills horizontal jitter)
-       overscroll-behavior: contain (kills pull-to-refresh bounce that
-       causes sticky header/footer flicker, but doesn't block scrolling) */
+  html, body {
+    /* Allow normal vertical scrolling
+       Only kill horizontal overflow (which causes layout shift) */
     overflow-x: hidden;
-    overscroll-behavior-y: contain;
+    /* Smooth scrolling on iOS */
     -webkit-overflow-scrolling: touch;
   }
   body {
     @apply bg-background text-foreground;
-    /* Allow vertical scroll — DO NOT set overflow-y: hidden anywhere
-       or main page scrolling breaks */
-    overflow-x: hidden;
-    overscroll-behavior-y: contain;
     min-height: 100vh;
   }
   /* Sticky header — keep position stable during scroll */
