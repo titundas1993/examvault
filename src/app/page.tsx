@@ -48,6 +48,26 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   FileText, Zap, TrophyIcon, Target,
 };
 
+// ==================== AdMob Interstitial Trigger ====================
+// Tells Android to maybe show a full-screen ad after enough user actions.
+// Safe to call on web (no-op). Android side enforces 90s min interval + premium skip.
+declare global {
+  interface Window {
+    AndroidBridge?: {
+      onActionComplete?: (actionType: string) => void;
+      exitApp?: () => void;
+      [key: string]: any;
+    };
+  }
+}
+function triggerAd(actionType: string) {
+  try {
+    if (typeof window !== "undefined" && window.AndroidBridge?.onActionComplete) {
+      window.AndroidBridge.onActionComplete(actionType);
+    }
+  } catch (e) { /* no-op */ }
+}
+
 function useRequireAuth() {
   const { user, setView } = useAppStore();
   return (action: () => void) => {
@@ -268,21 +288,12 @@ function HomeTab() {
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* Scrolling Text Banner at TOP — sticky, always visible */}
-      {scrollText ? (
+      {/* Scrolling Text Banner at TOP — only shows when admin has added announcements */}
+      {scrollText && (
         <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
           <div className="flex whitespace-nowrap animate-marquee">
             <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
             <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 border-b border-amber-400/20">
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
-              <span className="text-[10px]">📚</span>
-            </div>
-            <h2 className="text-sm font-black text-white tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
           </div>
         </div>
       )}
@@ -299,16 +310,19 @@ function HomeTab() {
                 const categoryId = banner.categoryId;
                 if (linkType === "internal" && targetView) {
                   setView(targetView as any);
+                  triggerAd("banner_internal");
                 } else if (linkType === "category" && categoryId) {
                   // Navigate to subcategory-list with the selected category
                   useAppStore.getState().setSelectedCategory(categoryId);
                   useAppStore.getState().setSelectedSubcategory(null);
                   setView("subcategory-list");
+                  triggerAd("banner_category");
                 } else if (linkType === "external" && link) {
                   try { window.open(link, "_blank", "noopener,noreferrer"); } catch (e) {}
                 } else if (linkType === "detail") {
                   useAppStore.getState().setSelectedAnnouncementId?.(banner.id);
                   setView("announcement-detail" as any);
+                  triggerAd("banner_detail");
                 }
                 // linkType === "none" — no action
               };
@@ -365,7 +379,7 @@ function HomeTab() {
           <div className="grid grid-cols-2 gap-3">
             {displayCategories.map((cat, i) => (
               <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); }}
+                onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); triggerAd("category_open"); }}
                 className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
                 <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
                 <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
@@ -727,7 +741,7 @@ function MockTestsTab() {
           <div className="grid grid-cols-2 gap-3">
             {displayCategories.map((cat, i) => (
               <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); }}
+                onClick={() => { useAppStore.getState().setSelectedCategory(cat.id!); setView("subcategory-list"); triggerAd("category_open"); }}
                 className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
                 <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
                 <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
@@ -858,6 +872,8 @@ function ExamPage() {
     if (firebaseUser?.uid) { try { await saveTestResult(result as any); } catch (e) { console.error("Save result error:", e); } }
     setLastTestResult(result);
     setView("result");
+    // Trigger interstitial ad after test submission — premium users skipped on Android side
+    triggerAd("test_submit");
   }, [submitted, answers, questions, selectedTest, testTitle, firebaseUser, user, timeLeft]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
