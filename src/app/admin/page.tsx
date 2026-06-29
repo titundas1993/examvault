@@ -82,6 +82,10 @@ let EXAM_CATEGORIES = [
   { label: "VOCLET", value: "VOCLET" }, { label: "PSC", value: "PSC" }, { label: "Others", value: "Others" },
 ];
 
+// ID-based category & subcategory lists for proper linking with mock tests
+let CATEGORY_ID_OPTIONS: { label: string; value: string }[] = [];
+let SUBCATEGORY_ID_OPTIONS: { label: string; value: string; parentId: string }[] = [];
+
 let SUBJECT_CATEGORIES = [
   { label: "History", value: "History" }, { label: "Geography", value: "Geography" }, { label: "Math", value: "Math" },
   { label: "English", value: "English" }, { label: "Science", value: "Science" }, { label: "Polity", value: "Polity" },
@@ -110,6 +114,17 @@ async function loadCategoriesIntoGlobals() {
       // New system: parent categories (no parentId) + subcategories (with parentId)
       const parents = data.filter((c: any) => !c.parentId && c.isActive !== false);
       const children = data.filter((c: any) => c.parentId && c.isActive !== false);
+
+      // Build ID-based lists for proper mock test linking
+      CATEGORY_ID_OPTIONS = parents.map((p: any) => ({ label: p.name, value: p.id }));
+      SUBCATEGORY_ID_OPTIONS = children.map((s: any) => {
+        const parent = parents.find((p: any) => p.id === s.parentId);
+        return {
+          label: parent ? `${parent.name} > ${s.name}` : s.name,
+          value: s.id,
+          parentId: s.parentId,
+        };
+      });
 
       if (parents.length > 0) {
         // Build combined list: parent name + child names
@@ -140,11 +155,15 @@ async function loadCategoriesIntoGlobals() {
     } else {
       EXAM_CATEGORIES = [...DEFAULT_EXAM_CATEGORIES];
       SUBJECT_CATEGORIES = [...DEFAULT_SUBJECT_CATEGORIES];
+      CATEGORY_ID_OPTIONS = [];
+      SUBCATEGORY_ID_OPTIONS = [];
     }
   } catch (e) {
     console.error(e);
     EXAM_CATEGORIES = [...DEFAULT_EXAM_CATEGORIES];
     SUBJECT_CATEGORIES = [...DEFAULT_SUBJECT_CATEGORIES];
+    CATEGORY_ID_OPTIONS = [];
+    SUBCATEGORY_ID_OPTIONS = [];
   }
 }
 
@@ -579,6 +598,8 @@ interface CrudField {
   label: string;
   type: "text" | "textarea" | "select" | "switch" | "number" | "url" | "image" | "file" | "date";
   options?: { label: string; value: string }[];
+  /** Dynamic options computed from current form data — overrides `options` when present */
+  optionsFromFormData?: (formData: Record<string, any>) => { label: string; value: string }[];
   placeholder?: string;
   required?: boolean;
   dependsOn?: { field: string; value: string | string[] };
@@ -1097,10 +1118,16 @@ function CrudAdminPanel<T extends Record<string, any>>({
                       if (v !== "Others") {
                         setOtherValues(prev => { const next = { ...prev }; delete next[field.key]; return next; });
                       }
+                      // Clear dependent fields when this field changes
+                      fields.forEach(f => {
+                        if (f.dependsOn?.field === field.key) {
+                          setFormData(prev => ({ ...prev, [f.key]: "" }));
+                        }
+                      });
                     }}>
                       <SelectTrigger><SelectValue placeholder={field.placeholder || "Select..."} /></SelectTrigger>
                       <SelectContent>
-                        {field.options?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                        {(field.optionsFromFormData ? field.optionsFromFormData(formData) : field.options)?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {field.allowOther && formData[field.key] === "Others" && (
@@ -1635,7 +1662,17 @@ function MockTestsAdmin() {
       collectionName="mockTests"
       fields={[
         { key: "title", label: "Test Title", type: "text", placeholder: "e.g. WBCS Prelims 2026", required: true },
-        { key: "category", label: "Category", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true },
+        { key: "categoryId", label: "Parent Category (ID link)", type: "select", options: CATEGORY_ID_OPTIONS, placeholder: "Select parent category", required: true },
+        { key: "subcategoryId", label: "Subcategory (ID link)", type: "select",
+          optionsFromFormData: (fd) => {
+            const parent = fd.categoryId;
+            if (!parent) return [];
+            return SUBCATEGORY_ID_OPTIONS
+              .filter(s => s.parentId === parent)
+              .map(s => ({ label: s.label, value: s.value }));
+          },
+          placeholder: "Select subcategory (optional)" },
+        { key: "category", label: "Category Name (auto-filled)", type: "select", options: EXAM_CATEGORIES, required: true, allowOther: true, placeholder: "Pick from dropdown or type custom" },
         { key: "subject", label: "Subject", type: "select", options: SUBJECT_CATEGORIES, allowOther: true },
         { key: "duration", label: "Duration (min)", type: "number", placeholder: "60" },
         { key: "marks", label: "Total Marks", type: "number", placeholder: "100" },
@@ -1658,13 +1695,37 @@ function MockTestsAdmin() {
         const isFree = data.accessType !== "premium";
         // Premium items must have a price — default to ₹49 if not set
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminAddDoc("mockTests", { ...data, isFree, price, attempts: 0, rating: 0 });
+        // Auto-fill `category` name from selected subcategory/category ID if not custom
+        let category = data.category;
+        if (data.subcategoryId) {
+          const sub = SUBCATEGORY_ID_OPTIONS.find(s => s.value === data.subcategoryId);
+          if (sub) {
+            const subName = sub.label.includes(" > ") ? sub.label.split(" > ")[1] : sub.label;
+            category = subName;
+          }
+        } else if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminAddDoc("mockTests", { ...data, category, isFree, price, attempts: 0, rating: 0 });
       }}
       onUpdate={(id, data) => {
         // Derive isFree from accessType on update too
         const isFree = data.accessType !== "premium";
         const price = data.accessType === "premium" && (!data.price || Number(data.price) <= 0) ? 49 : Number(data.price || 0);
-        return adminUpdateDoc("mockTests", id, { ...data, isFree, price });
+        // Auto-fill `category` name from selected subcategory/category ID if not custom
+        let category = data.category;
+        if (data.subcategoryId) {
+          const sub = SUBCATEGORY_ID_OPTIONS.find(s => s.value === data.subcategoryId);
+          if (sub) {
+            const subName = sub.label.includes(" > ") ? sub.label.split(" > ")[1] : sub.label;
+            category = subName;
+          }
+        } else if (data.categoryId) {
+          const cat = CATEGORY_ID_OPTIONS.find(c => c.value === data.categoryId);
+          if (cat) category = cat.label;
+        }
+        return adminUpdateDoc("mockTests", id, { ...data, category, isFree, price });
       }}
       onDelete={(id) => adminDeleteDoc("mockTests", id)}
     />

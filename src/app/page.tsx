@@ -219,11 +219,7 @@ function SideMenu() {
                     <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-[9px] font-bold border border-amber-400/30">PRO</span>
                   )}
                 </div>
-                {(!user || user.role === "guest") && (
-                  <button onClick={() => { setView("login"); setSidebarOpen(false); }} className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-lg active:scale-95">
-                    Login / Register
-                  </button>
-                )}
+                {/* Login button moved to Profile tab — keeping the side menu clean */}
               </div>
             </div>
 
@@ -505,30 +501,51 @@ function CategoryDetailScreen() {
         const cat = cats.find(c => c.id === selectedCategory) || null;
         setCategory(cat);
 
-        let sub: CategoryData | null = null;
-        if (selectedSubcategory && selectedCategory) {
-          const subs = await getSubcategories(selectedCategory);
-          sub = subs.find(s => s.id === selectedSubcategory) || null;
-        }
+        // Always fetch subcategories of this parent — needed for both branches below
+        const allSubs = selectedCategory ? await getSubcategories(selectedCategory) : [];
+        const sub = selectedSubcategory ? allSubs.find(s => s.id === selectedSubcategory) || null : null;
         setSubcategory(sub);
 
         const allTests = await getMockTests();
-        const possibleNames = new Set<string>();
-        if (sub?.name) possibleNames.add(sub.name);
-        if (sub?.examCategory) possibleNames.add(sub.examCategory);
-        if (cat?.name) possibleNames.add(cat.name);
-        if (cat?.examCategory) possibleNames.add(cat.examCategory);
 
-        const filtered = possibleNames.size > 0
-          ? (allTests || []).filter((t) => {
-              const testCat = (t.category || '').trim();
-              if (possibleNames.has(testCat)) return true;
-              for (const name of possibleNames) {
-                if (testCat.toLowerCase() === name.toLowerCase()) return true;
-              }
-              return false;
-            })
-          : [];
+        // Build matching sets — ID-based (preferred) + name-based (backward compat)
+        const possibleNames = new Set<string>();
+        const possibleSubIds = new Set<string>();
+
+        if (sub) {
+          // Subcategory selected — narrow to just this subcategory
+          if (sub.name) possibleNames.add(sub.name);
+          if (sub.examCategory) possibleNames.add(sub.examCategory);
+          if (sub.id) possibleSubIds.add(sub.id);
+        } else if (cat) {
+          // Only parent category selected — show tests for parent + ALL its subcategories
+          if (cat.name) possibleNames.add(cat.name);
+          if (cat.examCategory) possibleNames.add(cat.examCategory);
+          allSubs.forEach(s => {
+            if (s.name) possibleNames.add(s.name);
+            if (s.examCategory) possibleNames.add(s.examCategory);
+            if (s.id) possibleSubIds.add(s.id);
+          });
+        }
+
+        const filtered = (allTests || []).filter((t) => {
+          // 1) ID-based matching (preferred — for tests created with new admin form)
+          if (selectedSubcategory && t.subcategoryId === selectedSubcategory) return true;
+          if (!selectedSubcategory && selectedCategory) {
+            if (t.categoryId === selectedCategory) return true;
+            // Show tests assigned to any subcategory of this parent
+            if (t.subcategoryId && possibleSubIds.has(t.subcategoryId)) return true;
+          }
+          // 2) Name-based matching (backward compat — for old tests with only `category` field)
+          const testCat = (t.category || '').trim();
+          if (testCat && possibleNames.has(testCat)) return true;
+          if (testCat) {
+            for (const name of possibleNames) {
+              if (typeof name === 'string' && testCat.toLowerCase() === name.toLowerCase()) return true;
+            }
+          }
+          return false;
+        });
         setTests(filtered);
       } catch (e) { console.error('CategoryDetail error:', e); }
       finally { setLoading(false); }
@@ -1041,7 +1058,7 @@ function LeaderboardTab() {
 // ==================== PROFILE TAB ====================
 
 function ProfileTab() {
-  const { user, userProfile, setUserProfile, firebaseUser, setView } = useAppStore();
+  const { user, userProfile, setUserProfile, firebaseUser, setView, setUser, setFirebaseUser } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const [testHistory, setTestHistory] = useState<TestResultData[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -1055,6 +1072,15 @@ function ProfileTab() {
   const totalTests = testHistory.length;
   const avgScore = totalTests > 0 ? Math.round(testHistory.reduce((sum, r) => sum + (r.scoredMarks || 0), 0) / totalTests) : 0;
   const avgAccuracy = totalTests > 0 ? Math.round(testHistory.reduce((sum, r) => sum + (r.accuracy || 0), 0) / totalTests) : 0;
+
+  const isGuest = !user || user.role === "guest";
+
+  const handleLogout = async () => {
+    try { await authLogout(); } catch (e) {}
+    setUser(null);
+    setFirebaseUser(null);
+    setView("home");
+  };
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
@@ -1076,6 +1102,30 @@ function ProfileTab() {
           <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm text-center"><p className="text-2xl font-black text-[#0B1437]">{avgScore}</p><p className="text-[10px] text-gray-400">Avg Score</p></div>
         </div>
       </div>
+
+      {/* Auth Section — login/register for guests, logout for logged-in users */}
+      <div className="px-4 mt-4">
+        {isGuest ? (
+          <button onClick={() => setView("login")} className="w-full p-4 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl text-white text-left shadow-lg active:scale-[0.98] flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><User className="w-5 h-5 text-white" /></div>
+            <div className="flex-1">
+              <p className="font-bold text-sm">Login / Register</p>
+              <p className="text-xs text-white/80">Unlock tests, save progress & sync across devices</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/80" />
+          </button>
+        ) : (
+          <button onClick={handleLogout} className="w-full p-4 bg-white rounded-2xl text-left shadow-sm active:scale-[0.98] flex items-center gap-3 border border-red-100">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><LogOut className="w-5 h-5 text-red-500" /></div>
+            <div className="flex-1">
+              <p className="font-bold text-sm text-red-600">Logout</p>
+              <p className="text-xs text-gray-500">Sign out of your account</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-300" />
+          </button>
+        )}
+      </div>
+
       {/* Performance Analytics Button */}
       <div className="px-4 mt-4">
         <button onClick={() => setView("performance")} className="w-full p-4 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] rounded-2xl text-white text-left shadow-lg active:scale-[0.98] flex items-center gap-3">
