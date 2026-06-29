@@ -193,7 +193,6 @@ export async function getTips() {
   try {
     const q = query(
       collection(db, TIPS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const tips = snapshot.docs.map((d) => {
@@ -206,7 +205,7 @@ export async function getTips() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return tips as TipData[];
+    return tips.filter((item: any) => item.isActive !== false) as TipData[];
   } catch (error) {
     console.error("Error getting tips:", error);
     throw error;
@@ -224,7 +223,7 @@ export async function getAllTips() {
       const data = d.data() as Record<string, unknown>;
       return convertTimestamps({ ...data, id: d.id } as Record<string, unknown>);
     });
-    return tips as TipData[];
+    return tips.filter((item: any) => item.isActive !== false) as TipData[];
   } catch (error) {
     console.error("Error getting all tips:", error);
     throw error;
@@ -310,7 +309,6 @@ export async function getAnnouncements() {
   try {
     const q = query(
       collection(db, ANNOUNCEMENTS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const announcements = snapshot.docs.map((d) => {
@@ -323,7 +321,7 @@ export async function getAnnouncements() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return announcements as AnnouncementData[];
+    return announcements.filter((item: any) => item.isActive !== false) as AnnouncementData[];
   } catch (error) {
     console.error("Error getting announcements:", error);
     throw error;
@@ -579,7 +577,6 @@ export async function getMockTests() {
   try {
     const q = query(
       collection(db, MOCK_TESTS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const mockTests = snapshot.docs.map((d) => {
@@ -592,7 +589,7 @@ export async function getMockTests() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return mockTests as MockTestData[];
+    return mockTests.filter((item: any) => item.isActive !== false) as MockTestData[];
   } catch (error) {
     console.error("Error getting mock tests:", error);
     throw error;
@@ -818,7 +815,6 @@ export async function getNotes() {
   try {
     const q = query(
       collection(db, NOTES_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const notes = snapshot.docs.map((d) => {
@@ -831,7 +827,7 @@ export async function getNotes() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return notes as NotesData[];
+    return notes.filter((item: any) => item.isActive !== false) as NotesData[];
   } catch (error) {
     console.error("Error getting notes:", error);
     throw error;
@@ -915,7 +911,6 @@ export async function getBanners() {
   try {
     const q = query(
       collection(db, BANNERS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const banners = snapshot.docs.map((d) => {
@@ -928,7 +923,7 @@ export async function getBanners() {
       const orderB = (b as Record<string, unknown>).order as number ?? 0;
       return orderA - orderB;
     });
-    return banners as BannerData[];
+    return banners.filter((item: any) => item.isActive !== false) as BannerData[];
   } catch (error) {
     console.error("Error getting banners:", error);
     throw error;
@@ -999,7 +994,6 @@ export async function getTestSeries() {
   try {
     const q = query(
       collection(db, TEST_SERIES_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const testSeries = snapshot.docs.map((d) => {
@@ -1012,7 +1006,7 @@ export async function getTestSeries() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return testSeries as TestSeriesData[];
+    return testSeries.filter((item: any) => item.isActive !== false) as TestSeriesData[];
   } catch (error) {
     console.error("Error getting test series:", error);
     throw error;
@@ -1097,7 +1091,6 @@ export async function getFreeTests() {
   try {
     const q = query(
       collection(db, FREE_TESTS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const freeTests = snapshot.docs.map((d) => {
@@ -1110,7 +1103,7 @@ export async function getFreeTests() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return freeTests as FreeTestData[];
+    return freeTests.filter((item: any) => item.isActive !== false) as FreeTestData[];
   } catch (error) {
     console.error("Error getting free tests:", error);
     throw error;
@@ -1193,7 +1186,6 @@ export async function getDailyQuiz() {
   try {
     const q = query(
       collection(db, DAILY_QUIZ_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const quizzes = snapshot.docs.map((d) => {
@@ -1206,7 +1198,7 @@ export async function getDailyQuiz() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return quizzes as DailyQuizData[];
+    return quizzes.filter((item: any) => item.isActive !== false) as DailyQuizData[];
   } catch (error) {
     console.error("Error getting daily quiz:", error);
     throw error;
@@ -1293,7 +1285,6 @@ export async function getPopularTests() {
   try {
     const q = query(
       collection(db, POPULAR_TESTS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const popularTests = snapshot.docs.map((d) => {
@@ -1306,7 +1297,7 @@ export async function getPopularTests() {
       const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
       return dateB - dateA;
     });
-    return popularTests.slice(0, 10) as PopularTestData[];
+    return popularTests.slice(0, 10).filter((item: any) => item.isActive !== false) as PopularTestData[];
   } catch (error) {
     console.error("Error getting popular tests:", error);
     throw error;
@@ -1762,7 +1753,6 @@ export async function getPlans() {
   try {
     const q = query(
       collection(db, PLANS_COLLECTION),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const plans = snapshot.docs.map((d) => {
@@ -2159,9 +2149,9 @@ const NAVIGATION_COLLECTION = "navigation";
 
 export async function getNavigationItems() {
   try {
-    const q = query(collection(db, NAVIGATION_COLLECTION), where("isActive", "==", true));
+    const q = query(collection(db, NAVIGATION_COLLECTION));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => ({ ...d.data(), id: d.id } as NavigationItem));
+    return snapshot.docs.map(d => ({ ...d.data(), id: d.id } as NavigationItem)).filter((item: any) => item.isActive !== false);
   } catch (error) {
     console.error("Error getting navigation:", error);
     throw error;
@@ -2186,7 +2176,7 @@ export interface CategoryData {
 // Get top-level categories (parentId is null or empty)
 export async function getCategories(): Promise<CategoryData[]> {
   try {
-    const q = query(collection(db, "categories"), where("isActive", "==", true));
+    const q = query(collection(db, "categories"));
     const snapshot = await getDocs(q);
     const all = snapshot.docs.map(d => {
       const data = d.data() as any;
@@ -2219,7 +2209,6 @@ export async function getSubcategories(parentId: string): Promise<CategoryData[]
     const q = query(
       collection(db, "categories"),
       where("parentId", "==", parentId),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     const all = snapshot.docs.map(d => {
@@ -2304,7 +2293,7 @@ export interface PremiumPlan extends PlanScope {
 // Get plans filtered by scope
 export async function getPlansByScope(scope?: "subcategory" | "category" | "all", scopeId?: string): Promise<PremiumPlan[]> {
   try {
-    const q = query(collection(db, "plans"), where("isActive", "==", true));
+    const q = query(collection(db, "plans"));
     const snapshot = await getDocs(q);
     let plans = snapshot.docs.map(d => {
       const data = d.data() as any;
@@ -2405,7 +2394,6 @@ export async function validateCoupon(code: string): Promise<CouponData | null> {
     const q = query(
       collection(db, "coupons"),
       where("code", "==", code.toUpperCase()),
-      where("isActive", "==", true)
     );
     const snapshot = await getDocs(q);
     if (snapshot.empty) return null;
@@ -2543,7 +2531,7 @@ export interface AppNotification {
 
 export async function getAppNotifications(userType: "all" | "premium" | "free"): Promise<AppNotification[]> {
   try {
-    const q = query(collection(db, "appNotifications"), where("isActive", "==", true));
+    const q = query(collection(db, "appNotifications"));
     const snapshot = await getDocs(q);
     const now = new Date();
     return snapshot.docs
@@ -2604,11 +2592,11 @@ const PREV_PAPERS_COLLECTION = "previousPapers";
 export async function getPreviousPapers(categoryId?: string): Promise<PreviousPaperData[]> {
   try {
     let q: any = collection(db, PREV_PAPERS_COLLECTION);
-    const constraints: any[] = [where("isActive", "==", true)];
+    const constraints: any[] = [];
     if (categoryId) constraints.push(where("categoryId", "==", categoryId));
     const snap = await getDocs(query(q, ...constraints));
     const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as PreviousPaperData);
-    return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return items.filter((item: any) => item.isActive !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   } catch (e) { console.error("getPreviousPapers error:", e); return []; }
 }
 
@@ -2666,11 +2654,11 @@ const STUDY_NOTES_COLLECTION = "studyNotes";
 
 export async function getStudyNotes(categoryId?: string): Promise<StudyNoteData[]> {
   try {
-    const constraints: any[] = [where("isActive", "==", true)];
+    const constraints: any[] = [];
     if (categoryId) constraints.push(where("categoryId", "==", categoryId));
     const snap = await getDocs(query(collection(db, STUDY_NOTES_COLLECTION), ...constraints));
     const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as StudyNoteData);
-    return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return items.filter((item: any) => item.isActive !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   } catch (e) { console.error("getStudyNotes error:", e); return []; }
 }
 
@@ -2708,11 +2696,11 @@ const UPCOMING_EXAMS_COLLECTION = "upcomingExams";
 
 export async function getUpcomingExams(categoryId?: string): Promise<UpcomingExamData[]> {
   try {
-    const constraints: any[] = [where("isActive", "==", true)];
+    const constraints: any[] = [];
     if (categoryId) constraints.push(where("categoryId", "==", categoryId));
     const snap = await getDocs(query(collection(db, UPCOMING_EXAMS_COLLECTION), ...constraints));
     const items = snap.docs.map(d => convertTimestamps({ ...d.data(), id: d.id }) as UpcomingExamData);
-    return items.sort((a, b) => {
+    return items.filter((item: any) => item.isActive !== false).sort((a, b) => {
       // Sort by examDate (closest first); items without date go last
       const da = a.examDate ? new Date(a.examDate).getTime() : Infinity;
       const db2 = b.examDate ? new Date(b.examDate).getTime() : Infinity;
