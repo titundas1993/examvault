@@ -1484,17 +1484,27 @@ function AnnouncementDetailScreen() {
 function PreviousPapersScreen() {
   const goBack = useAppStore(s => s.goBack);
   const setView = useAppStore(s => s.setView);
-  const selectedCategory = useAppStore(s => s.selectedCategory);
   const subscription = useAppStore(s => s.subscription);
   const firebaseUser = useAppStore(s => s.firebaseUser);
   const setShowPaymentModal = useAppStore(s => s.setShowPaymentModal);
   const setPaymentModalData = useAppStore(s => s.setPaymentModalData);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [selectedCat, setSelectedCat] = useState<CategoryData | null>(null);
   const [papers, setPapers] = useState<PreviousPaperData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPapers, setLoadingPapers] = useState(false);
 
+  // Load categories first
   useEffect(() => {
-    getPreviousPapers(selectedCategory || undefined).then(p => { setPapers(p || []); setLoading(false); }).catch(() => setLoading(false));
-  }, [selectedCategory]);
+    getCategories().then(cats => { setCategories(cats || []); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  // Load papers when a category is selected
+  useEffect(() => {
+    if (!selectedCat) return;
+    setLoadingPapers(true);
+    getPreviousPapers(selectedCat.id).then(p => { setPapers(p || []); setLoadingPapers(false); }).catch(() => setLoadingPapers(false));
+  }, [selectedCat]);
 
   const handleDownload = async (paper: PreviousPaperData) => {
     if (!paper.pdfUrl) return;
@@ -1509,28 +1519,74 @@ function PreviousPapersScreen() {
       }
       return;
     }
-    // Track download
     if (firebaseUser?.uid && paper.id) {
       await trackPaperDownload(paper.id, firebaseUser.uid);
     }
-    // Open PDF in new tab
     try { window.open(paper.pdfUrl, "_blank", "noopener,noreferrer"); } catch (e) {}
     triggerAd("paper_download");
   };
 
+  // ====== STAGE 1: Category picker (like MockTestsTab) ======
+  if (!selectedCat) {
+    return (
+      <div className="pb-6 bg-[#F8FAFC] min-h-screen">
+        <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+            <div>
+              <h2 className="text-white font-bold text-lg">Previous Papers</h2>
+              <p className="text-white/50 text-xs">Select your exam category</p>
+            </div>
+          </div>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : categories.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Grid3X3 className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No categories yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add categories soon</p>
+          </div>
+        ) : (
+          <div className="px-4 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((cat, i) => (
+                <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  onClick={() => { setSelectedCat(cat); triggerAd("paper_category_open"); }}
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
+                  <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
+                  <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
+                    <span className="text-2xl">{cat.icon || "📚"}</span>
+                  </div>
+                  <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                  <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "View papers"}</p>
+                  <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ====== STAGE 2: Papers list (after category selected) ======
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
       <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
         <div className="flex items-center gap-3">
-          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
-          <div>
-            <h1 className="text-white font-bold text-lg">Previous Papers</h1>
-            <p className="text-white/50 text-xs">{papers.length} papers available</p>
+          <button onClick={() => { setSelectedCat(null); setPapers([]); }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{selectedCat.icon || "📚"}</span>
+            <div>
+              <h1 className="text-white font-bold text-lg">{selectedCat.name}</h1>
+              <p className="text-white/50 text-xs">{loadingPapers ? "Loading papers..." : `${papers.length} papers available`}</p>
+            </div>
           </div>
         </div>
       </div>
       <div className="px-4 pt-4">
-        {loading ? (
+        {loadingPapers ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
         ) : papers.length === 0 ? (
           <div className="text-center py-16">
@@ -1586,17 +1642,27 @@ function PreviousPapersScreen() {
 function StudyNotesScreen() {
   const goBack = useAppStore(s => s.goBack);
   const setView = useAppStore(s => s.setView);
-  const selectedCategory = useAppStore(s => s.selectedCategory);
   const subscription = useAppStore(s => s.subscription);
   const firebaseUser = useAppStore(s => s.firebaseUser);
   const setShowPaymentModal = useAppStore(s => s.setShowPaymentModal);
   const setPaymentModalData = useAppStore(s => s.setPaymentModalData);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [selectedCat, setSelectedCat] = useState<CategoryData | null>(null);
   const [notes, setNotes] = useState<StudyNoteData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingNotes, setLoadingNotes] = useState(false);
 
+  // Load categories first
   useEffect(() => {
-    getStudyNotes(selectedCategory || undefined).then(n => { setNotes(n || []); setLoading(false); }).catch(() => setLoading(false));
-  }, [selectedCategory]);
+    getCategories().then(cats => { setCategories(cats || []); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  // Load notes when a category is selected
+  useEffect(() => {
+    if (!selectedCat) return;
+    setLoadingNotes(true);
+    getStudyNotes(selectedCat.id).then(n => { setNotes(n || []); setLoadingNotes(false); }).catch(() => setLoadingNotes(false));
+  }, [selectedCat]);
 
   const handleDownload = async (note: StudyNoteData) => {
     if (!note.pdfUrl) return;
@@ -1618,19 +1684,67 @@ function StudyNotesScreen() {
     triggerAd("note_download");
   };
 
+  // ====== STAGE 1: Category picker (like MockTestsTab) ======
+  if (!selectedCat) {
+    return (
+      <div className="pb-6 bg-[#F8FAFC] min-h-screen">
+        <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+            <div>
+              <h2 className="text-white font-bold text-lg">Study Notes</h2>
+              <p className="text-white/50 text-xs">Select your exam category</p>
+            </div>
+          </div>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : categories.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Grid3X3 className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No categories yet</p>
+            <p className="text-gray-400 text-xs mt-1">Admin will add categories soon</p>
+          </div>
+        ) : (
+          <div className="px-4 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((cat, i) => (
+                <motion.button key={cat.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  onClick={() => { setSelectedCat(cat); triggerAd("note_category_open"); }}
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm active:scale-95 transition-transform text-left relative overflow-hidden">
+                  <div className={"absolute -right-2 -top-2 w-16 h-16 rounded-full opacity-10 bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600")} />
+                  <div className={"w-12 h-12 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center shadow-md mb-2"}>
+                    <span className="text-2xl">{cat.icon || "📚"}</span>
+                  </div>
+                  <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                  <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{cat.description || "View notes"}</p>
+                  <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500">Explore <ChevronRight className="w-3 h-3" /></div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ====== STAGE 2: Notes list (after category selected) ======
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
       <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
         <div className="flex items-center gap-3">
-          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
-          <div>
-            <h1 className="text-white font-bold text-lg">Study Notes</h1>
-            <p className="text-white/50 text-xs">{notes.length} notes available</p>
+          <button onClick={() => { setSelectedCat(null); setNotes([]); }} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{selectedCat.icon || "📚"}</span>
+            <div>
+              <h1 className="text-white font-bold text-lg">{selectedCat.name}</h1>
+              <p className="text-white/50 text-xs">{loadingNotes ? "Loading notes..." : `${notes.length} notes available`}</p>
+            </div>
           </div>
         </div>
       </div>
       <div className="px-4 pt-4">
-        {loading ? (
+        {loadingNotes ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
         ) : notes.length === 0 ? (
           <div className="text-center py-16">
