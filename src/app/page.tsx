@@ -268,21 +268,28 @@ function HomeTab() {
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
-      {/* Slim Navy Header — only EXAMVAULT logo, no welcome text, no profile button */}
-      <div className="bg-gradient-to-b from-[#0B1437] to-[#1E2A5E] px-4 pt-4 pb-8">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
-              <span className="text-lg">📚</span>
-            </div>
-            <h2 className="text-lg font-black text-white tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
+      {/* Scrolling Text Banner at TOP — sticky, always visible */}
+      {scrollText ? (
+        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
+          <div className="flex whitespace-nowrap animate-marquee">
+            <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
+            <span className="text-amber-400 text-xs font-bold px-4 tracking-wide uppercase">{scrollText}</span>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 border-b border-amber-400/20">
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+              <span className="text-[10px]">📚</span>
+            </div>
+            <h2 className="text-sm font-black text-white tracking-tight">EXAM<span className="text-amber-400">VAULT</span></h2>
+          </div>
+        </div>
+      )}
 
       {/* Banner Slider — only if admin has added banners */}
       {displayBanners.length > 0 && (
-        <div className="px-4 -mt-5 mb-0">
+        <div className="px-4 pt-4 mb-0">
           <div className="relative h-36 rounded-2xl overflow-hidden shadow-lg">
             {displayBanners.map((banner: any, i) => (
               <div key={banner.id || i}
@@ -309,18 +316,8 @@ function HomeTab() {
         </div>
       )}
 
-      {/* Scrolling Text — only if admin has added announcements */}
-      {scrollText && (
-        <div className="bg-[#0B1437] py-2 overflow-hidden mb-4">
-          <div className="flex whitespace-nowrap animate-marquee">
-            <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
-            <span className="text-amber-400 text-xs font-medium px-4">{scrollText}</span>
-          </div>
-        </div>
-      )}
-
       {/* Categories Grid — from Firestore only */}
-      <div className="px-4">
+      <div className="px-4 pt-4">
         <h3 className="text-base font-bold text-[#0B1437] mb-3">Exam Categories</h3>
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
