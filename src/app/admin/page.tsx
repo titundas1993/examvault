@@ -2816,23 +2816,22 @@ function PopularTestsAdmin() {
 }
 
 // ==================== BANNERS ADMIN ====================
+// Only views that ACTUALLY exist and work in the redesigned app
 const NAVIGATION_VIEWS = [
-  { label: "Mock Tests", value: "mocktests" },
-  { label: "Test Series", value: "test-series" },
-  { label: "Free Tests", value: "free-tests" },
-  { label: "Free Quizzes", value: "free-quizzes" },
-  { label: "Previous Papers", value: "previous-papers" },
-  { label: "Study Notes", value: "notes" },
-  { label: "Upcoming Exams", value: "upcoming-exams" },
-  { label: "Daily Tips", value: "daily-tips" },
-  { label: "Premium Plans", value: "pricing" },
-  { label: "Leaderboard", value: "leaderboard" },
-  { label: "My Profile", value: "profile" },
-  { label: "Help & Support", value: "support" },
+  { label: "🏠 Home", value: "home" },
+  { label: "📚 Browse Tests (Categories)", value: "mocktests" },
+  { label: "🏆 Leaderboard", value: "leaderboard" },
+  { label: "👑 Premium Plans", value: "pricing" },
+  { label: "🛒 My Purchases", value: "my-purchases" },
+  { label: "📊 Performance Analytics", value: "performance" },
+  { label: "👤 My Profile", value: "profile" },
+  { label: "⚙️ Settings", value: "settings" },
+  { label: "💬 Help & Support", value: "support" },
 ];
 
 const LINK_ACTION_OPTIONS = [
   { label: "📂 Internal Page (navigate within app)", value: "internal" },
+  { label: "🎯 Specific Category (go to SSC / Banking / etc.)", value: "category" },
   { label: "🌐 External URL (open in browser)", value: "external" },
   { label: "📄 Show Detail (open announcement/banner detail)", value: "detail" },
   { label: "🚫 No Action", value: "none" },
@@ -3058,6 +3057,7 @@ function BannersAdmin() {
                   <span className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">{gradientLabels[item.gradient] || item.gradient || "Default"}</span>
                   <span className="px-2 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-600">
                     {item.linkType === "internal" ? `→ ${NAVIGATION_VIEWS.find(v => v.value === item.targetView)?.label || item.targetView}` :
+                     item.linkType === "category" ? `🎯 ${CATEGORY_ID_OPTIONS.find(c => c.value === item.categoryId)?.label || "Category"}` :
                      item.linkType === "external" ? "🌐 External" :
                      item.linkType === "detail" ? "📄 Detail" : "🚫 No Action"}
                   </span>
@@ -3125,13 +3125,20 @@ function BannersAdmin() {
                     next.link = "";
                     next.linkText = "";
                     next.targetView = "";
+                    next.categoryId = "";
                   } else if (v === "internal") {
                     next.link = ""; // external URL not needed
+                    next.categoryId = "";
+                  } else if (v === "category") {
+                    next.link = "";
+                    next.targetView = ""; // not using generic targetView
                   } else if (v === "external") {
                     next.targetView = ""; // internal target not needed
+                    next.categoryId = "";
                   } else if (v === "detail") {
                     next.link = "";
                     next.targetView = "";
+                    next.categoryId = "";
                   }
                   setFormData(next);
                 }}>
@@ -3152,13 +3159,25 @@ function BannersAdmin() {
                   </Select>
                 </div>
               )}
+              {(formData.linkType === "category") && (
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium">Select Category <span className="text-red-500">*</span></Label>
+                  <Select value={formData.categoryId || ""} onValueChange={v => setFormData({ ...formData, categoryId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Pick a category (SSC, Banking, etc.)" /></SelectTrigger>
+                    <SelectContent>
+                      {CATEGORY_ID_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-gray-500 mt-1">User will land on this category&apos;s subcategory page (e.g. SSC → SSC CGL, SSC CHSL).</p>
+                </div>
+              )}
               {(formData.linkType === "external") && (
                 <div>
                   <Label className="mb-1.5 block text-sm font-medium">External URL</Label>
                   <Input value={formData.link || ""} onChange={e => setFormData({ ...formData, link: e.target.value })} placeholder="https://example.com" />
                 </div>
               )}
-              {(formData.linkType === "internal" || formData.linkType === "external") && (
+              {(formData.linkType === "internal" || formData.linkType === "external" || formData.linkType === "category") && (
                 <div>
                   <Label className="mb-1.5 block text-sm font-medium">Button Text</Label>
                   <Input value={formData.linkText || ""} onChange={e => setFormData({ ...formData, linkText: e.target.value })} placeholder="e.g. Explore Now, Learn More" />
@@ -3209,6 +3228,7 @@ function BannersAdmin() {
               </div>
               <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
                 <p><b>Click:</b> {formData.linkType === "internal" ? `Navigate to ${NAVIGATION_VIEWS.find(v => v.value === formData.targetView)?.label || formData.targetView || "—"}` :
+                  formData.linkType === "category" ? `Go to ${CATEGORY_ID_OPTIONS.find(c => c.value === formData.categoryId)?.label || "selected category"} page` :
                   formData.linkType === "external" ? `Open ${formData.link || "URL"}` :
                   formData.linkType === "detail" ? "Show detail view" : "No action"}</p>
                 <p><b>Order:</b> #{formData.order ?? 0} • <b>Status:</b> {formData.isActive !== false ? "Active" : "Inactive"}</p>

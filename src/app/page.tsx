@@ -296,8 +296,14 @@ function HomeTab() {
                 const linkType = banner.linkType;
                 const targetView = banner.targetView;
                 const link = banner.link;
+                const categoryId = banner.categoryId;
                 if (linkType === "internal" && targetView) {
                   setView(targetView as any);
+                } else if (linkType === "category" && categoryId) {
+                  // Navigate to subcategory-list with the selected category
+                  useAppStore.getState().setSelectedCategory(categoryId);
+                  useAppStore.getState().setSelectedSubcategory(null);
+                  setView("subcategory-list");
                 } else if (linkType === "external" && link) {
                   try { window.open(link, "_blank", "noopener,noreferrer"); } catch (e) {}
                 } else if (linkType === "detail") {
@@ -308,6 +314,7 @@ function HomeTab() {
               };
               const isClickable = banner.linkType && banner.linkType !== "none" && (
                 (banner.linkType === "internal" && banner.targetView) ||
+                (banner.linkType === "category" && banner.categoryId) ||
                 (banner.linkType === "external" && banner.link) ||
                 (banner.linkType === "detail")
               );
