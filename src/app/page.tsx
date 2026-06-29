@@ -1449,6 +1449,17 @@ export default function ExamVaultApp() {
     getAppSettings().then(s => { if (s) useAppStore.getState().setAppSettings(s); }).catch(() => {});
   }, []);
 
+  // Apply dark mode on mount + whenever isDark changes
+  const isDark = useAppStore(s => s.isDark);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0B1437]">
