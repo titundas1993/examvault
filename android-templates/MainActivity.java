@@ -160,6 +160,13 @@ public class MainActivity extends Activity implements PaymentResultListener {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
 
+        // CRITICAL: Disable overscroll/rubber-band effect at WebView level.
+        // CSS overscroll-behavior:none does NOT work in Android WebView.
+        // This Java setting is the ONLY way to stop rubber-band in WebView.
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
+
         // Register JavaScript interface
         webView.addJavascriptInterface(new AdWebInterface(), "AndroidBridge");
 
