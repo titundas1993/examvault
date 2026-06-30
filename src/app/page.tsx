@@ -1253,7 +1253,7 @@ function LeaderboardTab() {
 // ==================== PROFILE TAB ====================
 
 function ProfileTab() {
-  const { user, userProfile, setUserProfile, firebaseUser, setView, setUser, setFirebaseUser } = useAppStore();
+  const { user, userProfile, setUserProfile, firebaseUser, setView, setUser, setFirebaseUser, isDark, toggleDark, language, setLanguage } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const [testHistory, setTestHistory] = useState<TestResultData[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -1284,7 +1284,7 @@ function ProfileTab() {
           {user?.photoURL ? <img src={user.photoURL} alt="Profile" className="w-20 h-20 rounded-full border-4 border-amber-400/30 object-cover mb-3"  loading="lazy" /> :
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mb-3"><User className="w-10 h-10 text-white" /></div>}
           <h2 className="text-white font-bold text-lg">{user?.name || "Guest User"}</h2>
-          <p className="text-white/50 text-xs">{user?.email || "Not logged in"}</p>
+          <p className="text-white/50 text-xs">{user?.email || user?.phone || "Not logged in"}</p>
           {(subscription.isPremium || subscription.purchasedItemIds?.length > 0) && (
             <span className="mt-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30 flex items-center gap-1"><Crown className="w-3 h-3" /> PRO Member</span>
           )}
@@ -1321,14 +1321,65 @@ function ProfileTab() {
         )}
       </div>
 
-      {/* Performance Analytics Button */}
+      {/* Quick Settings — dark mode, language, etc. (moved from Settings tab) */}
       <div className="px-4 mt-4">
-        <button onClick={() => setView("performance")} className="w-full p-4 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] rounded-2xl text-white text-left shadow-lg active:scale-[0.98] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-amber-400" /></div>
-          <div className="flex-1"><p className="font-bold text-sm">Performance Analytics</p><p className="text-xs text-white/60">View detailed stats</p></div>
-          <ChevronRight className="w-5 h-5 text-white/60" />
-        </button>
+        <h3 className="font-bold text-[#0B1437] text-sm mb-3">Settings</h3>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Dark Mode Toggle */}
+          <button onClick={toggleDark} className="w-full p-4 flex items-center gap-3 active:bg-gray-50 transition-colors border-b border-gray-100">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              {isDark ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-gray-500" />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-bold text-sm text-[#0B1437]">Dark Mode</p>
+              <p className="text-xs text-gray-400">{isDark ? "Dark theme active" : "Light theme active"}</p>
+            </div>
+            <div className={"w-11 h-6 rounded-full transition-colors flex items-center px-0.5 " + (isDark ? "bg-amber-500 justify-end" : "bg-gray-300 justify-start")}>
+              <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+            </div>
+          </button>
+          {/* Language */}
+          <div className="p-4 flex items-center gap-3 border-b border-gray-100">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <span className="text-lg">🌐</span>
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-sm text-[#0B1437]">Language</p>
+            </div>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="text-sm font-bold text-[#0B1437] bg-gray-50 rounded-lg px-3 py-1.5 border border-gray-200 focus:outline-none">
+              <option value="en">English</option>
+              <option value="bn">বাংলা</option>
+              <option value="hi">हिन्दी</option>
+              <option value="as">অসমীয়া</option>
+            </select>
+          </div>
+          {/* Performance Analytics */}
+          <button onClick={() => setView("performance")} className="w-full p-4 flex items-center gap-3 active:bg-gray-50 transition-colors border-b border-gray-100">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-purple-500" /></div>
+            <div className="flex-1 text-left"><p className="font-bold text-sm text-[#0B1437]">Performance Analytics</p><p className="text-xs text-gray-400">View detailed stats</p></div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </button>
+          {/* My Purchases */}
+          <button onClick={() => setView("my-purchases")} className="w-full p-4 flex items-center gap-3 active:bg-gray-50 transition-colors border-b border-gray-100">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center"><ShoppingCart className="w-5 h-5 text-amber-500" /></div>
+            <div className="flex-1 text-left"><p className="font-bold text-sm text-[#0B1437]">My Purchases</p><p className="text-xs text-gray-400">Premium status & history</p></div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </button>
+          {/* Premium Plans */}
+          <button onClick={() => setView("pricing")} className="w-full p-4 flex items-center gap-3 active:bg-gray-50 transition-colors border-b border-gray-100">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center"><Crown className="w-5 h-5 text-amber-500" /></div>
+            <div className="flex-1 text-left"><p className="font-bold text-sm text-[#0B1437]">Premium Plans</p><p className="text-xs text-gray-400">Upgrade for full access</p></div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </button>
+          {/* Support */}
+          <button onClick={() => setView("support")} className="w-full p-4 flex items-center gap-3 active:bg-gray-50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center"><HelpCircle className="w-5 h-5 text-gray-500" /></div>
+            <div className="flex-1 text-left"><p className="font-bold text-sm text-[#0B1437]">Help & Support</p><p className="text-xs text-gray-400">Contact us, FAQ</p></div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </button>
+        </div>
       </div>
+
       {/* Test History */}
       {totalTests > 0 && (
         <div className="px-4 mt-6">
@@ -2238,7 +2289,14 @@ export default function ExamVaultApp() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       (window as any).__ZUSTAND_STORE__ = useAppStore;
-      (window as any).__EV_PREMIUM = subscription.isPremium || (subscription.purchasedItemIds?.length > 0);
+      const isPremium = subscription.isPremium || (subscription.purchasedItemIds?.length > 0);
+      (window as any).__EV_PREMIUM = isPremium;
+      // Tell Android to hide/show banner ad based on premium status
+      if ((window as any).AndroidBridge?.hideBannerAd && isPremium) {
+        (window as any).AndroidBridge.hideBannerAd();
+      } else if ((window as any).AndroidBridge?.showBannerAd && !isPremium) {
+        (window as any).AndroidBridge.showBannerAd();
+      }
     }
   }, [subscription.isPremium, subscription.purchasedItemIds]);
 
@@ -2249,7 +2307,11 @@ export default function ExamVaultApp() {
       store.setFirebaseUser(fbUser);
       store.setAuthLoading(false);
       if (fbUser) {
-        store.setUser({ name: fbUser.displayName || "User", email: fbUser.email || "", role: "user", uid: fbUser.uid, phone: fbUser.phoneNumber || "" });
+        // For phone auth users: displayName is null, email is null
+        // Use phone number as name if display name not set
+        const userName = fbUser.displayName || (fbUser.phoneNumber ? fbUser.phoneNumber : "User");
+        const userEmail = fbUser.email || (fbUser.phoneNumber ? "" : "");
+        store.setUser({ name: userName, email: userEmail, role: "user", uid: fbUser.uid, phone: fbUser.phoneNumber || "" });
         checkSubscriptionStatus(fbUser.uid).then(status => {
           store.setSubscription({ isPremium: status.isPremium || false, premiumExpiry: status.premiumExpiry || null, planName: status.planName || null, purchasedItemIds: status.purchasedItems?.map((p: any) => p.itemId) || [] });
         }).catch(() => {});

@@ -579,6 +579,42 @@ public class MainActivity extends Activity implements PaymentResultListener {
             return MainActivity.this.isNetworkAvailable();
         }
 
+        // Hide banner ad when user becomes premium
+        @JavascriptInterface
+        public void hideBannerAd() {
+            runOnUiThread(() -> {
+                if (mAdView != null) {
+                    mAdView.setVisibility(View.GONE);
+                    Log.d(TAG, "Banner ad HIDDEN (premium user)");
+                    // Expand webView to fill the space
+                    android.widget.RelativeLayout.LayoutParams wvParams =
+                        new android.widget.RelativeLayout.LayoutParams(
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT);
+                    wvParams.addRule(android.widget.RelativeLayout.BELOW, progressBar.getId());
+                    webView.setLayoutParams(wvParams);
+                }
+            });
+        }
+
+        // Show banner ad when user is free
+        @JavascriptInterface
+        public void showBannerAd() {
+            runOnUiThread(() -> {
+                if (mAdView != null) {
+                    mAdView.setVisibility(View.VISIBLE);
+                    Log.d(TAG, "Banner ad SHOWN (free user)");
+                    // Restore webView layout below banner
+                    android.widget.RelativeLayout.LayoutParams wvParams =
+                        new android.widget.RelativeLayout.LayoutParams(
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT);
+                    wvParams.addRule(android.widget.RelativeLayout.BELOW, mAdView.getId());
+                    webView.setLayoutParams(wvParams);
+                }
+            });
+        }
+
         // Razorpay Native Payment — called from JavaScript
         // This opens Razorpay's native checkout UI inside the app
         // UPI (GPay, PhonePe, BHIM), Cards, NetBanking all work
