@@ -2090,6 +2090,9 @@ export default function ExamVaultApp() {
       <Header />
       <SideMenu />
 
+      {/* Top padding to offset fixed header (header height ~52px + safe area) */}
+      <div style={{ height: "calc(52px + env(safe-area-inset-top, 0px))" }} className="flex-shrink-0" />
+
       <AnimatePresence mode="wait">
         <motion.div
           key={currentView}
