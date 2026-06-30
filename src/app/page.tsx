@@ -448,6 +448,84 @@ function HomeTab() {
           </div>
         )}
       </div>
+
+      {/* Quick Access — Previous Papers, Study Notes, Upcoming Exams (unique design) */}
+      <div className="px-4 pt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-bold text-[#0B1437]">Quick Access</h3>
+          <span className="text-[10px] text-gray-400 font-medium">Tap to explore</span>
+        </div>
+        <div className="space-y-3">
+          {/* Previous Papers — wide horizontal card */}
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            onClick={() => { setView("previous-papers"); triggerAd("home_papers"); }}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4 shadow-lg active:scale-[0.98] transition-transform text-left relative overflow-hidden flex items-center gap-4"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+            <div className="absolute right-8 top-2 w-16 h-16 rounded-full bg-white/5" />
+            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 relative z-10">
+              <FileText className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 relative z-10">
+              <h4 className="font-bold text-white text-base">Previous Papers</h4>
+              <p className="text-white/80 text-xs mt-0.5">PYQs & question papers with solutions</p>
+              <div className="flex items-center gap-1 mt-1.5 text-[10px] font-bold text-white">
+                <Download className="w-3 h-3" /> Download PDFs
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/80 flex-shrink-0 relative z-10" />
+          </motion.button>
+
+          {/* Study Notes — wide horizontal card */}
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 }}
+            onClick={() => { setView("notes"); triggerAd("home_notes"); }}
+            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl p-4 shadow-lg active:scale-[0.98] transition-transform text-left relative overflow-hidden flex items-center gap-4"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+            <div className="absolute right-8 top-2 w-16 h-16 rounded-full bg-white/5" />
+            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 relative z-10">
+              <BookOpen className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 relative z-10">
+              <h4 className="font-bold text-white text-base">Study Notes</h4>
+              <p className="text-white/80 text-xs mt-0.5">Subject-wise notes & study materials</p>
+              <div className="flex items-center gap-1 mt-1.5 text-[10px] font-bold text-white">
+                <Download className="w-3 h-3" /> Download PDFs
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/80 flex-shrink-0 relative z-10" />
+          </motion.button>
+
+          {/* Upcoming Exams — wide horizontal card with calendar vibe */}
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            onClick={() => { setView("upcoming-exams"); triggerAd("home_exams"); }}
+            className="w-full bg-gradient-to-r from-rose-500 to-pink-600 rounded-2xl p-4 shadow-lg active:scale-[0.98] transition-transform text-left relative overflow-hidden flex items-center gap-4"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+            <div className="absolute right-8 top-2 w-16 h-16 rounded-full bg-white/5" />
+            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 relative z-10">
+              <Calendar className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 relative z-10">
+              <h4 className="font-bold text-white text-base">Upcoming Exams</h4>
+              <p className="text-white/80 text-xs mt-0.5">Notifications, dates & apply links</p>
+              <div className="flex items-center gap-1 mt-1.5 text-[10px] font-bold text-white">
+                <ExternalLink className="w-3 h-3" /> Apply Online
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/80 flex-shrink-0 relative z-10" />
+          </motion.button>
+        </div>
+      </div>
     </div>
   );
 }
