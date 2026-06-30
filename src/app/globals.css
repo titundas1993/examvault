@@ -169,6 +169,90 @@
   background: oklch(0.5 0.05 260);
 }
 
+/* ===== SMOOTH SCROLLING ===== */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+/* Prevent tap highlight on mobile (professional apps don't show blue flash) */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+/* Smooth font rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ===== SKELETON SHIMMER (professional loading) ===== */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(0.92 0.005 260) 25%,
+    oklch(0.96 0.005 260) 50%,
+    oklch(0.92 0.005 260) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite linear;
+  border-radius: 0.5rem;
+}
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(0.22 0.02 260) 25%,
+    oklch(0.28 0.02 260) 50%,
+    oklch(0.22 0.02 260) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ===== TAP FEEDBACK (professional haptic feel) ===== */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* prevents double-tap zoom */
+}
+
+/* ===== PAGE TRANSITION SMOOTHNESS ===== */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.25s ease-out;
+}
+
+/* ===== FADE IN (for content load) ===== */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* ===== SLIDE UP (for modals/sheets) ===== */
+@keyframes slide-up-smooth {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.slide-up-smooth {
+  animation: slide-up-smooth 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===== SCALE IN (for cards) ===== */
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
 /* Gradient animations */
 @keyframes gradient-x {
   0%, 100% { background-position: 0% 50%; }

@@ -31,6 +31,10 @@ import SettingsTab from "@/components/user/SettingsTab";
 import PaymentModal from "@/components/user/PaymentModal";
 import GuestLockModal from "@/components/shared/GuestLockModal";
 import NotificationPanel from "@/components/user/NotificationPanel";
+import {
+  CategoryGridSkeleton, TestListSkeleton, PaperListSkeleton,
+  FullScreenSkeleton, LeaderboardSkeleton, hapticFeedback,
+} from "@/components/shared/Skeletons";
 
 // ==================== HELPERS ====================
 
@@ -65,6 +69,8 @@ declare global {
 }
 function triggerAd(actionType: string) {
   try {
+    // Haptic feedback on every action (professional app feel)
+    hapticFeedback("light");
     if (typeof window !== "undefined" && window.AndroidBridge?.onActionComplete) {
       window.AndroidBridge.onActionComplete(actionType);
     }
@@ -386,7 +392,7 @@ function HomeTab() {
                   onClick={isClickable ? handleClick : undefined}
                   className={"absolute inset-0 transition-opacity duration-500 " + (i === bannerIdx ? "opacity-100" : "opacity-0") + (isClickable ? " cursor-pointer active:scale-[0.99]" : "")}>
                   {banner.imageUrl ? (
-                    <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover" />
+                    <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover"  loading="lazy" />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#3B82F6] flex flex-col justify-center px-5">
                       <h3 className="text-white font-bold text-lg">{banner.title}</h3>
@@ -475,7 +481,7 @@ function SubcategoryListScreen() {
     fetchData();
   }, [selectedCategory]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+  if (loading) return <TestListSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
@@ -593,7 +599,7 @@ function CategoryDetailScreen() {
     fetchData();
   }, [selectedCategory, selectedSubcategory]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+  if (loading) return <TestListSkeleton />;
 
   const displayName = subcategory?.name || category?.name || "Tests";
   const displayIcon = subcategory?.icon || category?.icon || "📝";
@@ -633,7 +639,7 @@ function CategoryDetailScreen() {
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
                   <div className="p-3 flex items-center gap-3">
                     <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                      {test.imageUrl ? <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover" /> : free ? <Zap className="w-7 h-7 text-emerald-500" /> : <Crown className="w-7 h-7 text-amber-500" />}
+                      {test.imageUrl ? <img src={test.imageUrl} alt={test.title} className="w-full h-full object-cover"  loading="lazy" /> : free ? <Zap className="w-7 h-7 text-emerald-500" /> : <Crown className="w-7 h-7 text-amber-500" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-[#0B1437] text-sm">{test.title}</h4>
@@ -707,7 +713,7 @@ function PremiumPlansScreen() {
   // Plans from Firestore only — NO fallbacks
   const displayPlans = plans;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+  if (loading) return <TestListSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
@@ -827,7 +833,7 @@ function TestInfoScreen() {
     getMockTestById(testId).then(data => { setTestData(data); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+  if (loading) return <FullScreenSkeleton />;
   if (!testData) return <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6"><p className="text-gray-500 mb-4">Test not found</p><button onClick={() => goBack()} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Go Back</button></div>;
 
   const itemIsFree = isItemFree(testData);
@@ -852,7 +858,7 @@ function TestInfoScreen() {
       <div className="p-4">
         {/* Test image (if admin added) */}
         {testData.imageUrl && (
-          <img src={testData.imageUrl} alt={testData.title} className="w-full h-40 object-cover rounded-2xl mb-4" />
+          <img src={testData.imageUrl} alt={testData.title} className="w-full h-40 object-cover rounded-2xl mb-4"  loading="lazy" />
         )}
         {/* Tags: subject, difficulty */}
         {(testData.subject || testData.difficulty) && (
@@ -972,7 +978,7 @@ function ExamPage() {
     triggerAd("test_submit");
   }, [submitted, answers, questions, selectedTest, testTitle, firebaseUser, user, timeLeft, negativeMarking, negativeMarkPerWrong]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+  if (loading) return <FullScreenSkeleton />;
   if (questions.length === 0) return <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6"><p className="text-gray-500 mb-4">No questions found</p><button onClick={() => goBack()} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Go Back</button></div>;
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -1136,7 +1142,7 @@ function LeaderboardTab() {
     getLeaderboard().then(data => { setLeaders(data || []); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+  if (loading) return <TestListSkeleton />;
 
   return (
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
@@ -1191,7 +1197,7 @@ function ProfileTab() {
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
       <div className="bg-gradient-to-br from-[#0B1437] via-[#1E2A5E] to-[#0B1437] px-4 pt-6 pb-8">
         <div className="flex flex-col items-center">
-          {user?.photoURL ? <img src={user.photoURL} alt="Profile" className="w-20 h-20 rounded-full border-4 border-amber-400/30 object-cover mb-3" /> :
+          {user?.photoURL ? <img src={user.photoURL} alt="Profile" className="w-20 h-20 rounded-full border-4 border-amber-400/30 object-cover mb-3"  loading="lazy" /> :
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mb-3"><User className="w-10 h-10 text-white" /></div>}
           <h2 className="text-white font-bold text-lg">{user?.name || "Guest User"}</h2>
           <p className="text-white/50 text-xs">{user?.email || "Not logged in"}</p>
@@ -1358,7 +1364,7 @@ function PerformanceAnalyticsScreen() {
     getUserTestResults(firebaseUser.uid).then(data => { setResults(data as any[] || []); setLoading(false); }).catch(() => setLoading(false));
   }, [firebaseUser?.uid]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+  if (loading) return <FullScreenSkeleton />;
 
   const totalTests = results.length;
   const avgAccuracy = totalTests > 0 ? Math.round(results.reduce((sum, r) => sum + (r.accuracy || 0), 0) / totalTests) : 0;
@@ -1451,7 +1457,7 @@ function AnnouncementDetailScreen() {
     fetchAnnouncement();
   }, [selectedAnnouncementId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>;
+  if (loading) return <TestListSkeleton />;
 
   if (!announcement) {
     return (
@@ -1476,7 +1482,7 @@ function AnnouncementDetailScreen() {
       <div className="px-4 pt-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           {announcement.imageUrl && (
-            <img src={announcement.imageUrl} alt={announcement.title} className="w-full h-48 object-cover rounded-xl mb-4" />
+            <img src={announcement.imageUrl} alt={announcement.title} className="w-full h-48 object-cover rounded-xl mb-4"  loading="lazy" />
           )}
           <h2 className="font-bold text-[#0B1437] text-lg mb-2">{announcement.title}</h2>
           {announcement.description && <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{announcement.description}</p>}
@@ -1616,7 +1622,7 @@ function PreviousPapersScreen() {
                   className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                   {/* Thumbnail image (if admin added) */}
                   {paper.thumbnailUrl && (
-                    <img src={paper.thumbnailUrl} alt={paper.title} className="w-full h-32 object-cover rounded-xl mb-3" />
+                    <img src={paper.thumbnailUrl} alt={paper.title} className="w-full h-32 object-cover rounded-xl mb-3"  loading="lazy" />
                   )}
                   <div className="flex items-start gap-3">
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
@@ -1778,7 +1784,7 @@ function StudyNotesScreen() {
                   className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                   {/* Thumbnail image (if admin added) */}
                   {note.thumbnailUrl && (
-                    <img src={note.thumbnailUrl} alt={note.title} className="w-full h-32 object-cover rounded-xl mb-3" />
+                    <img src={note.thumbnailUrl} alt={note.title} className="w-full h-32 object-cover rounded-xl mb-3"  loading="lazy" />
                   )}
                   <div className="flex items-start gap-3">
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center flex-shrink-0">
@@ -1873,7 +1879,7 @@ function UpcomingExamsScreen() {
                   <div className="p-4">
                     {/* Banner image (if admin added) */}
                     {exam.imageUrl && (
-                      <img src={exam.imageUrl} alt={exam.examName} className="w-full h-32 object-cover rounded-xl mb-3" />
+                      <img src={exam.imageUrl} alt={exam.examName} className="w-full h-32 object-cover rounded-xl mb-3"  loading="lazy" />
                     )}
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
@@ -2009,10 +2015,10 @@ export default function ExamVaultApp() {
       <AnimatePresence mode="wait">
         <motion.div
           key={currentView}
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           className="pb-16"
         >
           {currentView === "login" && <LoginScreen />}
