@@ -127,22 +127,17 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html {
-    /* CRITICAL: overscroll-behavior:none on BOTH html and body.
-       html alone doesn't work because body is the scroll container.
-       body alone doesn't work because html allows overscroll too.
-       Both together = rubber-band completely stopped. */
-    overscroll-behavior: none;
+  html, body {
+    /* Normal scrolling — no overflow:hidden (that breaks scroll) */
     overflow-x: clip;
     -webkit-overflow-scrolling: touch;
+    /* Stop rubber-band on BOTH html and body.
+       This is the ONLY rule needed — no overflow:hidden, no height:100% */
+    overscroll-behavior: none;
   }
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
-    overflow-x: hidden;
-    overscroll-behavior: none;
-    overscroll-behavior-y: none;
-    -webkit-overflow-scrolling: touch;
   }
   /* Fixed header */
   [class*="sticky top-0"] {
