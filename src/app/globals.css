@@ -127,17 +127,22 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html, body {
+  html {
+    /* CRITICAL: overscroll-behavior:none on BOTH html and body.
+       html alone doesn't work because body is the scroll container.
+       body alone doesn't work because html allows overscroll too.
+       Both together = rubber-band completely stopped. */
+    overscroll-behavior: none;
     overflow-x: clip;
     -webkit-overflow-scrolling: touch;
   }
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
-    /* Only this rule needed to prevent overscroll jitter.
-       Removed heavy rules (overflow:hidden, height:100%, backface-visibility,
-       will-change) that were causing lag and hiding content. */
+    overflow-x: hidden;
     overscroll-behavior: none;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
   }
   /* Fixed header */
   [class*="sticky top-0"] {
