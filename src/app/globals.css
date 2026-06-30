@@ -127,33 +127,54 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html, body {
-    overflow-x: clip;
-    -webkit-overflow-scrolling: touch;
+  html {
+    /* CRITICAL: Prevent overscroll/rubber-band on mobile
+       This is the ROOT CAUSE of header/footer jitter.
+       When user scrolls past top/bottom, browser does rubber-band
+       animation which moves even position:fixed elements.
+       These rules stop that behavior completely. */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
   }
   body {
     @apply bg-background text-foreground;
-    min-height: 100vh;
+    /* Body becomes the scroll container — controlled, no overscroll */
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+    -webkit-overflow-scrolling: touch;
+    /* Prevent pull-to-refresh which also causes jitter */
+    overscroll-behavior-y: contain;
   }
-  /* FIXED header — truly fixed, never moves during scroll.
-     Using position:fixed (not sticky) because sticky can jitter
-     during overscroll/rubber-band scrolling on mobile. */
+  /* FIXED header — truly fixed, positioned relative to viewport.
+     With overscroll-behavior:none on html/body, this will NEVER move. */
   [class*="sticky top-0"] {
     position: fixed !important;
     top: 0;
     left: 0;
     right: 0;
+    z-index: 50;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
+    /* Prevent any layout shift */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
-  /* FIXED bottom nav — truly fixed, never moves */
+  /* FIXED bottom nav — truly fixed */
   [class*="fixed bottom-0"] {
     position: fixed !important;
     bottom: 0;
     left: 0;
     right: 0;
+    z-index: 50;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 }
 
