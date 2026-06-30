@@ -6,6 +6,7 @@ export type AppView =
   | "home" | "mocktests" | "test-series" | "free-tests" | "free-quizzes"
   | "previous-papers" | "notes" | "profile" | "settings" | "support"
   | "test-info" | "exam" | "result" | "leaderboard" | "pricing"
+  | "search-results"
   | "upcoming-exams" | "upcoming-exam-detail" | "daily-tips" | "daily-tip-detail"
   | "announcement-detail" | "notifications" | "note-detail" | "previous-paper-detail"
   | "my-purchases" | "performance" | "category-detail"
@@ -62,6 +63,9 @@ interface AppState {
   toggleDark: () => void;
   language: string;
   setLanguage: (lang: string) => void;
+  // Global search
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
   selectedTest: string | null;
   setSelectedTest: (id: string | null) => void;
   selectedTestType: TestSourceType | null;
@@ -196,6 +200,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ language: lang });
     try { localStorage.setItem("ev_language", lang); } catch (e) { /* ignore */ }
   },
+  searchQuery: "",
+  setSearchQuery: (q) => set({ searchQuery: q }),
   selectedTest: null,
   setSelectedTest: (id) => set({ selectedTest: id }),
   selectedTestType: null,

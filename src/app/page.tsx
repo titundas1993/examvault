@@ -125,11 +125,10 @@ const DEFAULT_SIDE_MENU = [
 // ==================== HEADER ====================
 
 function Header() {
-  const { setView, setSidebarOpen, unreadNotificationCount, user, isDark, toggleDark } = useAppStore();
+  const { setView, setSidebarOpen, unreadNotificationCount, user, isDark, toggleDark, searchQuery, setSearchQuery } = useAppStore();
   const subscription = useAppStore(s => s.subscription);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <>
@@ -189,9 +188,9 @@ function Header() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) { setShowSearch(false); setView("mocktests"); } }}
-                placeholder="Search tests, exams, categories..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white/10 text-white placeholder-white/50 rounded-xl border border-white/20 focus:outline-none focus:border-amber-400/50 text-sm"
+                onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) { setShowSearch(false); setView("search-results"); } }}
+                placeholder="Search tests, papers, notes, exams..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white/10 text-white placeholder-white/50 rounded-xl border border-white/20 focus:outline-none focus:border-amber-400/50 text-sm"
                 autoFocus
               />
               {searchQuery && (
@@ -200,6 +199,13 @@ function Header() {
                 </button>
               )}
             </div>
+            {/* Quick search suggestions */}
+            {searchQuery.trim() && (
+              <button onClick={() => { setShowSearch(false); setView("search-results"); }}
+                className="mt-2 w-full py-2 bg-amber-400/20 text-amber-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                <Search className="w-3.5 h-3.5" /> Search for "{searchQuery.trim()}"
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -2014,6 +2020,209 @@ function UpcomingExamsScreen() {
   );
 }
 
+// ==================== SEARCH RESULTS SCREEN ====================
+
+function SearchResultsScreen() {
+  const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
+  const searchQuery = useAppStore(s => s.searchQuery);
+  const setSearchQuery = useAppStore(s => s.setSearchQuery);
+  const subscription = useAppStore(s => s.subscription);
+  const [results, setResults] = useState<{ tests: any[]; papers: any[]; notes: any[]; exams: any[]; categories: any[] }>({ tests: [], papers: [], notes: [], exams: [], categories: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function searchAll() {
+      if (!searchQuery.trim()) { setLoading(false); return; }
+      setLoading(true);
+      try {
+        const q = searchQuery.toLowerCase().trim();
+        const [tests, papers, notes, exams, categories] = await Promise.all([
+          getMockTests(),
+          getPreviousPapers(),
+          getStudyNotes(),
+          getUpcomingExams(),
+          getCategories(),
+        ]);
+        setResults({
+          tests: (tests || []).filter((t: any) =>
+            (t.title || "").toLowerCase().includes(q) ||
+            (t.category || "").toLowerCase().includes(q) ||
+            (t.subject || "").toLowerCase().includes(q) ||
+            (t.description || "").toLowerCase().includes(q)
+          ),
+          papers: (papers || []).filter((p: any) =>
+            (p.title || "").toLowerCase().includes(q) ||
+            (p.examName || "").toLowerCase().includes(q) ||
+            (p.subject || "").toLowerCase().includes(q)
+          ),
+          notes: (notes || []).filter((n: any) =>
+            (n.title || "").toLowerCase().includes(q) ||
+            (n.topic || "").toLowerCase().includes(q) ||
+            (n.subject || "").toLowerCase().includes(q)
+          ),
+          exams: (exams || []).filter((e: any) =>
+            (e.examName || "").toLowerCase().includes(q) ||
+            (e.organization || "").toLowerCase().includes(q) ||
+            (e.category || "").toLowerCase().includes(q)
+          ),
+          categories: (categories || []).filter((c: any) =>
+            (c.name || "").toLowerCase().includes(q) ||
+            (c.description || "").toLowerCase().includes(q)
+          ),
+        });
+      } catch (e) { console.error("Search error:", e); }
+      finally { setLoading(false); }
+    }
+    searchAll();
+  }, [searchQuery]);
+
+  const totalResults = results.tests.length + results.papers.length + results.notes.length + results.exams.length + results.categories.length;
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+      <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div className="flex-1">
+            <h1 className="text-white font-bold text-lg">Search Results</h1>
+            <p className="text-white/50 text-xs">{loading ? "Searching..." : `${totalResults} results for "${searchQuery}"`}</p>
+          </div>
+        </div>
+        {/* Search bar in results page */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-white/40 absolute left-3 top-3" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tests, papers, notes, exams..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white/10 text-white placeholder-white/50 rounded-xl border border-white/20 focus:outline-none focus:border-amber-400/50 text-sm"
+          />
+        </div>
+      </div>
+      <div className="px-4 pt-4">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#0B1437]" /></div>
+        ) : totalResults === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"><Search className="w-8 h-8 text-gray-300" /></div>
+            <p className="text-[#0B1437] font-bold text-sm">No results found</p>
+            <p className="text-gray-400 text-xs mt-1">Try different keywords</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Categories */}
+            {results.categories.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-[#0B1437] mb-2 flex items-center gap-1"><Grid3X3 className="w-4 h-4 text-blue-500" /> Categories ({results.categories.length})</h3>
+                <div className="space-y-2">
+                  {results.categories.map((cat: any) => (
+                    <button key={cat.id} onClick={() => { useAppStore.getState().setSelectedCategory(cat.id); setView("subcategory-list"); }}
+                      className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3 text-left">
+                      <div className={"w-10 h-10 rounded-xl bg-gradient-to-br " + (cat.color || "from-blue-500 to-indigo-600") + " flex items-center justify-center flex-shrink-0"}>
+                        <span className="text-lg">{cat.icon || "📚"}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{cat.name}</h4>
+                        <p className="text-[10px] text-gray-400">{cat.description || "Tap to explore"}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Tests */}
+            {results.tests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-[#0B1437] mb-2 flex items-center gap-1"><BookOpen className="w-4 h-4 text-amber-500" /> Tests ({results.tests.length})</h3>
+                <div className="space-y-2">
+                  {results.tests.map((test: any) => (
+                    <button key={test.id} onClick={() => { useAppStore.getState().setSelectedTest(test.id); useAppStore.getState().setSelectedTestType("mockTest"); setView("test-info"); }}
+                      className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                        {isItemFree(test) ? <Zap className="w-5 h-5 text-emerald-500" /> : <Crown className="w-5 h-5 text-amber-500" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{test.title}</h4>
+                        <p className="text-[10px] text-gray-400">{test.category} • {test.duration || 0} min • {test.questions || 0} Q</p>
+                      </div>
+                      {isItemFree(test) ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-bold">FREE</span> : <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[9px] font-bold">₹{test.price || 0}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Papers */}
+            {results.papers.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-[#0B1437] mb-2 flex items-center gap-1"><FileText className="w-4 h-4 text-emerald-500" /> Previous Papers ({results.papers.length})</h3>
+                <div className="space-y-2">
+                  {results.papers.map((paper: any) => (
+                    <button key={paper.id} onClick={() => { useAppStore.getState().setSelectedCategory(paper.categoryId || null); setView("previous-papers"); }}
+                      className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{paper.title}</h4>
+                        <p className="text-[10px] text-gray-400">{paper.examName || paper.category} {paper.year ? `• ${paper.year}` : ""}</p>
+                      </div>
+                      {isItemFree(paper) ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-bold">FREE</span> : <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[9px] font-bold">₹{paper.price || 0}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Notes */}
+            {results.notes.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-[#0B1437] mb-2 flex items-center gap-1"><BookOpen className="w-4 h-4 text-cyan-500" /> Study Notes ({results.notes.length})</h3>
+                <div className="space-y-2">
+                  {results.notes.map((note: any) => (
+                    <button key={note.id} onClick={() => { useAppStore.getState().setSelectedCategory(note.categoryId || null); setView("notes"); }}
+                      className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-5 h-5 text-cyan-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{note.title}</h4>
+                        <p className="text-[10px] text-gray-400">{note.subject} {note.topic ? `• ${note.topic}` : ""}</p>
+                      </div>
+                      {isItemFree(note) ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-bold">FREE</span> : <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[9px] font-bold">₹{note.price || 0}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Exams */}
+            {results.exams.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-[#0B1437] mb-2 flex items-center gap-1"><Calendar className="w-4 h-4 text-rose-500" /> Upcoming Exams ({results.exams.length})</h3>
+                <div className="space-y-2">
+                  {results.exams.map((exam: any) => (
+                    <button key={exam.id} onClick={() => setView("upcoming-exams")}
+                      className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center gap-3 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-5 h-5 text-rose-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#0B1437] text-sm">{exam.examName}</h4>
+                        <p className="text-[10px] text-gray-400">{exam.organization || ""} {exam.examDate ? `• ${new Date(exam.examDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ==================== MAIN APP ====================
 
 export default function ExamVaultApp() {
@@ -2118,6 +2327,7 @@ export default function ExamVaultApp() {
           {currentView === "performance" && <PerformanceAnalyticsScreen />}
           {currentView === "my-purchases" && <MyPurchasesScreen />}
           {currentView === "announcement-detail" && <AnnouncementDetailScreen />}
+          {currentView === "search-results" && <SearchResultsScreen />}
           {currentView === "previous-papers" && <PreviousPapersScreen />}
           {currentView === "notes" && <StudyNotesScreen />}
           {currentView === "upcoming-exams" && <UpcomingExamsScreen />}
