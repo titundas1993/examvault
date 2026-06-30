@@ -136,7 +136,7 @@ function Header() {
       <div className="sticky top-0 z-40 bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] shadow-lg" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div className="flex items-center justify-between px-3 py-2.5 gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0">
+            <button onClick={() => { hapticFeedback("light"); setSidebarOpen(true); }} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0">
               <Menu className="w-4 h-4 text-white" />
             </button>
             <div className="flex items-center gap-1.5 min-w-0">
@@ -222,7 +222,7 @@ function SideMenu() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black z-50" onClick={() => setSidebarOpen(false)} />
           <motion.div
             initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="fixed left-0 top-0 bottom-0 w-80 bg-[#F8FAFC] z-50 shadow-2xl overflow-y-auto scrollbar-hide"
           >
             {/* Slim EXAMVAULT logo header — no user card, no PRO badge */}
@@ -315,7 +315,7 @@ function HomeTab() {
     <div className="pb-6 bg-[#F8FAFC] min-h-screen">
       {/* 1. Scrolling Announcement — TOP (admin announcements) */}
       {scrollText && announcements.length > 0 && (
-        <div className="sticky top-0 z-30 bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
+        <div className="bg-[#0B1437] py-2.5 overflow-hidden border-b border-amber-400/20">
           <div className="flex whitespace-nowrap animate-marquee">
             {announcements.filter(a => a.title || a.description).map((a, idx) => (
               <button
