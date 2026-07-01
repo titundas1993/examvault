@@ -1189,7 +1189,7 @@ function ResultPage() {
             {/* Total Questions view right below score */}
             <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50">
               <FileText className="w-3 h-3 text-blue-500" />
-              <span className="text-xs font-bold text-blue-600">{r.totalQuestions} Questions</span>
+              <span className="text-xs font-bold text-blue-600">{r.totalQuestions || (r.correctAnswers + r.wrongAnswers + r.skipped) || 0} Questions</span>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -1551,15 +1551,7 @@ function SupportTab() {
           )}
         </div>
 
-        {/* App Info */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-[#0B1437] text-sm mb-3 flex items-center gap-2"><span className="text-base">ℹ️</span> About App</h3>
-          <div className="space-y-2 text-xs text-gray-500">
-            <div className="flex justify-between"><span>App Name</span><span className="font-bold text-[#0B1437]">{appSettings?.appName || "ExamVault"}</span></div>
-            <div className="flex justify-between"><span>Version</span><span className="font-bold text-[#0B1437]">1.9.0</span></div>
-            <div className="flex justify-between"><span>Package</span><span className="font-bold text-[#0B1437]">com.examvault.education</span></div>
-          </div>
-        </div>
+        {/* App Info removed — already in Profile > Settings */}
       </div>
     </div>
   );
