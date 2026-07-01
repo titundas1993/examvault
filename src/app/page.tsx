@@ -1038,6 +1038,19 @@ function ExamPage() {
     const deduction = (negativeMarking && negativeMarkPerWrong > 0) ? (wrong * negativeMarkPerWrong) : 0;
     const scoredMarks = Math.max(0, positiveMarks - deduction);
     const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+    // Save question data for review in result page
+    const questionReview = questions.map((q, i) => ({
+      question: q.question,
+      optionA: q.optionA,
+      optionB: q.optionB,
+      optionC: q.optionC,
+      optionD: q.optionD,
+      correctAnswer: q.correctAnswer,
+      userAnswer: answers[i] || "",
+      isCorrect: answers[i] === q.correctAnswer,
+      isSkipped: !answers[i],
+      explanation: q.explanation || "",
+    }));
     const result: any = {
       userId: firebaseUser?.uid || "",
       userName: user?.name || "User",
@@ -1056,6 +1069,7 @@ function ExamPage() {
       accuracy,
       timeUsedSeconds: 2700 - timeLeft,
       answers,
+      questionReview,
       createdAt: new Date().toISOString()
     };
     if (firebaseUser?.uid) { try { await saveTestResult(result as any); } catch (e) { console.error("Save result error:", e); } }
@@ -1217,7 +1231,73 @@ function ResultPage() {
           )}
         </div>
       </div>
-      <div className="px-4 space-y-2">
+
+      {/* Question Review — show all questions with answers */}
+      {r.questionReview && r.questionReview.length > 0 && (
+        <div className="px-4 mt-4">
+          <h3 className="font-bold text-[#0B1437] text-sm mb-3">Question Review ({r.questionReview.length})</h3>
+          <div className="space-y-3">
+            {r.questionReview.map((q: any, i: number) => (
+              <div key={i} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                {/* Question header */}
+                <div className="flex items-start gap-2 mb-3">
+                  <span className={"flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold " + (q.isSkipped ? "bg-gray-100 text-gray-500" : q.isCorrect ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600")}>
+                    {i + 1}
+                  </span>
+                  <p className="text-sm font-medium text-[#0B1437] flex-1">{q.question}</p>
+                  <span className="flex-shrink-0">
+                    {q.isSkipped ? <SkipForward className="w-4 h-4 text-gray-400" /> :
+                     q.isCorrect ? <CheckCircle className="w-4 h-4 text-emerald-500" /> :
+                     <X className="w-4 h-4 text-red-500" />}
+                  </span>
+                </div>
+                {/* Options */}
+                <div className="space-y-1.5 ml-9">
+                  {["A", "B", "C", "D"].map(opt => {
+                    const optionText = (q as any)[`option${opt}`];
+                    if (!optionText) return null;
+                    const isCorrect = q.correctAnswer === opt;
+                    const isUserAnswer = q.userAnswer === optionText;
+                    let bgClass = "bg-gray-50 text-gray-600";
+                    if (isCorrect) {
+                      bgClass = "bg-emerald-50 text-emerald-700 border border-emerald-200";
+                    } else if (isUserAnswer && !isCorrect) {
+                      bgClass = "bg-red-50 text-red-700 border border-red-200";
+                    }
+                    return (
+                      <div key={opt} className={"px-3 py-2 rounded-lg text-xs flex items-center gap-2 " + bgClass}>
+                        <span className="font-bold flex-shrink-0">{opt}.</span>
+                        <span className="flex-1">{optionText}</span>
+                        {isCorrect && <CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
+                        {isUserAnswer && !isCorrect && <X className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Explanation (if available) */}
+                {q.explanation && (
+                  <div className="ml-9 mt-2 p-2.5 bg-blue-50 rounded-lg">
+                    <p className="text-[10px] font-bold text-blue-600 mb-0.5">💡 Explanation</p>
+                    <p className="text-xs text-blue-700 whitespace-pre-wrap">{q.explanation}</p>
+                  </div>
+                )}
+                {/* Status label */}
+                <div className="ml-9 mt-2">
+                  {q.isSkipped ? (
+                    <span className="text-[10px] font-bold text-gray-400">⏭ Skipped</span>
+                  ) : q.isCorrect ? (
+                    <span className="text-[10px] font-bold text-emerald-600">✓ Correct</span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-red-600">✗ Wrong — Correct answer: {q.correctAnswer}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 mt-4 space-y-2">
         <button onClick={() => setView("home")} className="w-full py-3.5 rounded-xl bg-[#0B1437] text-white font-bold text-sm flex items-center justify-center gap-2"><Home className="w-4 h-4" /> Go Home</button>
         <button onClick={() => setView("mocktests")} className="w-full py-3.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm">More Tests</button>
       </div>
