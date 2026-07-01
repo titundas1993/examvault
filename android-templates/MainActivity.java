@@ -107,6 +107,13 @@ public class MainActivity extends Activity implements PaymentResultListener {
         // Setup WebView
         setupWebView();
 
+        // CRITICAL: FLAG_SECURE prevents screenshots and screen recording.
+        // Applied to entire app — prevents cheating via screenshots.
+        // Black screen appears in screenshot/recording instead of content.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        }
+
         // Load the app URL — works offline too via WebView cache
         webView.loadUrl(appUrl);
     }
@@ -286,6 +293,66 @@ public class MainActivity extends Activity implements PaymentResultListener {
                     return false;
                 }
                 return true;
+            }
+        });
+
+        // CRITICAL: Download Listener — handles PDF downloads inside the app.
+        // When user clicks Download PDF, instead of opening browser,
+        // the file downloads to device Downloads folder using Android
+        // Download Manager. Then opens in app's PDF viewer.
+        webView.setDownloadListener(new android.webkit.DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent,
+                                        String contentDisposition, String mimetype,
+                                        long contentLength) {
+                Log.d(TAG, "Download started: " + url + " (type: " + mimetype + ")");
+
+                try {
+                    // Use Android Download Manager to download the file
+                    android.app.DownloadManager.Request request =
+                        new android.app.DownloadManager.Request(android.net.Uri.parse(url));
+
+                    // Extract filename from content disposition or URL
+                    String fileName = android.webkit.URLUtil.guessFileName(
+                        url, contentDisposition, mimetype);
+                    request.setTitle(fileName);
+                    request.setDescription("Downloading from ExamVault...");
+
+                    // Save to Downloads folder
+                    request.setDestinationInExternalPublicDir(
+                        android.os.Environment.DIRECTORY_DOWNLOADS, "ExamVault/" + fileName);
+
+                    // Show notification during and after download
+                    request.setNotificationVisibility(
+                        android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
+                    // Allow media scanner to pick up the file
+                    request.allowScanningByMediaScanner();
+
+                    // Get download manager and enqueue
+                    android.app.DownloadManager dm = (android.app.DownloadManager)
+                        getSystemService(DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(request);
+                        Toast.makeText(MainActivity.this,
+                            "Downloading: " + fileName,
+                            Toast.LENGTH_SHORT).show();
+                    } else {
+                        // Fallback: open in browser
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+                        startActivity(browserIntent);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Download error: " + e.getMessage());
+                    // Fallback: try opening URL in external browser
+                    try {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+                        startActivity(browserIntent);
+                    } catch (Exception e2) {
+                        Toast.makeText(MainActivity.this,
+                            "Cannot download file", Toast.LENGTH_SHORT).show();
+                    }
+                }
             }
         });
     }

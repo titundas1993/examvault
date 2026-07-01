@@ -257,6 +257,22 @@ button, a, [role="button"] {
   animation: scale-in 0.2s ease-out;
 }
 
+/* ===== SECURE PAGES (Exam + Result) ===== */
+/* Prevent text selection, copy, cut, right-click on exam/result pages */
+.secure-page {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: auto;
+}
+.secure-page input,
+.secure-page textarea {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Gradient animations */
 @keyframes gradient-x {
   0%, 100% { background-position: 0% 50%; }

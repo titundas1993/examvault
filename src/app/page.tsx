@@ -1085,7 +1085,7 @@ function ExamPage() {
   const q = questions[currentQ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 secure-page" onContextMenu={(e) => e.preventDefault()} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()}>
       {/* Header */}
       <div className="sticky top-0 z-30 bg-[#0B1437] px-4 py-3 flex items-center gap-3">
         <button onClick={() => setExamBackWarning(true)} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
@@ -1187,7 +1187,7 @@ function ResultPage() {
   const percentage = r.totalMarks > 0 ? Math.round((r.scoredMarks / r.totalMarks) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-6">
+    <div className="min-h-screen bg-[#F8FAFC] pb-6 secure-page" onContextMenu={(e) => e.preventDefault()} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()}>
       <div className="bg-gradient-to-br from-[#0B1437] to-[#1E2A5E] px-4 pt-8 pb-8 text-center">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }} className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center mx-auto mb-4">
           <TrophyIcon className="w-10 h-10 text-[#0B1437]" />
@@ -1897,7 +1897,18 @@ function PreviousPapersScreen() {
     if (firebaseUser?.uid && paper.id) {
       await trackPaperDownload(paper.id, firebaseUser.uid);
     }
-    try { window.open(paper.pdfUrl, "_blank", "noopener,noreferrer"); } catch (e) {}
+    // Download PDF — uses anchor tag with download attribute
+    // In Android APK: WebView DownloadListener catches this and saves to device
+    // In web browser: downloads directly without opening new tab
+    try {
+      const link = document.createElement('a');
+      link.href = paper.pdfUrl;
+      link.download = paper.title || 'document.pdf';
+      link.target = '_self';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {}
     triggerAd("paper_download");
   };
 
@@ -2059,7 +2070,15 @@ function StudyNotesScreen() {
     if (firebaseUser?.uid && note.id) {
       await trackPaperDownload(note.id, firebaseUser.uid);
     }
-    try { window.open(note.pdfUrl, "_blank", "noopener,noreferrer"); } catch (e) {}
+    try {
+      const link = document.createElement('a');
+      link.href = note.pdfUrl;
+      link.download = note.title || 'document.pdf';
+      link.target = '_self';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {}
     triggerAd("note_download");
   };
 
