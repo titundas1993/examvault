@@ -42,7 +42,7 @@ import {
 import { storage, auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import {
   getExams, addExam, updateExam, deleteExam, ExamData,
   getTips, getAllTips, addTip, updateTip, deleteTip, TipData,
@@ -205,6 +205,36 @@ async function uploadFile(file: File, folder: string): Promise<string | null> {
   } catch (error) {
     console.error("File upload error:", error);
     return null;
+  }
+}
+
+// Delete file from Firebase Storage when admin deletes an item
+// Extracts the file path from the download URL and deletes the Storage object
+async function deleteStorageFile(fileUrl: string): Promise<void> {
+  if (!fileUrl || !fileUrl.includes("firebasestorage")) return;
+  try {
+    // Firebase Storage URLs look like:
+    // https://firebasestorage.googleapis.com/v0/b/bucket/o/folder%2Ffilename?token=...
+    // We need to extract the path: folder/filename
+    const url = new URL(fileUrl);
+    const pathMatch = url.pathname.match(/\/o\/(.+?)(?:\?|$)/);
+    if (pathMatch) {
+      const filePath = decodeURIComponent(pathMatch[1]);
+      const fileRef = ref(storage, filePath);
+      await deleteObject(fileRef);
+      console.log("Storage file deleted:", filePath);
+    }
+  } catch (error) {
+    // File may already be deleted, or URL format different — don't block the delete
+    console.log("Storage delete skipped (may not exist):", error);
+  }
+}
+
+// Delete all storage files associated with an item (imageUrl, pdfUrl, thumbnailUrl)
+async function deleteItemStorageFiles(item: any): Promise<void> {
+  const urls = [item.imageUrl, item.pdfUrl, item.thumbnailUrl, item.image].filter(Boolean);
+  for (const url of urls) {
+    await deleteStorageFile(url);
   }
 }
 
@@ -834,6 +864,12 @@ function CrudAdminPanel<T extends Record<string, any>>({
     if (!deletingId) return;
     setSaving(true);
     try {
+      // Find the item being deleted to clean up Storage files
+      const itemToDelete = items.find(it => (it.id === deletingId || it.uid === deletingId));
+      if (itemToDelete) {
+        // Delete associated Storage files (images, PDFs) before deleting the document
+        await deleteItemStorageFiles(itemToDelete);
+      }
       await onDelete(deletingId);
       setDeleteDialogOpen(false);
       setDeletingId(null);
@@ -2976,6 +3012,9 @@ function BannersAdmin() {
     if (!deletingId) return;
     setSaving(true);
     try {
+      // Delete Storage image before deleting document
+      const itemToDelete = items.find(it => (it.id === deletingId || it.uid === deletingId));
+      if (itemToDelete) await deleteItemStorageFiles(itemToDelete);
       await adminDeleteDoc("banners", deletingId);
       setDeleteDialogOpen(false);
       setDeletingId(null);
@@ -3405,6 +3444,9 @@ function AnnouncementsAdmin() {
     if (!deletingId) return;
     setSaving(true);
     try {
+      // Delete Storage image before deleting document
+      const itemToDelete = items.find(it => (it.id === deletingId || it.uid === deletingId));
+      if (itemToDelete) await deleteItemStorageFiles(itemToDelete);
       await adminDeleteDoc("announcements", deletingId);
       setDeleteDialogOpen(false);
       setDeletingId(null);
