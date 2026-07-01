@@ -156,10 +156,16 @@ export default function RootLayout({
                   }).catch(function(err) {
                     console.log('SW registration failed:', err);
                   });
-                  // Listen for new SW taking over
+                  // Listen for new SW taking over — but NOT on first registration
+                  // This prevents the double-reload on first app open
+                  var hasExistingController = !!navigator.serviceWorker.controller;
                   navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    console.log('SW updated — reloading page');
-                    window.location.reload();
+                    // Only reload if there was ALREADY a controller (i.e., SW updated)
+                    // On first load, controller is null, so this won't reload
+                    if (hasExistingController) {
+                      console.log('SW updated — reloading page');
+                      window.location.reload();
+                    }
                   });
                 });
               }

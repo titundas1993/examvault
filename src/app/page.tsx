@@ -1183,7 +1183,15 @@ function ResultPage() {
       </div>
       <div className="px-4 -mt-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-lg mb-4">
-          <div className="text-center mb-4"><p className="text-xs text-gray-400 uppercase">Your Score</p><p className="text-4xl font-black text-[#0B1437]">{r.scoredMarks}<span className="text-lg text-gray-400">/{r.totalMarks}</span></p></div>
+          <div className="text-center mb-4">
+            <p className="text-xs text-gray-400 uppercase">Your Score</p>
+            <p className="text-4xl font-black text-[#0B1437]">{r.scoredMarks}<span className="text-lg text-gray-400">/{r.totalMarks}</span></p>
+            {/* Total Questions view right below score */}
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50">
+              <FileText className="w-3 h-3 text-blue-500" />
+              <span className="text-xs font-bold text-blue-600">{r.totalQuestions} Questions</span>
+            </div>
+          </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-emerald-50 rounded-xl p-3"><CheckCircle className="w-5 h-5 text-emerald-500 mx-auto mb-1" /><p className="text-lg font-bold text-emerald-600">{r.correctAnswers}</p><p className="text-[10px] text-gray-400">Correct</p></div>
             <div className="bg-red-50 rounded-xl p-3"><X className="w-5 h-5 text-red-500 mx-auto mb-1" /><p className="text-lg font-bold text-red-600">{r.wrongAnswers}</p><p className="text-[10px] text-gray-400">Wrong</p></div>
@@ -1464,22 +1472,92 @@ function SupportTab() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
       <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] px-4 pt-5 pb-5">
-        <div className="flex items-center gap-3"><button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button><h1 className="text-white font-bold text-lg">Support</h1></div>
-      </div>
-      <div className="px-4 pt-4 space-y-3">
-        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-[#0B1437] text-sm mb-3">Contact Us</h3>
-          <div className="space-y-2 text-sm text-gray-600">
-            {appSettings?.contactEmail && <p>📧 {appSettings.contactEmail}</p>}
-            {appSettings?.contactPhone && <p>📱 {appSettings.contactPhone}</p>}
-            {appSettings?.whatsappNumber && <p>💬 WhatsApp: {appSettings.whatsappNumber}</p>}
+        <div className="flex items-center gap-3">
+          <button onClick={() => goBack()} className="p-2 rounded-xl bg-white/10"><ArrowLeft className="w-5 h-5 text-white" /></button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Help & Support</h1>
+            <p className="text-white/50 text-xs">We're here to help</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-[#0B1437] text-sm mb-3">Follow Us</h3>
-          <div className="flex gap-3">
-            {appSettings?.instagramUrl && <a href={appSettings.instagramUrl} target="_blank" className="px-3 py-2 rounded-xl bg-pink-50 text-pink-600 text-xs font-bold">Instagram</a>}
-            {appSettings?.youtubeUrl && <a href={appSettings.youtubeUrl} target="_blank" className="px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">YouTube</a>}
+      </div>
+      <div className="px-4 pt-4 space-y-4">
+        {/* Contact Info */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          <h3 className="font-bold text-[#0B1437] text-sm mb-3 flex items-center gap-2"><HelpCircle className="w-4 h-4 text-blue-500" /> Contact Us</h3>
+          <div className="space-y-3">
+            {appSettings?.contactEmail && (
+              <a href={`mailto:${appSettings.contactEmail}`} className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 active:scale-95 transition-transform">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0"><span className="text-base">📧</span></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Email</p>
+                  <p className="text-sm font-medium text-[#0B1437] truncate">{appSettings.contactEmail}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300" />
+              </a>
+            )}
+            {appSettings?.contactPhone && (
+              <a href={`tel:${appSettings.contactPhone}`} className="flex items-center gap-3 p-3 rounded-xl bg-green-50 active:scale-95 transition-transform">
+                <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0"><span className="text-base">📱</span></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Phone</p>
+                  <p className="text-sm font-medium text-[#0B1437]">{appSettings.contactPhone}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300" />
+              </a>
+            )}
+            {appSettings?.whatsappNumber && (
+              <a href={`https://wa.me/${appSettings.whatsappNumber.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 active:scale-95 transition-transform">
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><span className="text-base">💬</span></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">WhatsApp</p>
+                  <p className="text-sm font-medium text-[#0B1437]">{appSettings.whatsappNumber}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300" />
+              </a>
+            )}
+            {!appSettings?.contactEmail && !appSettings?.contactPhone && !appSettings?.whatsappNumber && (
+              <p className="text-xs text-gray-400 text-center py-4">No contact info available yet. Admin will add soon.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Social Media */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          <h3 className="font-bold text-[#0B1437] text-sm mb-3 flex items-center gap-2"><span className="text-base">🌐</span> Follow Us</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {appSettings?.instagramUrl && (
+              <a href={appSettings.instagramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 text-white text-xs font-bold active:scale-95 transition-transform">
+                <span className="text-base">📸</span> Instagram
+              </a>
+            )}
+            {appSettings?.youtubeUrl && (
+              <a href={appSettings.youtubeUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white text-xs font-bold active:scale-95 transition-transform">
+                <span className="text-base">▶️</span> YouTube
+              </a>
+            )}
+            {appSettings?.telegramUrl && (
+              <a href={appSettings.telegramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-xs font-bold active:scale-95 transition-transform">
+                <span className="text-base">✈️</span> Telegram
+              </a>
+            )}
+            {appSettings?.websiteUrl && (
+              <a href={appSettings.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-gray-600 to-gray-800 text-white text-xs font-bold active:scale-95 transition-transform">
+                <span className="text-base">🔗</span> Website
+              </a>
+            )}
+          </div>
+          {!appSettings?.instagramUrl && !appSettings?.youtubeUrl && !appSettings?.telegramUrl && !appSettings?.websiteUrl && (
+            <p className="text-xs text-gray-400 text-center py-4">No social links available yet.</p>
+          )}
+        </div>
+
+        {/* App Info */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          <h3 className="font-bold text-[#0B1437] text-sm mb-3 flex items-center gap-2"><span className="text-base">ℹ️</span> About App</h3>
+          <div className="space-y-2 text-xs text-gray-500">
+            <div className="flex justify-between"><span>App Name</span><span className="font-bold text-[#0B1437]">{appSettings?.appName || "ExamVault"}</span></div>
+            <div className="flex justify-between"><span>Version</span><span className="font-bold text-[#0B1437]">1.9.0</span></div>
+            <div className="flex justify-between"><span>Package</span><span className="font-bold text-[#0B1437]">com.examvault.education</span></div>
           </div>
         </div>
       </div>
