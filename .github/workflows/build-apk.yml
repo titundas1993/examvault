@@ -124,6 +124,9 @@ jobs:
           EOF
 
           # build.gradle (app) — with release signing config + AdMob
+          # versionCode auto-increments using GitHub run number
+          # This ensures every build has a higher versionCode than the previous,
+          # so APK update works without "app not installed" error
           cat > android-project/app/build.gradle << EOF
           plugins {
               id 'com.android.application'
@@ -135,8 +138,8 @@ jobs:
                   applicationId "com.examvault.education"
                   minSdk 21
                   targetSdk 35
-                  versionCode 21
-                  versionName "1.8.3"
+                  versionCode ${GITHUB_RUN_NUMBER}
+                  versionName "1.9.0"
               }
               signingConfigs {
                   release {

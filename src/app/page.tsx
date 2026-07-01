@@ -12,8 +12,10 @@ import {
   getBanners, getAnnouncements,
   getPreviousPapers, getStudyNotes, getUpcomingExams,
   trackPaperDownload, hasUserDownloadedPaper,
+  getUserPayments,
   type CategoryData, type PremiumPlan,
   type PreviousPaperData, type StudyNoteData, type UpcomingExamData,
+  type PaymentData,
   BannerData, AnnouncementData, QuestionData, LeaderboardData, TestResultData,
 } from "@/lib/services/firestore";
 import {
@@ -1547,7 +1549,36 @@ function PerformanceAnalyticsScreen() {
 
 function MyPurchasesScreen() {
   const goBack = useAppStore(s => s.goBack);
+  const setView = useAppStore(s => s.setView);
   const subscription = useAppStore(s => s.subscription);
+  const firebaseUser = useAppStore(s => s.firebaseUser);
+  const [payments, setPayments] = useState<PaymentData[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) return;
+    setLoadingPayments(true);
+    getUserPayments(firebaseUser.uid).then(p => {
+      const valid = (p || []).filter((pay: any) => pay.status === "captured" || pay.verified === true);
+      valid.sort((a: any, b: any) => {
+        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return db - da;
+      });
+      setPayments(valid);
+      setLoadingPayments(false);
+    }).catch(() => setLoadingPayments(false));
+  }, [firebaseUser?.uid]);
+
+  const formatDate = (d?: string) => {
+    if (!d) return "";
+    try {
+      return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    } catch { return ""; }
+  };
+
+  const totalSpent = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-6">
       <div className="bg-gradient-to-r from-[#0B1437] to-[#1E2A5E] p-5 pt-6">
@@ -1555,6 +1586,7 @@ function MyPurchasesScreen() {
         <h1 className="text-white font-bold text-lg flex items-center gap-2"><Crown className="w-5 h-5 text-amber-400" /> My Premium</h1></div>
       </div>
       <div className="p-4">
+        {/* Premium Status */}
         {subscription.isPremium ? (
           <div className="bg-gradient-to-r from-amber-400/10 to-orange-500/10 rounded-2xl p-4 border border-amber-200 mb-4">
             <div className="flex items-center gap-3 mb-2"><div className="w-12 h-12 rounded-2xl bg-amber-400/20 flex items-center justify-center"><Crown className="w-6 h-6 text-amber-500" /></div>
@@ -1564,7 +1596,47 @@ function MyPurchasesScreen() {
           </div>
         ) : (
           <div className="bg-gray-100 rounded-2xl p-4 border border-gray-200 mb-4"><p className="text-sm text-gray-600 mb-3">No active subscription</p>
-          <button onClick={() => useAppStore.getState().setView("pricing")} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm">View Plans</button></div>
+          <button onClick={() => setView("pricing")} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm">View Plans</button></div>
+        )}
+
+        {/* Payment History */}
+        {payments.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-[#0B1437] text-sm">Payment History</h3>
+              <span className="text-xs font-bold text-emerald-600">Total: ₹{totalSpent}</span>
+            </div>
+            <div className="space-y-2">
+              {payments.map((p, i) => (
+                <div key={p.id || i} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#0B1437]">{p.planName || "Purchase"}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(p.createdAt)} • {p.type === "subscription" ? "Subscription" : "One-time"}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-bold text-[#0B1437] text-sm">₹{p.amount || 0}</span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[9px] font-bold flex items-center gap-0.5">
+                        <CheckCircle className="w-2.5 h-2.5" /> {p.verified ? "Verified" : "Captured"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loadingPayments && (
+          <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-[#0B1437]" /></div>
+        )}
+
+        {/* No payments */}
+        {!loadingPayments && payments.length === 0 && subscription.isPremium && (
+          <div className="text-center py-6">
+            <p className="text-gray-400 text-xs">No payment history found</p>
+          </div>
         )}
       </div>
     </div>
